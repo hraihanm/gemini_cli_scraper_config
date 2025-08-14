@@ -1,0 +1,15 @@
+﻿column_name,column_type,dev_notes
+competitor_product_id,str,FIND - Find the product-id if possible or else use sku or barcode
+name,str,FIND
+brand,str,FIND
+category,str,FIND - Search for category breadcrumb and get the first of it
+sub_category,str,"FIND - Include the rest of the subcategories ""subcat 1 > subcat 2 > …"""
+customer_price_lc,float,FIND - The listed price of the product
+base_price_lc,float,"FIND - If it has no discount, then it is the same as customer_price_lc"
+has_discount,boolean,PROCESS - true if it has discount
+discount_percentage,float,PROCESS - process from customer_price_lc and base_price_lc
+description,str,FIND
+img_url,str,FIND
+sku,str,FIND
+url,str,PROCESS
+is_available,boolean,FIND

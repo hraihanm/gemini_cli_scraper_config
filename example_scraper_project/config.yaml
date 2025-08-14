@@ -1,0 +1,25 @@
+seeder:
+  file: ./seeder/seeder.rb
+
+parsers:
+  - file: ./parsers/categories.rb
+    page_type: categories
+  - file: ./parsers/listings.rb
+    page_type: listings
+  - file: ./parsers/product.rb
+    page_type: product
+
+finisher:
+  file: ./finisher/finisher.rb
+  disabled: true
+
+exporters:
+  - exporter_name: products_json
+    exporter_type: json
+    collection: products
+    offset: 0
+    order: desc
+    write_mode: pretty_array
+    export_filename: <name>_<d:yyyyMMdd>
+    export_extension: json.gz
+    no_tar: true
