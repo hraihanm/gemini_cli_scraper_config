@@ -1,2 +1,4 @@
 generated_scraper/*
 !generated_scraper/.gitkeep
+cache/*
+!cache/.gitkeep
