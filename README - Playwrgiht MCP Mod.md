@@ -57,6 +57,27 @@ An attempt to extend/modify MCP tools for personal purpose
     - Supports batch verification
 - **Read-only:** true
 
+#### ✨ browser_evaluate
+
+- **Purpose:**
+  - Executes JavaScript expressions on the current page or specific elements
+  - Perfect for quick selector testing and DOM manipulation verification
+  - Can evaluate complex JavaScript logic for advanced selector validation
+- **Usage:**
+  - Use this tool for quick selector verification and testing JavaScript-based selectors
+  - Ideal for testing complex CSS selectors or XPath expressions
+  - Can evaluate element properties, attributes, and text content dynamically
+  - Parameters:
+    - `function` (string): JavaScript function to execute (e.g., `() => document.querySelector('.product-title')?.textContent`)
+    - `element` (string, optional): Human-readable element description for element-specific evaluation
+    - `ref` (string, optional): Exact target element reference from the page snapshot
+  - **Quick Selector Testing Examples:**
+    - Test CSS selector: `() => document.querySelector('.product-name')?.textContent`
+    - Test multiple elements: `() => Array.from(document.querySelectorAll('.product-item')).length`
+    - Test attribute existence: `() => document.querySelector('[data-product-id]')?.getAttribute('data-product-id')`
+    - Test XPath: `() => document.evaluate('//h1[@class="title"]', document, null, XPathResult.STRING_TYPE, null).stringValue`
+- **Read-only:** true
+
 #### ✨ browser_inspect_element
 
 - **Purpose:**
@@ -121,15 +142,7 @@ An attempt to extend/modify MCP tools for personal purpose
 
 <!-- NOTE: This has been generated via update-readme.js -->
 
-- **browser_evaluate**
-  - Title: Evaluate JavaScript
-  - Description: Evaluate JavaScript expression on page or element
-  - Parameters:
-    - `function` (string): () => { /* code */ } or (element) => { /* code */ } when element is provided
-    - `element` (string, optional): Human-readable element description used to obtain permission to interact with the element
-    - `ref` (string, optional): Exact target element reference from the page snapshot
-  - Read-only: **false**
-
+D
 <!-- NOTE: This has been generated via update-readme.js -->
 
 - **browser_file_upload**
@@ -268,6 +281,17 @@ An attempt to extend/modify MCP tools for personal purpose
     - `attribute` (string, optional): Attribute to check instead of text content (e.g., "href", "data-id")
     - `details` (object, optional): Details object from browser_inspect_element
     - `batch` (array, optional): Additional selectors to verify in batch
+  - Read-only: **true**
+
+<!-- NOTE: This has been generated via update-readme.js -->
+
+- **✨ browser_evaluate**
+  - Title: Evaluate JavaScript
+  - Description: Execute JavaScript expression on page or element
+  - Parameters:
+    - `function` (string): JavaScript function to execute (e.g., `() => document.querySelector('.product-title')?.textContent`)
+    - `element` (string, optional): Human-readable element description used to obtain permission to interact with the element
+    - `ref` (string, optional): Exact target element reference from the page snapshot
   - Read-only: **true**
 
 <!-- NOTE: This has been generated via update-readme.js -->
