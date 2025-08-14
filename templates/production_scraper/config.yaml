@@ -1,0 +1,81 @@
+parse_failed_pages: true
+
+seeder:
+  file: ./seeder/seeder.rb
+
+parsers:
+  - file: ./parsers/category.rb
+    page_type: category
+  - file: ./parsers/listings.rb
+    page_type: listings
+  - file: ./parsers/details.rb
+    page_type: details
+
+finisher:
+  file: ./finisher/finisher.rb
+  disabled: true
+
+exporters:
+  - exporter_name: products_json
+    exporter_type: json
+    collection: products
+    offset: 0
+    order: desc
+    write_mode: pretty_array
+    export_filename: <name>_<d:yyyyMMdd>
+    export_extension: json.gz
+    no_tar: true
+    start_on_job_done: true
+    
+  - exporter_name: products_csv
+    export_filename: <d:yyyyMMdd>_<name>
+    no_subfolder: true
+    exporter_type: csv
+    collection: products
+    start_on_job_done: true
+    offset: 0
+    order: desc
+    fields:
+      # CSV fields will be auto-generated based on specification
+      - header: "competitor_product_id"
+        path: "competitor_product_id"
+        disable_scientific_notation: true
+      - header: "name"
+        path: "name"
+        disable_scientific_notation: true
+      - header: "brand"
+        path: "brand"
+        disable_scientific_notation: true
+      - header: "category"
+        path: "category"
+        disable_scientific_notation: true
+      - header: "sub_category"
+        path: "sub_category"
+        disable_scientific_notation: true
+      - header: "customer_price_lc"
+        path: "customer_price_lc"
+        disable_scientific_notation: true
+      - header: "base_price_lc"
+        path: "base_price_lc"
+        disable_scientific_notation: true
+      - header: "has_discount"
+        path: "has_discount"
+        disable_scientific_notation: true
+      - header: "discount_percentage"
+        path: "discount_percentage"
+        disable_scientific_notation: true
+      - header: "description"
+        path: "description"
+        disable_scientific_notation: true
+      - header: "img_url"
+        path: "img_url"
+        disable_scientific_notation: true
+      - header: "sku"
+        path: "sku"
+        disable_scientific_notation: true
+      - header: "url"
+        path: "url"
+        disable_scientific_notation: true
+      - header: "is_available"
+        path: "is_available"
+        disable_scientific_notation: true

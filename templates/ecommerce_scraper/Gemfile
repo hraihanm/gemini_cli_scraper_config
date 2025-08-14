@@ -1,0 +1,5 @@
+source 'https://rubygems.org'
+
+# Additional gems for enhanced scraping capabilities  
+gem 'addressable'    # URL manipulation and validation
+gem 'chronic'        # Natural language date parsing

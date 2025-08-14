@@ -1,0 +1,63 @@
+# DataHen V3 Scraper Configuration
+# Based on official tutorial patterns
+
+seeder:
+  file: ./seeder/seeder.rb
+  disabled: false
+
+parsers:
+  - file: ./parsers/listings.rb
+    page_type: listings
+    disabled: false
+  - file: ./parsers/details.rb  
+    page_type: details
+    disabled: false
+
+finisher:
+  file: ./finisher/finisher.rb
+  disabled: false
+
+exporters:
+  # Export products as JSON
+  - exporter_name: products_json
+    exporter_type: json
+    collection: products
+    offset: 0
+    order: desc
+    write_mode: pretty_array
+    export_filename: products_<d:yyyyMMdd>
+    export_extension: json.gz
+    no_tar: true
+    
+  # Export quality report
+  - exporter_name: quality_report_json
+    exporter_type: json
+    collection: quality_report
+    offset: 0
+    order: desc
+    write_mode: pretty_array
+    export_filename: quality_report_<d:yyyyMMdd>
+    export_extension: json.gz
+    no_tar: true
+    
+  # Export quality status
+  - exporter_name: quality_status_json
+    exporter_type: json
+    collection: quality_status
+    offset: 0
+    order: desc
+    write_mode: pretty_array
+    export_filename: quality_status_<d:yyyyMMdd>
+    export_extension: json.gz
+    no_tar: true
+    
+  # Export summary
+  - exporter_name: summary_json
+    exporter_type: json
+    collection: summary
+    offset: 0
+    order: desc
+    write_mode: pretty_array
+    export_filename: summary_<d:yyyyMMdd>
+    export_extension: json.gz
+    no_tar: true
