@@ -48,7 +48,8 @@ For each parser development cycle:
 2. **`browser_snapshot()`** - Get page accessibility tree with element references  
 3. **`browser_inspect_element(description, ref)`** - Examine DOM structure for each target element
 4. **`browser_verify_selector(element, selector, expected)`** - Test EVERY CSS selector against actual content
-5. **Repeat on multiple pages** - Verify selector consistency across similar pages
+5. **`browser_evaluate(function)`** - Quick test selectors with JavaScript for rapid validation
+6. **Repeat on multiple pages** - Verify selector consistency across similar pages
 
 **Verification Criteria**:
 - ✅ `browser_verify_selector` must show >90% match for production use
@@ -227,8 +228,25 @@ end
 ### Playwright MCP Mastery
 - Leverage `browser_verify_selector` for validation workflows
 - Use `browser_inspect_element` for detailed DOM analysis
+- Use `browser_evaluate` for quick selector testing and JavaScript-based validation
 - Implement batch verification for multiple selectors
 - Combine browser tools with Ruby parsing for optimal results
+
+#### Quick Selector Testing with browser_evaluate
+The `browser_evaluate` tool is invaluable for rapid selector validation:
+
+**Common Use Cases:**
+- **Quick CSS Selector Test**: `() => document.querySelector('.product-title')?.textContent`
+- **Element Count Verification**: `() => document.querySelectorAll('.product-item').length`
+- **Attribute Testing**: `() => document.querySelector('[data-product-id]')?.getAttribute('data-product-id')`
+- **XPath Validation**: `() => document.evaluate('//h1[@class="title"]', document, null, XPathResult.STRING_TYPE, null).stringValue`
+- **Complex Selector Testing**: `() => document.querySelector('div.product-card:nth-child(2) .price')?.textContent`
+
+**Workflow Integration:**
+1. Use `browser_evaluate` for initial selector testing
+2. Follow up with `browser_verify_selector` for comprehensive validation
+3. Use `browser_inspect_element` for detailed DOM analysis when needed
+4. Test selectors across multiple pages for consistency
 
 #### Handling Escaped Operations & Selector Verification
 When a scraping operation is interrupted or escaped, the system MUST immediately verify all selectors before continuing:
