@@ -4,17 +4,18 @@ These scripts mimic the functionality of `hen parser try` by allowing you to tes
 
 ## What These Scripts Do
 
-1. **Fetch a webpage** using the provided URL
-2. **Mock the DataHen environment** variables (`content`, `page`, `html`)
+1. **Fetch a webpage** using the provided URL OR **Load HTML from local file**
+2. **Mock the DataHen environment** variables (`content`, `page`, `html`, `failed_content`)
 3. **Execute your parser script** with the mocked variables
 4. **Display the results** showing both `pages` and `outputs` arrays
+5. **Cache management** for downloaded HTML pages
 
 ## Available Scripts
 
 ### 1. Ruby Script (Cross-platform)
 - **File**: `parser_tester.rb`
 - **Requirements**: Ruby with `nokogiri` gem
-- **Best for**: Most reliable execution, direct Ruby compatibility
+- **Best for**: Most reliable execution, direct Ruby compatibility, HTML file testing, caching
 
 ### 2. PowerShell Script (Windows)
 - **File**: `parser_tester.ps1`
@@ -45,8 +46,11 @@ These scripts mimic the functionality of `hen parser try` by allowing you to tes
 
 ### Ruby Script
 ```bash
-# Basic usage with scraper directory
+# Basic usage with scraper directory and URL
 ruby parser_tester.rb -s "./generated_scraper/naivas_ke_nairobi" -p "parsers/details.rb" -u "https://example.com/product/123"
+
+# Test with local HTML file (recommended for reliable testing)
+ruby parser_tester.rb -s "./generated_scraper/naivas_ke_nairobi" -p "parsers/details.rb" --html "./cache/product-page.html"
 
 # Test with vars only (no URL)
 ruby parser_tester.rb -s "./generated_scraper/naivas_ke_nairobi" -p "parsers/listings.rb" -v '{"category":"electronics"}'
@@ -77,14 +81,15 @@ chmod +x parser_tester.sh
 
 The script will output similar to `hen parser try`:
 
+**Testing with URL**:
 ```
-Trying parser script
-Getting Job Page
-Using URL: https://example.com/product/123
-Page content fetched successfully (15420 characters)
-=========== Parsing Executed ===========
-----------------------------------------
-Trying to validate 1 out of 1 Outputs
+=== Parser Tester ===
+✓ Using URL: https://example.com/product/123
+✓ Page fetched: 15420 characters
+✓ Parser executed successfully
+
+=== Results ===
+Outputs (1):
 [
   {
     "_collection": "products",
@@ -94,47 +99,68 @@ Trying to validate 1 out of 1 Outputs
     ...
   }
 ]
-Validation successful
+```
+
+**Testing with HTML file**:
+```
+=== Parser Tester ===
+✓ HTML loaded: 15420 characters
+✓ Parser executed successfully
+
+=== Results ===
+Outputs (1):
+[
+  {
+    "_collection": "products",
+    "_id": "12345",
+    "name": "Product Name",
+    "price": "29.99",
+    ...
+  }
+]
 ```
 
 **Testing with vars only**:
 ```
-Trying parser script
-Getting Job Page
-Using vars for testing: {"category"=>"electronics"}
-=========== Parsing Executed ===========
-----------------------------------------
-Trying to validate 15 out of 15 Pages
+=== Parser Tester ===
+✓ Using vars for testing: {"category"=>"electronics"}
+✓ Parser executed successfully
+
+=== Results ===
+Pages (15):
 [...]
-Validation successful
 ```
 
 ## How It Works
 
-1. **Content Fetching**: Uses standard HTTP requests to fetch the webpage
-2. **Environment Mocking**: Creates mock `page` and `content` variables that match DataHen's structure
+1. **Content Fetching**: Uses standard HTTP requests to fetch the webpage OR loads from local HTML file
+2. **Environment Mocking**: Creates mock `page`, `content`, and `failed_content` variables that match DataHen's structure
 3. **Parser Execution**: Loads and executes your parser script in a controlled environment
 4. **Result Capture**: Captures the `pages` and `outputs` arrays from your parser
-5. **Output Display**: Shows the results in the same format as `hen parser try`
+5. **Output Display**: Shows the results in a clean, organized format
+6. **Caching**: Automatically caches downloaded HTML for faster subsequent testing
 
 ## Mocked Variables
 
 The scripts provide these variables to your parser:
 
-- `content`: The HTML content of the fetched page
-- `page`: A hash containing:
+- `content`: The HTML content of the fetched page (or `nil` if fetch failed)
+- `failed_content`: The HTML content if the fetch failed (or `nil` if successful)
+- `page`: A comprehensive hash containing:
   - `url`: The URL being tested
   - `method`: HTTP method (GET)
-  - `page_type`: Default "details"
+  - `page_type`: Default "details" (can be overridden)
   - `fetched_at`: Current timestamp
-  - `response_status_code`: 200
+  - `response_status_code`: 200 (success) or 500 (failure)
   - `gid`: Generated from URL hash
   - `refetch_count`: 0
-  - `priority`: 100
+  - `priority`: 500 (can be overridden)
   - `fetch_type`: "browser"
   - `headers`: Standard browser headers
   - `vars`: Empty hash (can be populated by your parser)
-- `html`: Nokogiri HTML object for easy parsing
+  - `job_id`: 12345 (can be overridden)
+  - And many more DataHen-compatible fields
+- `html`: Nokogiri HTML object for easy parsing (only if content exists)
 - `pages`: Array for queuing new pages
 - `outputs`: Array for storing extracted data
 
@@ -142,15 +168,18 @@ The scripts provide these variables to your parser:
 
 - **Development**: Test parsers during development without deploying to DataHen
 - **Debugging**: Isolate parser issues from DataHen environment problems
-- **Testing**: Verify parser logic against live websites
+- **Testing**: Verify parser logic against live websites or cached HTML
 - **Validation**: Check that selectors work correctly before deployment
+- **Offline Testing**: Test parsers with downloaded HTML files for reliable results
+- **Caching**: Store HTML pages for faster testing iterations
 
 ## Limitations
 
 - **No DataHen Environment**: Some DataHen-specific functions may not work
-- **Single Page Testing**: Tests one URL at a time
+- **Single Page Testing**: Tests one URL or HTML file at a time
 - **No Database**: Results are not stored permanently
 - **Limited Headers**: Uses standard browser headers, may not match your production setup
+- **Cache Storage**: HTML files are stored locally in `cache/` directory
 
 ## Troubleshooting
 
@@ -188,8 +217,26 @@ These scripts can be easily integrated with Gemini CLI by:
 2. **Making them executable**: Ensure proper permissions
 3. **Using in workflows**: Call them from other automation scripts
 4. **Customizing**: Modify the scripts to match your specific needs
+5. **Enhanced Workflow**: Use with browser tools to download HTML and test parsers automatically
 
 ## Advanced Usage
+
+### HTML File Testing
+Test parsers with downloaded HTML files for reliable, offline testing:
+```bash
+# Download HTML first, then test
+ruby parser_tester.rb -s "./scraper" -p "parsers/details.rb" --html "./cache/page.html"
+```
+
+### Cache Management
+Use built-in cache management commands:
+```bash
+# List cached pages
+ruby parser_tester.rb --list-cache
+
+# Clear all cached pages
+ruby parser_tester.rb --clear-cache
+```
 
 ### Custom Headers
 Modify the scripts to include custom headers for your specific use case.
@@ -202,3 +249,9 @@ Set environment variables to customize behavior:
 
 ### Batch Testing
 Create wrapper scripts to test multiple URLs or parsers in sequence.
+
+### Enhanced Options
+- `--page-type`: Override default page type
+- `--priority`: Set custom page priority
+- `--job-id`: Set custom job ID
+- `--quiet`: Suppress verbose output for cleaner results
