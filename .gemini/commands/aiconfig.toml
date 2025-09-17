@@ -1,0 +1,154 @@
+description = "Structured parser generation using aiconfig.yaml for complex web scraping projects"
+prompt = """
+You are now in **Aiconfig Mode** - a specialized workflow for structured parser generation using aiconfig.yaml configuration.
+
+## Mode Overview
+**Purpose**: Structured parser generation using aiconfig.yaml
+**Best For**: Complex projects, configuration-driven development, production-ready scrapers
+**Time Target**: Complete scraper generation within 45 minutes
+
+## Workflow Protocol
+
+### Phase 1: Configuration Analysis
+1. **Parse aiconfig.yaml**: Analyze the complete configuration structure
+2. **Validate Configuration**: Ensure all required fields are present and properly formatted
+3. **Pagination Detection**: Use `browser_network_requests` to detect all pagination patterns
+4. **Subcategory Discovery**: Ensure ALL subcategories and nested categories are discovered
+5. **Identify Dependencies**: Map parser dependencies and data flow
+6. **Generate Project Structure**: Create complete scraper project based on config
+
+### Phase 2: Systematic Parser Development
+1. **Seeder Implementation**: Generate seeder based on configuration
+2. **Parser Generation**: Create each parser according to configuration specifications
+3. **Selector Discovery**: Use browser tools to find and verify selectors for each field
+4. **Output Mapping**: Map parser outputs to configuration specifications
+
+### Phase 3: Comprehensive Testing & Validation
+1. **Configuration Compliance**: Ensure all parsers match configuration requirements
+2. **Data Flow Testing**: Test complete pipeline from seeder to output
+3. **Field Validation**: Verify all configured fields are properly extracted
+4. **Integration Testing**: Test complete scraper with real data
+
+## Required Tools & Techniques
+
+### Configuration-Driven Parser Generation
+```ruby
+# Generate parser based on aiconfig.yaml structure
+def generate_parser(page_type, config)
+  # Extract field definitions from config
+  fields = config['outputs'].first['fields']
+  
+  # Generate parser code for each field
+  fields.each do |field|
+    generate_field_extraction(field)
+  end
+  
+  # Implement page generation logic
+  generate_page_generation(config['pages'])
+end
+```
+
+### Systematic Selector Discovery
+```javascript
+// Systematic selector discovery for each configured field
+async function discoverSelectors(field_config) {
+  const { name, description, selector } = field_config;
+  
+  // Use browser tools to find selectors
+  const candidates = await browser_evaluate(() => {
+    // Test multiple selector patterns
+    const patterns = generateSelectorPatterns(description);
+    return patterns.map(p => ({
+      selector: p,
+      match: document.querySelector(p),
+      count: document.querySelectorAll(p).length
+    }));
+  });
+  
+  // Verify best candidate
+  return await browser_verify_selector(
+    description, 
+    best_candidate.selector, 
+    expected_value
+  );
+}
+```
+
+### Configuration Testing (MANDATORY)
+```javascript
+// Test parser against configuration requirements
+parser_tester({
+  scraper_dir: "D:\\DataHen\\projects\\playwright-mcp-mod\\generated_scraper\\[scraper_name]",
+  parser_path: "parsers/details.rb",
+  auto_download: true,
+  page_type: "details",
+  quiet: false
+})
+```
+
+## Quality Standards for Aiconfig Mode
+
+### Configuration Compliance
+- **100% Config Adherence**: All parsers must exactly match configuration
+- **Field Completeness**: All configured fields must be implemented
+- **Pagination Coverage**: ALL pages and subcategories must be accessed
+- **Network Analysis**: Use browser_network_requests to detect all pagination patterns
+- **Type Safety**: Proper data type handling for each field
+- **Error Handling**: Comprehensive error handling for all configured scenarios
+
+### Testing Requirements
+- **Configuration Testing**: Test against exact configuration specifications
+- **Field Validation**: Verify each configured field is properly extracted
+- **Data Flow Testing**: Test complete pipeline from seeder to output
+- **Edge Case Testing**: Test all configured error conditions
+
+## Working Directory
+All development must happen in `./generated_scraper/[scraper_name]/`
+
+## Aiconfig.yaml Structure Integration
+
+### Seeder Configuration
+```yaml
+seeder:
+  pages:
+    - url: "www.example1.com"
+      page_type: "list"
+    - url: "www.example2.com"
+      page_type: "list"
+```
+
+### Parser Configuration
+```yaml
+parsers:
+  - page_type: list
+    file: "./parsers/list.rb"
+    disabled: false
+    outputs:
+      - name: "metadata"
+        fields:
+          - name: "title"
+            description: "product title from the list"
+            selector: ""
+          - name: "price"
+            description: "product price from the list"
+            selector: ""
+    pages:
+      - url: "www.example1.com"
+        page_type: "details"
+```
+
+## Expected Output
+- **Configuration-Compliant Scraper**: Fully matches aiconfig.yaml specifications
+- **Production-Ready Code**: High-quality, maintainable parser code
+- **Comprehensive Documentation**: Clear mapping between config and implementation
+- **Validation Report**: Complete testing results against configuration
+
+## Integration with System.md
+Follow all operational rules from system.md:
+- Use `parser_tester` MCP tool for ALL parser testing
+- Follow mandatory selector verification protocol
+- Implement robust variable passing and context management
+- Include comprehensive error handling requirements
+
+Now, let's begin aiconfig mode with the configuration file: {{args}}
+"""

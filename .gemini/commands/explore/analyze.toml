@@ -1,0 +1,86 @@
+description = "Analyze specific page type for selector discovery in exploration mode"
+prompt = """
+You are analyzing a specific page type for selector discovery in **Exploration Mode**.
+
+## Analysis Protocol
+
+### 1. Browser Navigation & Snapshot
+```javascript
+// Navigate to target page and capture structure
+browser_navigate('{{args}}')
+browser_snapshot()
+```
+
+### 2. Element Discovery
+```javascript
+// Use browser tools to identify key elements
+browser_inspect_element('Product title', 'ref')
+browser_inspect_element('Product price', 'ref')
+browser_inspect_element('Product image', 'ref')
+browser_inspect_element('Product link', 'ref')
+```
+
+### 3. Selector Testing
+```javascript
+// Test multiple selector patterns quickly
+browser_evaluate(() => {
+  const patterns = [
+    '.product-title',
+    'h1[class*="title"]',
+    '[data-testid*="title"]',
+    '.product-name',
+    'h2.product-name'
+  ];
+  return patterns.map(p => ({
+    selector: p,
+    count: document.querySelectorAll(p).length,
+    sample: document.querySelector(p)?.textContent?.slice(0, 50)
+  }));
+});
+```
+
+### 4. Selector Verification
+```javascript
+// Verify best candidate selectors
+browser_verify_selector('Product title', 'best_selector', 'expected_text')
+browser_verify_selector('Product price', 'best_selector', 'expected_price')
+```
+
+## Analysis Focus Areas
+
+### For Listings Pages:
+- Product item containers
+- Product title selectors
+- Price selectors
+- Image selectors
+- Link selectors to detail pages
+- Pagination controls
+
+### For Details Pages:
+- Product title
+- Price information
+- Product description
+- Image galleries
+- Availability status
+- Product specifications
+
+### For Category Pages:
+- Category navigation links
+- Subcategory structures
+- Breadcrumb navigation
+- Category titles
+
+## Quality Standards
+- **Selector Accuracy**: >90% match rate using browser_verify_selector
+- **Element Coverage**: Identify all required elements for CSV fields
+- **Fallback Strategies**: Document alternative selectors for each element
+- **Cross-Page Testing**: Test selectors on 2-3 similar pages
+
+## Documentation Requirements
+- Document each discovered selector with reliability rating
+- Note any site-specific quirks or dynamic behavior
+- Provide fallback selectors for critical elements
+- Record element counts and sample content
+
+Now, analyze the page type: {{args}}
+"""

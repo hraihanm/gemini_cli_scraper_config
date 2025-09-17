@@ -1,0 +1,96 @@
+description = "Generate parser for specific page type in exploration mode"
+prompt = """
+You are generating a parser for a specific page type in **Exploration Mode**.
+
+## Generation Protocol
+
+### 1. Parser Structure
+```ruby
+# Standard parser structure for DataHen V3
+html = Nokogiri::HTML(content)
+vars = page['vars'] || {}
+
+# Extract data using verified selectors
+# [Generated extraction code based on analysis]
+
+# Generate pages for next stage
+pages << {
+  url: next_url,
+  page_type: 'next_type',
+  vars: vars.merge({ additional_context: value })
+}
+
+# Output extracted data
+outputs << {
+  '_collection' => 'collection_name',
+  '_id' => unique_id,
+  # [Generated output fields based on CSV specification]
+}
+```
+
+### 2. Selector Implementation
+- Use only verified selectors from browser analysis
+- Include fallback selectors for critical fields
+- Add error handling with rescue clauses
+- Document selector choices in comments
+
+### 3. Variable Passing
+- Preserve all parent variables using `**page['vars']`
+- Add new context variables as needed
+- Maintain data flow throughout pipeline
+
+### 4. Error Handling
+```ruby
+# Handle missing elements gracefully
+name = html.at_css('.product-title')&.text&.strip rescue nil
+if name.nil?
+  name = html.at_css('.product-name')&.text&.strip rescue "Unknown Product"
+end
+```
+
+## Page Type Specific Generation
+
+### For Listings Pages:
+- Extract product items from listing containers
+- Generate detail page URLs
+- Handle pagination if present
+- Pass category context to detail pages
+
+### For Details Pages:
+- Extract all product information
+- Map fields to CSV specification
+- Handle missing or unavailable products
+- Output structured product data
+
+### For Category Pages:
+- Extract category navigation links
+- Generate listing page URLs
+- Pass category context to listings
+- Handle subcategory structures
+
+## Quality Requirements
+- **Verified Selectors**: Only use browser-verified selectors
+- **Error Handling**: Comprehensive error handling for all fields
+- **Variable Passing**: Proper context preservation
+- **CSV Compliance**: All fields must match CSV specification
+
+## Testing Integration
+After generation, immediately test the parser:
+```javascript
+parser_tester({
+  scraper_dir: "D:\\DataHen\\projects\\playwright-mcp-mod\\generated_scraper\\[scraper_name]",
+  parser_path: "parsers/{{args}}.rb",
+  auto_download: true,
+  page_type: "{{args}}",
+  quiet: false
+})
+```
+
+## Documentation Requirements
+- Clear comments explaining business logic
+- Selector documentation with fallbacks
+- Error handling scenario documentation
+- Variable passing documentation
+
+Now, generate the parser for page type: {{args}}
+"""
