@@ -1,0 +1,124 @@
+description = "Generate parser from aiconfig.yaml configuration specifications"
+prompt = """
+You are generating a parser from aiconfig.yaml configuration specifications in **Aiconfig Mode**.
+
+## Configuration-Driven Generation Protocol
+
+### 1. Parse Configuration
+```ruby
+# Parse aiconfig.yaml for specific page type
+def generate_parser_from_config(page_type, config)
+  parser_config = config['parsers'].find { |p| p['page_type'] == page_type }
+  
+  # Extract field definitions
+  fields = parser_config['outputs'].first['fields']
+  
+  # Generate parser code for each field
+  fields.each do |field|
+    generate_field_extraction(field)
+  end
+  
+  # Generate page creation logic
+  generate_page_generation(parser_config['pages'])
+end
+```
+
+### 2. Field Implementation
+```ruby
+# Generate field extraction based on configuration
+def generate_field_extraction(field)
+  field_name = field['name']
+  field_description = field['description']
+  field_selector = field['selector']
+  
+  # Generate extraction code with error handling
+  "#{field_name} = html.at_css('#{field_selector}')&.text&.strip rescue nil"
+end
+```
+
+### 3. Output Structure
+```ruby
+# Generate output structure matching configuration
+def generate_output_structure(outputs_config)
+  outputs_config['fields'].map do |field|
+    {
+      field['name'] => "extracted_#{field['name']}"
+    }
+  end
+end
+```
+
+### 4. Page Generation
+```ruby
+# Generate page creation based on configuration
+def generate_page_generation(pages_config)
+  pages_config.each do |page|
+    pages << {
+      url: page['url'],
+      page_type: page['page_type'],
+      vars: page['vars'] || {}
+    }
+  end
+end
+```
+
+## Configuration Compliance Requirements
+
+### Field Implementation
+- **Exact Field Names**: Use exact field names from configuration
+- **Type Handling**: Implement proper data type conversion
+- **Selector Mapping**: Use configured selectors or discover reliable ones
+- **Error Handling**: Handle missing fields according to configuration
+
+### Output Structure
+- **Collection Names**: Use exact collection names from configuration
+- **Field Mapping**: Map all configured fields to outputs
+- **Data Types**: Ensure data types match configuration
+- **Required Fields**: Include all required fields from configuration
+
+### Page Generation
+- **Page Types**: Generate correct page types from configuration
+- **URL Patterns**: Use configured URL patterns
+- **Variable Passing**: Pass configured variables between parsers
+- **Dependencies**: Handle parser dependencies from configuration
+
+## Quality Standards
+
+### Configuration Compliance
+- **100% Config Match**: Parser must exactly match configuration
+- **Field Completeness**: All configured fields must be implemented
+- **Type Safety**: All field types must be properly handled
+- **Error Handling**: All configured error scenarios must be handled
+
+### Code Quality
+- **Ruby Best Practices**: Follow Ruby conventions and DataHen patterns
+- **Error Handling**: Comprehensive error handling for all fields
+- **Documentation**: Clear comments explaining configuration mapping
+- **Maintainability**: Clean, readable, and maintainable code
+
+## Testing Integration
+After generation, test against configuration:
+```javascript
+parser_tester({
+  scraper_dir: "D:\\DataHen\\projects\\playwright-mcp-mod\\generated_scraper\\[scraper_name]",
+  parser_path: "parsers/{{args}}.rb",
+  auto_download: true,
+  page_type: "{{args}}",
+  quiet: false
+})
+```
+
+## Documentation Requirements
+- Map each configured field to implementation
+- Document configuration compliance validation
+- Explain field type handling and conversion
+- Record any configuration issues or missing requirements
+
+## Integration with Aiconfig.yaml
+- **Seeder Integration**: Ensure seeder matches configuration
+- **Parser Dependencies**: Handle all parser dependencies
+- **Output Validation**: Validate outputs against configuration
+- **Page Flow**: Ensure page flow matches configuration
+
+Now, generate the parser from configuration for page type: {{args}}
+"""

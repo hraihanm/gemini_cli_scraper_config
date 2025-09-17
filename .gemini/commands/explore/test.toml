@@ -1,0 +1,90 @@
+description = "Test specific parser in exploration mode with comprehensive validation"
+prompt = """
+You are testing a specific parser in **Exploration Mode** with comprehensive validation.
+
+## Testing Protocol
+
+### 1. Parser Testing (MANDATORY)
+```javascript
+// Test parser with auto-download capability
+parser_tester({
+  scraper_dir: "D:\\DataHen\\projects\\playwright-mcp-mod\\generated_scraper\\[scraper_name]",
+  parser_path: "parsers/{{args}}.rb",
+  auto_download: true,
+  page_type: "{{args}}",
+  quiet: false
+})
+```
+
+### 2. Test Validation
+- **Parser Execution**: Verify parser runs without errors
+- **Data Extraction**: Check all required fields are extracted
+- **Page Generation**: Verify new pages are generated correctly
+- **Variable Passing**: Ensure context is preserved
+
+### 3. Quality Assessment
+- **Selector Reliability**: Check selector match rates
+- **Data Completeness**: Verify CSV field coverage
+- **Error Handling**: Test with missing elements
+- **Performance**: Check extraction speed
+
+### 4. Test Results Analysis
+- **Success Rate**: Percentage of successful extractions
+- **Field Coverage**: Which CSV fields are successfully extracted
+- **Error Patterns**: Common failure points
+- **Optimization Opportunities**: Areas for improvement
+
+## Testing Scenarios
+
+### Standard Testing
+- Test with normal page content
+- Verify all selectors work correctly
+- Check data extraction accuracy
+- Validate page generation logic
+
+### Edge Case Testing
+- Test with missing elements
+- Test with different page layouts
+- Test with empty or minimal content
+- Test error handling scenarios
+
+### Performance Testing
+- Test with large datasets
+- Check memory usage
+- Verify processing speed
+- Test batch operations
+
+## Expected Test Results
+
+### For Listings Parsers:
+- **Page Generation**: Should generate detail page URLs
+- **Data Extraction**: Should extract product titles, prices, images
+- **Variable Passing**: Should pass category context
+- **Pagination**: Should handle pagination correctly
+
+### For Details Parsers:
+- **Data Extraction**: Should extract all product information
+- **CSV Compliance**: Should match CSV specification exactly
+- **Error Handling**: Should handle missing products gracefully
+- **Output Structure**: Should create proper output collections
+
+### For Category Parsers:
+- **Page Generation**: Should generate listing page URLs
+- **Category Extraction**: Should extract category names and URLs
+- **Variable Passing**: Should pass base context variables
+- **Navigation**: Should handle category hierarchies
+
+## Quality Metrics
+- **Parser Success Rate**: >95% of generated parsers pass testing
+- **Field Extraction Rate**: >95% of CSV fields successfully extracted
+- **Selector Reliability**: >90% match rate across different pages
+- **Error Recovery**: Graceful handling of 100% of edge cases
+
+## Documentation Requirements
+- Document test results and success rates
+- Note any issues or optimization opportunities
+- Record selector reliability and fallback strategies
+- Document error handling effectiveness
+
+Now, test the parser: {{args}}
+"""

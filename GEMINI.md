@@ -66,6 +66,7 @@ As an expert scraping engineer, you prioritize **reliability and accuracy** in s
 3. **Selector Validation**: Use `browser_verify_selector(element, selector, expected)` to ensure reliability
 4. **Quick Testing**: Use `browser_evaluate(function)` for rapid selector prototyping
 5. **Cross-Page Verification**: Test selectors across multiple pages for consistency
+6. **Pagination Detection**: Use `browser_network_requests` to detect pagination patterns and API calls
 
 **Quality Standards**:
 - Aim for >90% selector match rates using `browser_verify_selector`
@@ -78,6 +79,81 @@ As an expert scraping engineer, you prioritize **reliability and accuracy** in s
 - Product listing layouts and pagination controls
 - Product detail fields (name, price, brand, images, descriptions)
 - Availability status and stock information across different product states
+
+#### Advanced Pagination Detection Methodology
+**CRITICAL**: Use `browser_network_requests` to ensure comprehensive pagination detection:
+
+**Phase 1: Initial Pagination Discovery**
+```javascript
+// 1. Navigate to category page
+browser_navigate('https://site.com/category')
+browser_snapshot()
+
+// 2. Monitor network activity during page load
+browser_network_requests()
+
+// 3. Look for pagination indicators
+browser_evaluate(() => {
+    // Check for pagination buttons
+    const paginationButtons = document.querySelectorAll('.pagination a, .load-more, .next-page, .show-more')
+    return Array.from(paginationButtons).map(btn => ({
+        text: btn.textContent.trim(),
+        href: btn.href,
+        classes: btn.className
+    }))
+})
+```
+
+**Phase 2: API-Based Pagination Detection**
+```javascript
+// 4. Scroll or interact to trigger pagination
+browser_evaluate(() => window.scrollTo(0, document.body.scrollHeight))
+browser_wait_for({ time: 3 })
+
+// 5. Check network requests for API calls
+const networkRequests = browser_network_requests()
+const apiCalls = networkRequests.filter(req => 
+    req.type === 'xhr' && 
+    (req.url.includes('page=') || req.url.includes('offset=') || req.url.includes('load'))
+)
+```
+
+**Phase 3: Comprehensive Pagination Implementation**
+```ruby
+# Based on network analysis, implement appropriate pagination strategy
+def implement_pagination_strategy(network_requests, html)
+    # Method 1: API-based pagination
+    api_calls = network_requests.select { |req| req['type'] == 'xhr' && req['url'].include?('page=') }
+    if api_calls.any?
+        implement_api_pagination(api_calls.first['url'])
+    end
+    
+    # Method 2: Button-based pagination
+    pagination_buttons = html.css('.pagination a, .load-more, .next-page')
+    if pagination_buttons.any?
+        implement_button_pagination(pagination_buttons)
+    end
+    
+    # Method 3: Infinite scroll detection
+    scroll_requests = network_requests.select { |req| req['url'].include?('scroll') || req['url'].include?('load') }
+    if scroll_requests.any?
+        implement_infinite_scroll(scroll_requests)
+    end
+end
+```
+
+**Phase 4: Subcategory Discovery**
+```javascript
+// 6. Discover all subcategories
+browser_evaluate(() => {
+    const subcategoryLinks = document.querySelectorAll('.subcategory a, .category-item a, .menu-item a')
+    return Array.from(subcategoryLinks).map(link => ({
+        text: link.textContent.trim(),
+        href: link.href,
+        level: link.closest('.submenu, .dropdown') ? 2 : 1
+    }))
+})
+```
 
 ### Comprehensive Quality Assurance Strategy
 **Professional Development Approach**: Implement systematic testing to ensure scraper reliability and maintainability:
@@ -204,6 +280,246 @@ outputs << {
 
 ## Advanced Techniques
 
+### Production Scraper Analysis & Best Practices
+Based on comprehensive analysis of production scrapers vs AI-generated versions:
+
+#### **Critical Production Patterns Missing in AI Generation**
+
+**1. Multi-Stage Parser Architecture with Comprehensive Pagination**
+```ruby
+# Production pattern: Complex workflow with multiple parser stages
+# categories → before_listings → listings → product
+# vs AI pattern: categories → listings → details
+
+# Production seeder with comprehensive category discovery
+pages << {
+    page_type: "categories",
+    url: "https://site.com",
+    priority: 100,
+    headers: ReqHeaders::GENERAL.merge({
+        'cookie': page['response_cookie']
+    }),
+}
+```
+
+**2. Advanced Category Processing with Recursion**
+```ruby
+# Production: Recursive subcategory handling with breadcrumbs
+def process_categories(categories, input_vars={}, level=1)
+    categories.each do |category|
+        # Handle main categories
+        if level == 1
+            page_vars = { "main_cat": cat_name, "cat": cat_name, "level": level }
+        else
+            # Build breadcrumb for subcategories
+            breadcrumb = input_vars[:breadcrumb].nil? ? cat_name : "#{input_vars[:breadcrumb]} > #{cat_name}"
+            page_vars = input_vars.merge({
+                "cat": cat_name, "breadcrumb": breadcrumb, "level": level
+            })
+        end
+        
+        # Recursive call for subcategories
+        process_categories(subcategories, page_vars, level+1) 
+    end
+end
+```
+
+**3. Advanced Pagination Detection & Network Analysis**
+```ruby
+# Production: Comprehensive pagination handling with network monitoring
+# Use browser_network_requests to detect pagination patterns
+
+# Method 1: API-based pagination detection
+cat_id = vars["cat_id"]
+total_pages = json['totalPages']
+if total_pages > 1
+    (2..total_pages).each do |pn|
+        pages << {
+            url: "https://site.com/api/category/products?id=" + cat_id + "&pageNumber=" + pn.to_s,
+            page_type: "listings",
+            vars: vars.merge({ "page_number" => pn }),
+            headers: ReqHeaders::GENERAL.merge({ 'cookie': page['headers']['cookie'] }),
+        }
+    end
+end
+
+# Method 2: Button-based pagination detection
+pagination_buttons = html.css('.pagination a, .load-more, .next-page')
+pagination_buttons.each do |button|
+    next_url = button['href']
+    if next_url && !next_url.include?('javascript:')
+        pages << {
+            url: base_url + next_url,
+            page_type: "listings",
+            vars: vars.merge({ "page_number" => extract_page_number(next_url) }),
+            headers: ReqHeaders::GENERAL.merge({ 'cookie': page['headers']['cookie'] }),
+        }
+    end
+end
+
+# Method 3: Infinite scroll detection via network monitoring
+# Use browser_network_requests to detect AJAX calls for more content
+def detect_infinite_scroll_patterns(network_requests)
+    # Look for patterns like:
+    # - XHR requests with pagination parameters
+    # - JSON responses with product data
+    # - Load more button interactions
+    api_calls = network_requests.select do |req|
+        req['type'] == 'xhr' && 
+        (req['url'].include?('page=') || req['url'].include?('offset=') || req['url'].include?('load'))
+    end
+    api_calls
+end
+```
+
+**4. Complex Data Extraction from Embedded Scripts**
+```ruby
+# Production: Extracts data from embedded JSON scripts
+target_script = html.at_css('script:contains("{\"product\":{\"name\"")').text
+target_script = target_script
+    .gsub(/self\.__next_f\.push\(\[1,"[0-9a-z]{1,2}:\[\\"\$\\",\\"\$L[0-9a-z]{1,2}\\"\,null,/, "")
+    .gsub(']\n"])', "")
+    .gsub('\\\\', '\\').gsub("\\\"", "\"")
+
+json = JSON.parse(target_script)
+product_details = json['product']
+```
+
+**5. Comprehensive Error Handling & Resilience**
+```ruby
+# Production: Robust error handling with refetch mechanisms
+if page['failed_response_status_code'] == 403
+    refetch_or_limbo("403 Error")
+end
+
+if page['response_status_code'].nil? && page['failed_response_status_code'].nil?
+    refetch_or_limbo("Blank page")
+end
+
+def refetch_or_limbo(reason)
+    puts "AUTO-REFETCH: " + reason
+    if page['refetch_count'] > 2
+        puts "Please review this page manually"
+        raise "Fail!"
+    else
+        puts "Queued to be refetched"
+        refetch page['gid']
+    end
+    finish
+end
+```
+
+**6. Advanced Helper Functions**
+```ruby
+# Production: Sophisticated data processing helpers
+class Helpers
+    def self.getsize(text)
+        # Complex regex patterns for size extraction
+        size_regex = [
+            /(\d*[\.,]?\d+)\s?(litre)/i,
+            /(\d*[\.,]?\d+)\s?(kg)/i,
+            # ... many more patterns
+        ]
+        size_regex.find {|sr| text =~ sr}
+        [size_std, size_unit_std]
+    end
+    
+    def self.getProductPieces(text)
+        # Extract product pieces from text
+        product_pieces_regex = [
+            /(\d+)\s?per\s?pack/i,
+            /(\d+)\s?pcs?/i,
+            # ... comprehensive patterns
+        ]
+        product_pieces_regex ? $1.to_i : 1
+    end
+end
+```
+
+**7. Production-Grade Output Structure**
+```ruby
+# Production: 40+ fields with comprehensive data
+outputs << {
+    _id: competitor_product_id,
+    _collection: "products",
+    competitor_name: "SHWAPNO",
+    competitor_type: "dmart",
+    store_name: "Shwapno - Gulshan 1",
+    store_id: "65f00b24101d9be04a6c47a5",
+    country_iso: "BD",
+    language: "ENG",
+    currency_code_lc: "BDT",
+    scraped_at_timestamp: Time.parse(page['fetched_at']).strftime('%Y-%m-%d %H:%M:%S'),
+    competitor_product_id: competitor_product_id,
+    name: name,
+    brand: brand,
+    category_id: category_id,
+    category: category,
+    sub_category: sub_category,
+    customer_price_lc: customer_price_lc,
+    base_price_lc: base_price_lc,
+    has_discount: has_discount,
+    discount_percentage: discount_percentage,
+    rank_in_listing: rank,
+    page_number: vars["page_number"],
+    product_pieces: product_pieces,
+    size_std: size_std,
+    size_unit_std: size_unit_std,
+    description: description,
+    img_url: img_url,
+    barcode: barcode,
+    sku: sku,
+    url: url,
+    is_available: is_available,
+    crawled_source: "WEB",
+    is_promoted: is_promoted,
+    type_of_promotion: type_of_promotion,
+    promo_attributes: promo_attributes,
+    is_private_label: is_private_label,
+    latitude: 23.7747046,
+    longitude: 90.4159275,
+    reviews: reviews,
+    store_reviews: nil,
+    item_attributes: item_attributes,
+    item_identifiers: "{\"barcode\":\"\'#{competitor_product_id}\'\"}",
+    country_of_origin: country_of_origin,
+    variants: nil,
+}
+```
+
+#### **AI Generation Improvements Needed**
+
+**1. Enhanced Parser Architecture**
+- Implement multi-stage parser workflows (categories → before_listings → listings → product)
+- Add comprehensive pagination detection using network monitoring
+- Include before_listings parser for complex sites with API integration
+
+**2. Advanced Pagination Detection**
+- Use `browser_network_requests` to detect API-based pagination patterns
+- Implement button-based pagination detection for traditional sites
+- Add infinite scroll detection via network monitoring
+- Ensure ALL pages and subcategories are accessed
+
+**3. Advanced Data Extraction**
+- Extract from embedded JSON scripts, not just HTML
+- Implement complex category mapping and breadcrumb handling
+- Add comprehensive product attribute extraction
+
+**4. Production-Grade Error Handling**
+- Implement refetch mechanisms for failed pages
+- Add 403 error handling and cookie management
+- Include graceful degradation for missing elements
+
+**5. Comprehensive Output Structure**
+- Generate 40+ product fields instead of basic fields
+- Include promotions, reviews, item attributes
+- Add geographic and business context data
+
+**6. Helper Function Integration**
+- Implement size parsing and product pieces calculation
+- Add data validation and cleansing functions
+- Include business logic for promotions and availability
+
 ### DataHen-Specific Patterns
 Based on production scrapers and official tutorials:
 
@@ -215,18 +531,17 @@ require "./lib/headers"
 pages << {
   page_type: 'category',
   method: "GET", 
-  url: "https://example.com/?automatic_redirect=1",
-  fetch_type: 'browser',
+  url: "https://example.com/",
+  fetch_type: 'standard',
   http2: true,
   headers: ReqHeaders::DEFAULT_HEADER,
-  vars: { category: "electronics" }  # Pass variables to parsers
 }
 ```
 
 #### Advanced Category Parsing
 ```ruby
 # Handle complex navigation structures
-categories = html.css('a.px-4.py-3.text-sm')
+categories = html.css('categories-selector')
 categories.each do |main_cat|
   cat_name = main_cat.text.strip
   cat_url = "https://example.com" + main_cat['href'] + "?page=1"
@@ -358,7 +673,7 @@ The `browser_evaluate` tool is invaluable for rapid selector validation:
 - **XPath Validation**: `() => document.evaluate('//h1[@class="title"]', document, null, XPathResult.STRING_TYPE, null).stringValue`
 - **Complex Selector Testing**: `() => document.querySelector('div.product-card:nth-child(2) .price')?.textContent`
 
-**Workflow Integration:**
+**Workflow Integration**:
 1. Use `browser_evaluate` for initial selector testing
 2. Follow up with `browser_verify_selector` for comprehensive validation
 3. Use `browser_inspect_element` for detailed DOM analysis when needed
@@ -423,49 +738,181 @@ When provided with a CSV spec file, I will:
 - Deliver scalable solutions that handle edge cases
 - Offer ongoing optimization recommendations
 
-## Parser Testing Integration
+## Enhanced Parser Testing Strategy
 
-### Updated Parser Tester Tool Usage
-**CRITICAL**: The `parser_tester` MCP tool now requires **ABSOLUTE PATHS** for all file parameters:
+### Advanced Parser Tester Tool Integration
+The `parser_tester` MCP tool now provides **comprehensive testing capabilities** with multiple testing modes:
 
-**Required Parameter Format**:
-- **`scraper_dir`**: Must be an absolute path to the scraper directory containing `config.yaml`
-- **`html_file`**: Must be an absolute path to the local HTML file for testing
-- **`parser_path`**: Remains relative to the scraper directory (e.g., "parsers/details.rb")
+**Testing Mode Hierarchy**:
+1. **HTML File Testing** (Most Reliable): Test with downloaded HTML files for offline validation
+2. **Variable Testing**: Test with predefined variables for data flow validation
+3. **Live URL Testing**: Test with live URLs for final validation (only after HTML testing success)
 
-**Example Usage with Absolute Paths**:
-```javascript
-// Test with HTML file (recommended)
-parser_tester({
-  scraper_dir: "D:\\DataHen\\projects\\playwright-mcp-mod\\generated_scraper\\naivas_ke_nairobi",
-  parser_path: "parsers/details.rb",
-  html_file: "D:\\DataHen\\projects\\playwright-mcp-mod\\cache\\product-page.html"
-})
+**Strategic Testing Approach**:
+- **Phase 1**: Download representative HTML samples using browser tools
+- **Phase 2**: Test parsers with downloaded HTML for reliability validation
+- **Phase 3**: Test variable passing and data flow between parser stages
+- **Phase 4**: Validate with live URLs for production readiness
 
-// Test with vars only
-parser_tester({
-  scraper_dir: "D:\\DataHen\\projects\\playwright-mcp-mod\\generated_scraper\\naivas_ke_nairobi",
-  parser_path: "parsers/listings.rb",
-  vars: '{"category":"electronics"}'
-})
+**Quality Assurance Integration**:
+- Test each parser type systematically: category → listings → details
+- Verify data extraction accuracy across different page variations
+- Validate variable passing maintains context throughout the pipeline
+- Ensure graceful handling of missing elements and edge cases
 
-// Test with live URL (only after successful HTML file testing)
-parser_tester({
-  scraper_dir: "D:\\DataHen\\projects\\playwright-mcp-mod\\generated_scraper\\naivas_ke_nairobi",
-  parser_path: "parsers/details.rb",
-  url: "https://example.com/product/123"
-})
-```
+### Testing Workflow Optimization
+**Professional Testing Methodology**:
+1. **Sample Collection**: Use browser tools to gather diverse HTML samples
+2. **Parser Validation**: Test each parser with `parser_tester` using downloaded HTML
+3. **Data Flow Testing**: Verify variable passing between parser stages
+4. **Integration Testing**: Test complete data pipeline from seeder to output
+5. **Edge Case Validation**: Test with missing elements and error conditions
 
-**Path Resolution Guidelines**:
-- **Windows**: Use double backslashes `\\` or forward slashes `/` for path separators
-- **Unix/Linux**: Use forward slashes `/` for path separators
-- **Scraper Directory**: Must point to the exact folder containing `config.yaml`
-- **HTML Files**: Must point to the exact location of downloaded HTML files
-- **Cache Directory**: Recommended location: `[project_root]/cache/` for downloaded HTML files
+**Expected Test Results**:
+- **Category Parser**: Should generate listings pages with category_name and page vars
+- **Listings Parser**: Should generate details pages with rank and category context
+- **Details Parser**: Should output product data with all context variables preserved
 
-**Working Directory Considerations**:
-- The tool works from any current working directory
-- All paths must be absolute to avoid resolution issues
-- The `parser_path` parameter remains relative to the scraper directory
-- HTML files can be located anywhere on the filesystem as long as the path is absolute
+**Performance Validation**:
+- Ensure scrapers handle large datasets efficiently
+- Validate pagination strategies prevent infinite loops
+- Test error handling for failed pages and missing content
+- Verify memory management with batch processing
+
+This enhanced testing strategy ensures production-ready scrapers that handle real-world site variations and maintain data integrity throughout the extraction process.
+
+## Advanced Configuration Management
+
+### Layered Configuration Architecture
+Following the reference article's conceptual framework, we implement a **two-layer configuration approach**:
+
+**Strategic Layer (GEMINI.md)**:
+- High-level strategy, persona, and mission-specific context
+- Problem-solving frameworks and methodologies
+- Project-specific information and technology guidelines
+- Quality assurance strategies and testing philosophies
+
+**Operational Layer (system.md)**:
+- Fundamental, non-negotiable operational rules
+- Tool usage protocols and safety directives
+- Detailed workflow mechanics and implementation details
+- Technical requirements and enforcement rules
+
+**Benefits of Layered Approach**:
+- **Cleaner Architecture**: Clear separation of concerns between strategy and implementation
+- **Maintainability**: Easier to update and modify specific aspects without affecting others
+- **Consistency**: Standardized operational rules across different projects
+- **Flexibility**: Strategic changes don't require operational rule modifications
+
+### Configuration Optimization
+**Strategic Configuration Principles**:
+- Keep high-level strategy focused on business logic and methodology
+- Delegate technical implementation details to system.md
+- Maintain clear boundaries between strategic and operational concerns
+- Use modular configuration for complex instruction sets
+
+**Operational Configuration Principles**:
+- Implement strict enforcement rules for safety and reliability
+- Provide detailed technical specifications for tool usage
+- Maintain comprehensive error handling and validation protocols
+- Ensure consistent behavior across different development scenarios
+
+This layered configuration approach promotes cleaner architecture, allowing GEMINI.md to remain a high-level strategic document while system.md provides a robust and stable foundation of core operational safety.
+
+## Specialized Mode Integration
+
+### Custom Slash Commands for Specialized Workflows
+
+The system now supports two specialized modes for different scraping scenarios:
+
+#### Exploration Mode (`/explore`)
+**Purpose**: Rapid CSV-based parser generation and testing
+**Best For**: Quick prototyping, CSV-driven development, rapid iteration
+
+**Key Features**:
+- **Speed-First Approach**: Complete scraper generation within 30 minutes
+- **CSV-Driven Development**: Uses CSV specifications as primary driver
+- **Browser-First Analysis**: Always starts with live website analysis
+- **Immediate Testing**: Tests every parser immediately after generation
+
+**Workflow**:
+1. Parse CSV specification to understand required fields
+2. Analyze target website structure using browser tools
+3. Generate parsers with verified selectors
+4. Test immediately with parser_tester MCP tool
+5. Deploy working scraper
+
+#### Aiconfig Mode (`/aiconfig`)
+**Purpose**: Structured parser generation using aiconfig.yaml
+**Best For**: Complex projects, configuration-driven development, production-ready scrapers
+
+**Key Features**:
+- **Configuration-Driven**: Uses aiconfig.yaml as source of truth
+- **Systematic Development**: Follows structured approach to parser generation
+- **Comprehensive Testing**: Thorough testing at each stage
+- **Production-Ready**: Generates production-quality scrapers from the start
+
+**Workflow**:
+1. Parse aiconfig.yaml to understand project structure
+2. Generate parsers according to configuration specifications
+3. Test against configuration requirements
+4. Validate complete scraper compliance
+5. Deploy configuration-compliant scraper
+
+### Mode Selection Guidelines
+
+**Choose Exploration Mode When**:
+- Working with CSV specifications
+- Need rapid prototyping and iteration
+- Have simple to moderate complexity requirements
+- Want to get working scraper quickly
+- Need to explore and understand website structure
+
+**Choose Aiconfig Mode When**:
+- Working with complex configurations
+- Need production-ready scrapers
+- Have detailed configuration requirements
+- Want structured, systematic development
+- Need comprehensive validation and testing
+
+### Integration with Existing System
+
+Both specialized modes integrate seamlessly with the existing system configuration:
+
+**System.md Integration**:
+- All development happens in `./generated_scraper/[scraper_name]/`
+- Uses `parser_tester` MCP tool for all validation
+- Follows mandatory selector verification protocol
+- Implements robust context management
+- Includes comprehensive error handling
+
+**GEMINI.md Integration**:
+- Maintains quality-first development approach
+- Follows browser-first analysis methodology
+- Implements comprehensive testing strategy
+- Leverages Playwright MCP tools effectively
+- Ensures production-ready output quality
+
+### Quality Assurance Across Modes
+
+Both modes maintain the same high quality standards:
+
+**Technical Standards**:
+- Selector accuracy >90% using browser_verify_selector
+- Data extraction >95% of required fields
+- Graceful error handling for all edge cases
+- Proper context preservation throughout pipeline
+
+**Testing Requirements**:
+- Mandatory testing with parser_tester MCP tool
+- Browser verification for all selectors
+- Complete pipeline testing from seeder to output
+- Comprehensive edge case testing
+
+**Documentation Standards**:
+- Clear comments explaining business logic
+- Selector documentation with fallbacks
+- Error handling scenario documentation
+- Complete workflow documentation
+
+This specialized mode integration provides targeted tools for different scraping scenarios while maintaining consistency with the existing system architecture and quality standards.

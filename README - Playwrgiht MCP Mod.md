@@ -57,25 +57,16 @@ An attempt to extend/modify MCP tools for personal purpose
     - Supports batch verification
 - **Read-only:** true
 
-#### ✨ browser_evaluate
+#### ✨ browser_download_page
 
 - **Purpose:**
-  - Executes JavaScript expressions on the current page or specific elements
-  - Perfect for quick selector testing and DOM manipulation verification
-  - Can evaluate complex JavaScript logic for advanced selector validation
+  - Download the current page HTML or a specific URL and save it to a local file.
 - **Usage:**
-  - Use this tool for quick selector verification and testing JavaScript-based selectors
-  - Ideal for testing complex CSS selectors or XPath expressions
-  - Can evaluate element properties, attributes, and text content dynamically
-  - Parameters:
-    - `function` (string): JavaScript function to execute (e.g., `() => document.querySelector('.product-title')?.textContent`)
-    - `element` (string, optional): Human-readable element description for element-specific evaluation
-    - `ref` (string, optional): Exact target element reference from the page snapshot
-  - **Quick Selector Testing Examples:**
-    - Test CSS selector: `() => document.querySelector('.product-name')?.textContent`
-    - Test multiple elements: `() => Array.from(document.querySelectorAll('.product-item')).length`
-    - Test attribute existence: `() => document.querySelector('[data-product-id]')?.getAttribute('data-product-id')`
-    - Test XPath: `() => document.evaluate('//h1[@class="title"]', document, null, XPathResult.STRING_TYPE, null).stringValue`
+  - Provide `url` to navigate and save that page, or omit it to save the active tab (from a prior `browser_navigate`).
+  - Provide `filename` to control the saved name/path; if no extension is provided, `.html` is added. `.html` and `.htm` are equivalent; `.html` is preferred.
+- **Parameters:**
+  - `url` (string, optional): The URL to download. If omitted, uses the currently active tab.
+  - `filename` (string, optional): File name to save the HTML to. Defaults to `page-{timestamp}.html`.
 - **Read-only:** true
 
 #### ✨ browser_inspect_element
@@ -89,6 +80,32 @@ An attempt to extend/modify MCP tools for personal purpose
     - `element` (string): Human-readable element description for permission.
     - `ref` (string): Exact target element reference from the page snapshot.
     - `batch` (array, optional): Additional elements to inspect in batch.
+- **Read-only:** true
+
+#### ✨ parser_tester
+
+- **Purpose:**
+  - Test DataHen parsers using the Ruby parser_tester.rb script with HTML files or URLs
+  - Enforces the mandatory workflow outlined in GEMINI.md guidelines
+  - Provides comprehensive error handling and guidance for web scraping development
+- **Usage:**
+  - **MANDATORY**: Always test with HTML files first before using live URLs
+  - Use this tool to validate parser logic, selector accuracy, and data extraction
+  - Parameters:
+    - `scraper_dir` (string, required): Path to scraper directory containing config.yaml
+    - `parser_path` (string, required): Path to parser file relative to scraper directory
+    - `html_file` (string, optional): Path to local HTML file for testing (recommended)
+    - `url` (string, optional): URL to test (only after successful HTML file testing)
+    - `vars` (string, optional): JSON string of variables to preload
+    - `page_type` (string, optional): Page type (details, listings, category, etc.)
+    - `priority` (number, optional): Page priority (default: 500)
+    - `job_id` (number, optional): Job ID (default: 12345)
+    - `quiet` (boolean, optional): Suppress verbose output (default: true)
+- **Features:**
+  - Comprehensive file validation (scraper directory, config.yaml, parser files, HTML files)
+  - Intelligent error analysis and troubleshooting guidance
+  - Integration with browser tools for HTML download workflow
+  - Support for variable passing and context management
 - **Read-only:** true
 
 ---
@@ -142,7 +159,15 @@ An attempt to extend/modify MCP tools for personal purpose
 
 <!-- NOTE: This has been generated via update-readme.js -->
 
-D
+- **browser_evaluate**
+  - Title: Evaluate JavaScript
+  - Description: Evaluate JavaScript expression on page or element
+  - Parameters:
+    - `function` (string): () => { /* code */ } or (element) => { /* code */ } when element is provided
+    - `element` (string, optional): Human-readable element description used to obtain permission to interact with the element
+    - `ref` (string, optional): Exact target element reference from the page snapshot
+  - Read-only: **false**
+
 <!-- NOTE: This has been generated via update-readme.js -->
 
 - **browser_file_upload**
@@ -281,17 +306,6 @@ D
     - `attribute` (string, optional): Attribute to check instead of text content (e.g., "href", "data-id")
     - `details` (object, optional): Details object from browser_inspect_element
     - `batch` (array, optional): Additional selectors to verify in batch
-  - Read-only: **true**
-
-<!-- NOTE: This has been generated via update-readme.js -->
-
-- **✨ browser_evaluate**
-  - Title: Evaluate JavaScript
-  - Description: Execute JavaScript expression on page or element
-  - Parameters:
-    - `function` (string): JavaScript function to execute (e.g., `() => document.querySelector('.product-title')?.textContent`)
-    - `element` (string, optional): Human-readable element description used to obtain permission to interact with the element
-    - `ref` (string, optional): Exact target element reference from the page snapshot
   - Read-only: **true**
 
 <!-- NOTE: This has been generated via update-readme.js -->

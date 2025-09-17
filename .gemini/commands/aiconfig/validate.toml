@@ -1,0 +1,112 @@
+description = "Validate entire scraper against aiconfig.yaml configuration"
+prompt = """
+You are validating the entire scraper against aiconfig.yaml configuration in **Aiconfig Mode**.
+
+## Configuration Validation Protocol
+
+### 1. Configuration Parsing
+```ruby
+# Parse complete aiconfig.yaml
+def parse_full_config(config_file)
+  {
+    seeder: config['seeder'],
+    parsers: config['parsers'],
+    dependencies: analyze_dependencies(config['parsers'])
+  }
+end
+```
+
+### 2. Parser Validation
+```javascript
+// Test each parser against configuration
+config['parsers'].forEach(parser => {
+  parser_tester({
+    scraper_dir: "D:\\DataHen\\projects\\playwright-mcp-mod\\generated_scraper\\[scraper_name]",
+    parser_path: parser['file'],
+    auto_download: true,
+    page_type: parser['page_type'],
+    quiet: false
+  })
+})
+```
+
+### 3. Field Validation
+- **Field Completeness**: Verify all configured fields are implemented
+- **Type Safety**: Check data type handling matches configuration
+- **Selector Reliability**: Validate selector accuracy and fallbacks
+- **Error Handling**: Test error handling for all configured scenarios
+
+### 4. Data Flow Validation
+- **Seeder to Parsers**: Verify seeder generates correct page types
+- **Parser Dependencies**: Check parser dependencies are handled
+- **Variable Passing**: Ensure context is preserved throughout pipeline
+- **Output Structure**: Validate outputs match configuration exactly
+
+## Validation Areas
+
+### Configuration Compliance
+- **100% Config Match**: All parsers must exactly match configuration
+- **Field Mapping**: All configured fields must be properly mapped
+- **Type Handling**: All field types must be correctly handled
+- **Error Scenarios**: All configured error scenarios must be handled
+
+### Data Flow Validation
+- **Seeder Compliance**: Seeder must match configuration exactly
+- **Parser Dependencies**: All parser dependencies must be resolved
+- **Page Generation**: Page generation must match configuration
+- **Output Validation**: Outputs must match configuration structure
+
+### Quality Assurance
+- **Selector Reliability**: >90% match rate for all selectors
+- **Data Extraction**: >95% of configured fields successfully extracted
+- **Error Handling**: Graceful handling of all error scenarios
+- **Performance**: Scraper meets performance requirements
+
+## Validation Tests
+
+### Configuration Tests
+- **Field Tests**: Test each configured field individually
+- **Type Tests**: Validate data type conversion and handling
+- **Selector Tests**: Test selector reliability and fallbacks
+- **Error Tests**: Test error handling for all scenarios
+
+### Integration Tests
+- **Seeder Tests**: Test seeder against configuration
+- **Parser Tests**: Test each parser against configuration
+- **Flow Tests**: Test complete data flow from seeder to output
+- **Dependency Tests**: Test parser dependencies and relationships
+
+### Performance Tests
+- **Load Tests**: Test with large datasets
+- **Memory Tests**: Check memory usage and management
+- **Speed Tests**: Validate processing speed
+- **Batch Tests**: Test batch operations and limits
+
+## Expected Validation Results
+
+### Configuration Compliance
+- **100% Config Match**: All parsers exactly match configuration
+- **Field Completeness**: All configured fields successfully implemented
+- **Type Accuracy**: All field types correctly handled
+- **Error Coverage**: All error scenarios properly handled
+
+### Quality Metrics
+- **Parser Success Rate**: >98% of parsers pass configuration validation
+- **Field Extraction Rate**: >95% of configured fields successfully extracted
+- **Selector Reliability**: >90% match rate across all selectors
+- **Error Recovery**: 100% of error scenarios gracefully handled
+
+## Documentation Requirements
+- Document configuration compliance validation results
+- Record any configuration issues or missing requirements
+- Note field mapping and type handling validation
+- Document error handling and recovery validation
+
+## Integration with Aiconfig.yaml
+- **Complete Validation**: Validate entire scraper against configuration
+- **Dependency Resolution**: Ensure all dependencies are resolved
+- **Output Compliance**: Verify outputs match configuration exactly
+- **Performance Validation**: Ensure scraper meets performance requirements
+
+Now, validate the entire scraper against configuration: {{args}}
+"""

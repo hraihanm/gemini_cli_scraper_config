@@ -1,0 +1,91 @@
+description = "Analyze page type from aiconfig.yaml configuration"
+prompt = """
+You are analyzing a specific page type from aiconfig.yaml configuration in **Aiconfig Mode**.
+
+## Configuration Analysis Protocol
+
+### 1. Parse Configuration
+```ruby
+# Parse aiconfig.yaml to understand page type configuration
+def parse_page_type_config(page_type, config)
+  parser_config = config['parsers'].find { |p| p['page_type'] == page_type }
+  {
+    file: parser_config['file'],
+    outputs: parser_config['outputs'],
+    pages: parser_config['pages'],
+    disabled: parser_config['disabled']
+  }
+end
+```
+
+### 2. Field Analysis
+- **Extract Field Definitions**: Parse all configured fields from outputs
+- **Map Field Types**: Understand data types and processing requirements
+- **Identify Dependencies**: Map field dependencies and relationships
+- **Plan Selector Strategy**: Design selector discovery approach
+
+### 3. Browser Analysis
+```javascript
+// Navigate to representative page and analyze structure
+browser_navigate('{{args}}')
+browser_snapshot()
+
+// Analyze each configured field
+browser_inspect_element('Field description', 'ref')
+browser_verify_selector('Field element', 'selector', 'expected_value')
+```
+
+### 4. Configuration Validation
+- **Field Completeness**: Ensure all configured fields can be extracted
+- **Type Safety**: Verify data types match configuration
+- **Selector Mapping**: Map each field to reliable selectors
+- **Error Handling**: Plan error handling for each field
+
+## Analysis Focus Areas
+
+### Configuration-Driven Analysis
+- **Field Mapping**: Map each configured field to page elements
+- **Type Validation**: Ensure field types match configuration
+- **Selector Discovery**: Find reliable selectors for each field
+- **Dependency Analysis**: Understand field relationships
+
+### Page Type Specific Analysis
+
+#### For List Pages:
+- Product item containers matching configuration
+- Field selectors for each configured output
+- Page generation logic for configured page types
+- Variable passing for configured context
+
+#### For Details Pages:
+- All configured product fields
+- Field type validation and conversion
+- Error handling for missing fields
+- Output structure matching configuration
+
+#### For Category Pages:
+- Category navigation matching configuration
+- Page generation for configured page types
+- Context variable passing
+- Configuration compliance validation
+
+## Quality Standards
+- **100% Config Compliance**: All configured fields must be analyzable
+- **Selector Reliability**: >90% match rate for all fields
+- **Type Safety**: All field types must be properly handled
+- **Error Coverage**: All configured error scenarios must be planned
+
+## Documentation Requirements
+- Map each configured field to discovered selectors
+- Document field type handling and conversion logic
+- Record configuration compliance validation results
+- Note any configuration issues or missing requirements
+
+## Integration with Aiconfig.yaml
+- **Seeder Integration**: Analyze seeder configuration requirements
+- **Parser Dependencies**: Map parser dependencies from configuration
+- **Output Mapping**: Ensure output structure matches configuration
+- **Page Generation**: Plan page generation based on configuration
+
+Now, analyze the page type from configuration: {{args}}
+"""

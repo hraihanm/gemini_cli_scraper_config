@@ -1,0 +1,120 @@
+description = "Rapid CSV-based parser generation and testing for web scraping"
+prompt = """
+You are now in **Exploration Mode** - a specialized workflow for rapid CSV-based parser generation and testing.
+
+## Mode Overview
+**Purpose**: Rapid CSV-based parser generation and testing
+**Best For**: Quick prototyping, CSV-driven development, rapid iteration
+**Time Target**: Complete scraper generation within 30 minutes
+
+## Workflow Protocol
+
+### Phase 1: CSV Analysis & Site Discovery
+1. **Parse CSV Specification**: Analyze the provided CSV file to understand required fields
+2. **Site Structure Analysis**: Use browser tools to understand the target website architecture  
+3. **Pagination Detection**: Use `browser_network_requests` to detect all pagination patterns (API, buttons, infinite scroll)
+4. **Subcategory Discovery**: Ensure ALL subcategories and nested categories are discovered
+5. **Field Mapping**: Map CSV fields to website elements using browser verification
+6. **Page Type Identification**: Determine required page types (listings, details, categories)
+
+### Phase 2: Rapid Parser Generation
+1. **Seeder Creation**: Generate minimal seeder based on site structure
+2. **Parser Development**: Create parsers for each identified page type
+3. **Selector Verification**: Use browser tools to verify all selectors before implementation
+4. **Immediate Testing**: Test each parser as soon as it's created
+
+### Phase 3: Integration & Validation
+1. **Data Flow Testing**: Ensure proper variable passing between parsers
+2. **CSV Output Validation**: Verify extracted data matches CSV specification
+3. **Edge Case Handling**: Test with missing elements and error conditions
+4. **Performance Optimization**: Optimize for speed and reliability
+
+## Required Tools & Techniques
+
+### Browser-First Analysis (MANDATORY)
+```javascript
+// Always start with browser navigation and analysis
+browser_navigate('{{args}}')
+browser_snapshot()
+
+// CRITICAL: Detect pagination patterns using network monitoring
+browser_network_requests()
+
+// Look for pagination indicators
+browser_evaluate(() => {
+    const paginationButtons = document.querySelectorAll('.pagination a, .load-more, .next-page, .show-more')
+    return Array.from(paginationButtons).map(btn => ({
+        text: btn.textContent.trim(),
+        href: btn.href,
+        classes: btn.className
+    }))
+})
+
+// Discover all subcategories
+browser_evaluate(() => {
+    const subcategoryLinks = document.querySelectorAll('.subcategory a, .category-item a, .menu-item a')
+    return Array.from(subcategoryLinks).map(link => ({
+        text: link.textContent.trim(),
+        href: link.href,
+        level: link.closest('.submenu, .dropdown') ? 2 : 1
+    }))
+})
+
+browser_inspect_element('Element description', 'ref')
+browser_verify_selector('Element', 'selector', 'expected')
+```
+
+### Immediate Parser Testing (MANDATORY)
+```javascript
+// Test parser immediately after generation
+parser_tester({
+  scraper_dir: "D:\\DataHen\\projects\\playwright-mcp-mod\\generated_scraper\\[scraper_name]",
+  parser_path: "parsers/details.rb",
+  auto_download: true,
+  page_type: "details",
+  quiet: false
+})
+```
+
+## Quality Standards for Exploration Mode
+
+### Speed Requirements
+- **Site Analysis**: Complete within 5 minutes
+- **Parser Generation**: Generate all parsers within 10 minutes  
+- **Initial Testing**: Test all parsers within 15 minutes
+- **Total Cycle**: Complete exploration within 30 minutes
+
+### Reliability Standards
+- **Selector Accuracy**: >90% match rate using browser_verify_selector
+- **Data Extraction**: >95% of required CSV fields successfully extracted
+- **Pagination Coverage**: ALL pages and subcategories must be accessed
+- **Network Analysis**: Use browser_network_requests to detect all pagination patterns
+- **Error Handling**: Graceful handling of missing elements
+- **Variable Passing**: Proper context preservation throughout pipeline
+
+## Working Directory
+All development must happen in `./generated_scraper/[scraper_name]/`
+
+## CSV Specification Integration
+When provided with a CSV spec file, you will:
+- Parse the `column_name`, `column_type`, and `dev_notes` fields
+- Map `FIND` operations to CSS selector extraction logic
+- Implement `PROCESS` operations with appropriate business logic
+- Handle data type conversions (str, float, boolean) correctly
+- Include comprehensive error handling for missing fields
+
+## Expected Output
+- **Working Scraper**: Fully functional scraper ready for deployment
+- **CSV Compliance**: All extracted data matches CSV specification
+- **Documentation**: Clear comments explaining selector choices and business logic
+- **Test Results**: Comprehensive test results for all parsers
+
+## Integration with System.md
+Follow all operational rules from system.md:
+- Use `parser_tester` MCP tool for ALL parser testing
+- Follow mandatory selector verification protocol
+- Implement robust variable passing and context management
+- Include comprehensive error handling requirements
+
+Now, let's begin exploration mode with the target URL: {{args}}
+"""
