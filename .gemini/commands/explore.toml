@@ -12,10 +12,11 @@ You are now in **Exploration Mode** - a specialized workflow for rapid CSV-based
 ### Phase 1: CSV Analysis & Site Discovery
 1. **Parse CSV Specification**: Analyze the provided CSV file to understand required fields
 2. **Site Structure Analysis**: Use browser tools to understand the target website architecture  
-3. **Pagination Detection**: Use `browser_network_requests` to detect all pagination patterns (API, buttons, infinite scroll)
+3. **Standard Pagination Detection**: Look for visible pagination buttons, page numbers, and "Next" links first
 4. **Subcategory Discovery**: Ensure ALL subcategories and nested categories are discovered
 5. **Field Mapping**: Map CSV fields to website elements using browser verification
 6. **Page Type Identification**: Determine required page types (listings, details, categories)
+7. **Network Request Analysis**: ONLY as last resort when standard pagination methods fail
 
 ### Phase 2: Rapid Parser Generation
 1. **Seeder Creation**: Generate minimal seeder based on site structure
@@ -37,20 +38,28 @@ You are now in **Exploration Mode** - a specialized workflow for rapid CSV-based
 browser_navigate('{{args}}')
 browser_snapshot()
 
-// CRITICAL: Detect pagination patterns using network monitoring
-browser_network_requests()
-
-// Look for pagination indicators
+// STEP 1: Look for standard pagination indicators first
 browser_evaluate(() => {
-    const paginationButtons = document.querySelectorAll('.pagination a, .load-more, .next-page, .show-more')
+    const paginationButtons = document.querySelectorAll('.pagination a, .load-more, .next-page, .show-more, .page-numbers a')
     return Array.from(paginationButtons).map(btn => ({
         text: btn.textContent.trim(),
         href: btn.href,
-        classes: btn.className
+        classes: btn.className,
+        type: 'standard_pagination'
     }))
 })
 
-// Discover all subcategories
+// STEP 2: Check for infinite scroll indicators
+browser_evaluate(() => {
+    const scrollElements = document.querySelectorAll('[data-infinite-scroll], .infinite-scroll, .load-more-btn')
+    return Array.from(scrollElements).map(el => ({
+        text: el.textContent.trim(),
+        classes: el.className,
+        type: 'infinite_scroll'
+    }))
+})
+
+// STEP 3: Discover all subcategories
 browser_evaluate(() => {
     const subcategoryLinks = document.querySelectorAll('.subcategory a, .category-item a, .menu-item a')
     return Array.from(subcategoryLinks).map(link => ({
@@ -62,11 +71,48 @@ browser_evaluate(() => {
 
 browser_inspect_element('Element description', 'ref')
 browser_verify_selector('Element', 'selector', 'expected')
+
+// LAST RESORT: Network request analysis ONLY if standard pagination fails
+// browser_network_requests()
+
+// LAST RESORT: Only download HTML pages if auto_download fails
+// browser_download_page('page-name.html')
 ```
+
+### Pagination Strategy (Progressive Approach)
+
+**STEP 1: Standard Pagination Detection**
+- Look for visible pagination buttons, page numbers, "Next" links
+- Check for "Load More" buttons or similar UI elements
+- Use these methods FIRST as they are most reliable
+
+**STEP 2: Infinite Scroll Detection**
+- Check for infinite scroll indicators
+- Look for scroll-triggered loading mechanisms
+- Test if scrolling reveals more content
+
+**STEP 3: Network Request Analysis (LAST RESORT)**
+- ONLY use `browser_network_requests()` when:
+  - No visible pagination buttons found
+  - Standard pagination methods don't work
+  - Need to find API-driven pagination patterns
+  - Infinite scroll requires API calls to load more content
+
+**When to Use Network Analysis**:
+- ✅ No visible pagination buttons or page numbers
+- ✅ "Load More" buttons don't work or are missing
+- ✅ Infinite scroll requires API calls to load content
+- ✅ Need to find hidden pagination parameters
+
+**When NOT to Use Network Analysis**:
+- ❌ Visible pagination buttons work fine
+- ❌ Standard "Next" links are available
+- ❌ Page numbers are clearly visible and functional
+- ❌ "Load More" buttons work as expected
 
 ### Immediate Parser Testing (MANDATORY)
 ```javascript
-// Test parser immediately after generation
+// PREFERRED: Test with auto_download (most efficient)
 parser_tester({
   scraper_dir: "D:\\DataHen\\projects\\playwright-mcp-mod\\generated_scraper\\[scraper_name]",
   parser_path: "parsers/details.rb",
@@ -74,6 +120,15 @@ parser_tester({
   page_type: "details",
   quiet: false
 })
+
+// LAST RESORT: Only use html_file if auto_download fails
+// parser_tester({
+//   scraper_dir: "D:\\DataHen\\projects\\playwright-mcp-mod\\generated_scraper\\[scraper_name]",
+//   parser_path: "parsers/details.rb",
+//   html_file: "D:\\DataHen\\projects\\playwright-mcp-mod\\cache\\product-detail.html",
+//   page_type: "details",
+//   quiet: false
+// })
 ```
 
 ## Quality Standards for Exploration Mode
@@ -88,7 +143,8 @@ parser_tester({
 - **Selector Accuracy**: >90% match rate using browser_verify_selector
 - **Data Extraction**: >95% of required CSV fields successfully extracted
 - **Pagination Coverage**: ALL pages and subcategories must be accessed
-- **Network Analysis**: Use browser_network_requests to detect all pagination patterns
+- **Standard Pagination First**: Use visible pagination buttons, page numbers, and "Next" links before network analysis
+- **Network Analysis Last Resort**: Only use browser_network_requests when standard pagination methods fail
 - **Error Handling**: Graceful handling of missing elements
 - **Variable Passing**: Proper context preservation throughout pipeline
 

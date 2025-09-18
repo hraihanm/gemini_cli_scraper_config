@@ -12,10 +12,11 @@ You are now in **Aiconfig Mode** - a specialized workflow for structured parser 
 ### Phase 1: Configuration Analysis
 1. **Parse aiconfig.yaml**: Analyze the complete configuration structure
 2. **Validate Configuration**: Ensure all required fields are present and properly formatted
-3. **Pagination Detection**: Use `browser_network_requests` to detect all pagination patterns
-4. **Subcategory Discovery**: Ensure ALL subcategories and nested categories are discovered
-5. **Identify Dependencies**: Map parser dependencies and data flow
-6. **Generate Project Structure**: Create complete scraper project based on config
+3. **Browser Navigation**: Navigate to target URLs and download HTML pages
+4. **Pagination Detection**: Use `browser_network_requests` to detect all pagination patterns
+5. **Subcategory Discovery**: Ensure ALL subcategories and nested categories are discovered
+6. **Identify Dependencies**: Map parser dependencies and data flow
+7. **Generate Project Structure**: Create complete scraper project based on config
 
 ### Phase 2: Systematic Parser Development
 1. **Seeder Implementation**: Generate seeder based on configuration
@@ -76,7 +77,7 @@ async function discoverSelectors(field_config) {
 
 ### Configuration Testing (MANDATORY)
 ```javascript
-// Test parser against configuration requirements
+// PREFERRED: Test with auto_download (most efficient)
 parser_tester({
   scraper_dir: "D:\\DataHen\\projects\\playwright-mcp-mod\\generated_scraper\\[scraper_name]",
   parser_path: "parsers/details.rb",
@@ -84,6 +85,17 @@ parser_tester({
   page_type: "details",
   quiet: false
 })
+
+// LAST RESORT: Only use html_file if auto_download fails
+// browser_navigate('target_url')
+// browser_download_page('page-name.html')
+// parser_tester({
+//   scraper_dir: "D:\\DataHen\\projects\\playwright-mcp-mod\\generated_scraper\\[scraper_name]",
+//   parser_path: "parsers/details.rb",
+//   html_file: "D:\\DataHen\\projects\\playwright-mcp-mod\\cache\\page-name.html",
+//   page_type: "details",
+//   quiet: false
+// })
 ```
 
 ## Quality Standards for Aiconfig Mode

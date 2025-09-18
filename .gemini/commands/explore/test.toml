@@ -6,7 +6,7 @@ You are testing a specific parser in **Exploration Mode** with comprehensive val
 
 ### 1. Parser Testing (MANDATORY)
 ```javascript
-// Test parser with auto-download capability
+// PREFERRED: Test with auto_download (most efficient)
 parser_tester({
   scraper_dir: "D:\\DataHen\\projects\\playwright-mcp-mod\\generated_scraper\\[scraper_name]",
   parser_path: "parsers/{{args}}.rb",
@@ -14,6 +14,17 @@ parser_tester({
   page_type: "{{args}}",
   quiet: false
 })
+
+// LAST RESORT: Only use html_file if auto_download fails
+// browser_navigate('target_url')
+// browser_download_page('{{args}}-test.html')
+// parser_tester({
+//   scraper_dir: "D:\\DataHen\\projects\\playwright-mcp-mod\\generated_scraper\\[scraper_name]",
+//   parser_path: "parsers/{{args}}.rb",
+//   html_file: "D:\\DataHen\\projects\\playwright-mcp-mod\\cache\\{{args}}-test.html",
+//   page_type: "{{args}}",
+//   quiet: false
+// })
 ```
 
 ### 2. Test Validation
