@@ -5,24 +5,25 @@ You are now in **Aiconfig Mode** - a specialized workflow for structured parser 
 ## Mode Overview
 **Purpose**: Structured parser generation using aiconfig.yaml
 **Best For**: Complex projects, configuration-driven development, production-ready scrapers
-**Time Target**: Complete scraper generation within 45 minutes
 
 ## Workflow Protocol
 
-### Phase 1: Configuration Analysis
+### Phase 1: Configuration Analysis & Site Discovery
 1. **Parse aiconfig.yaml**: Analyze the complete configuration structure
 2. **Validate Configuration**: Ensure all required fields are present and properly formatted
-3. **Browser Navigation**: Navigate to target URLs and download HTML pages
-4. **Pagination Detection**: Use `browser_network_requests` to detect all pagination patterns
+3. **Browser-First Analysis**: Use browser tools to understand the target website architecture
+4. **Standard Pagination Detection**: Look for visible pagination buttons, page numbers, and "Next" links first
 5. **Subcategory Discovery**: Ensure ALL subcategories and nested categories are discovered
-6. **Identify Dependencies**: Map parser dependencies and data flow
-7. **Generate Project Structure**: Create complete scraper project based on config
+6. **Field Mapping**: Map configured fields to website elements using browser verification
+7. **Page Type Identification**: Determine required page types from configuration
+8. **Network Request Analysis**: ONLY as last resort when standard pagination methods fail
 
 ### Phase 2: Systematic Parser Development
 1. **Seeder Implementation**: Generate seeder based on configuration
 2. **Parser Generation**: Create each parser according to configuration specifications
-3. **Selector Discovery**: Use browser tools to find and verify selectors for each field
+3. **Selector Discovery**: Use browser tools to find and verify selectors for each configured field
 4. **Output Mapping**: Map parser outputs to configuration specifications
+5. **Immediate Testing**: Test each parser as soon as it's created
 
 ### Phase 3: Comprehensive Testing & Validation
 1. **Configuration Compliance**: Ensure all parsers match configuration requirements
@@ -31,6 +32,84 @@ You are now in **Aiconfig Mode** - a specialized workflow for structured parser 
 4. **Integration Testing**: Test complete scraper with real data
 
 ## Required Tools & Techniques
+
+### Browser-First Analysis (MANDATORY)
+```javascript
+// Always start with browser navigation and analysis
+browser_navigate('{{args}}')
+browser_snapshot()
+
+// STEP 1: Look for standard pagination indicators first
+browser_evaluate(() => {
+    const paginationButtons = document.querySelectorAll('.pagination a, .load-more, .next-page, .show-more, .page-numbers a')
+    return Array.from(paginationButtons).map(btn => ({
+        text: btn.textContent.trim(),
+        href: btn.href,
+        classes: btn.className,
+        type: 'standard_pagination'
+    }))
+})
+
+// STEP 2: Check for infinite scroll indicators
+browser_evaluate(() => {
+    const scrollElements = document.querySelectorAll('[data-infinite-scroll], .infinite-scroll, .load-more-btn')
+    return Array.from(scrollElements).map(el => ({
+        text: el.textContent.trim(),
+        classes: el.className,
+        type: 'infinite_scroll'
+    }))
+})
+
+// STEP 3: Discover all subcategories
+browser_evaluate(() => {
+    const subcategoryLinks = document.querySelectorAll('.subcategory a, .category-item a, .menu-item a')
+    return Array.from(subcategoryLinks).map(link => ({
+        text: link.textContent.trim(),
+        href: link.href,
+        level: link.closest('.submenu, .dropdown') ? 2 : 1
+    }))
+})
+
+browser_inspect_element('Element description', 'ref')
+browser_verify_selector('Element', 'selector', 'expected')
+
+// LAST RESORT: Network request analysis ONLY if standard pagination fails
+// browser_network_requests()
+
+// LAST RESORT: Only download HTML pages if auto_download fails
+// browser_download_page('page-name.html')
+```
+
+### Pagination Strategy (Progressive Approach)
+
+**STEP 1: Standard Pagination Detection**
+- Look for visible pagination buttons, page numbers, "Next" links
+- Check for "Load More" buttons or similar UI elements
+- Use these methods FIRST as they are most reliable
+
+**STEP 2: Infinite Scroll Detection**
+- Check for infinite scroll indicators
+- Look for scroll-triggered loading mechanisms
+- Test if scrolling reveals more content
+
+**STEP 3: Network Request Analysis (LAST RESORT)**
+- ONLY use `browser_network_requests()` when:
+  - No visible pagination buttons found
+  - Standard pagination methods don't work
+  - Need to find API-driven pagination patterns
+  - Infinite scroll requires API calls to load more content
+
+**When to Use Network Analysis**:
+- ✅ No visible pagination buttons or page numbers
+- ✅ "Load More" buttons don't work or are missing
+- ✅ Infinite scroll requires API calls to load content
+- ✅ Need to find hidden pagination parameters
+
+**When NOT to Use Network Analysis**:
+- ❌ Visible pagination buttons work fine
+- ❌ Standard "Next" links are available
+- ❌ Page numbers are clearly visible and functional
+- ❌ "Load More" buttons work as expected
 
 ### Configuration-Driven Parser Generation
 ```ruby
@@ -75,7 +154,7 @@ async function discoverSelectors(field_config) {
 }
 ```
 
-### Configuration Testing (MANDATORY)
+### Immediate Parser Testing (MANDATORY)
 ```javascript
 // PREFERRED: Test with auto_download (most efficient)
 parser_tester({
@@ -87,12 +166,10 @@ parser_tester({
 })
 
 // LAST RESORT: Only use html_file if auto_download fails
-// browser_navigate('target_url')
-// browser_download_page('page-name.html')
 // parser_tester({
 //   scraper_dir: "D:\\DataHen\\projects\\playwright-mcp-mod\\generated_scraper\\[scraper_name]",
 //   parser_path: "parsers/details.rb",
-//   html_file: "D:\\DataHen\\projects\\playwright-mcp-mod\\cache\\page-name.html",
+//   html_file: "D:\\DataHen\\projects\\playwright-mcp-mod\\cache\\product-detail.html",
 //   page_type: "details",
 //   quiet: false
 // })
@@ -100,11 +177,18 @@ parser_tester({
 
 ## Quality Standards for Aiconfig Mode
 
+### Speed Requirements
+- **Configuration Analysis**: Complete within 5 minutes
+- **Parser Generation**: Generate all parsers within 15 minutes  
+- **Initial Testing**: Test all parsers within 20 minutes
+- **Total Cycle**: Complete aiconfig processing within 45 minutes
+
 ### Configuration Compliance
 - **100% Config Adherence**: All parsers must exactly match configuration
 - **Field Completeness**: All configured fields must be implemented
 - **Pagination Coverage**: ALL pages and subcategories must be accessed
-- **Network Analysis**: Use browser_network_requests to detect all pagination patterns
+- **Standard Pagination First**: Use visible pagination buttons, page numbers, and "Next" links before network analysis
+- **Network Analysis Last Resort**: Only use browser_network_requests when standard pagination methods fail
 - **Type Safety**: Proper data type handling for each field
 - **Error Handling**: Comprehensive error handling for all configured scenarios
 
@@ -113,6 +197,7 @@ parser_tester({
 - **Field Validation**: Verify each configured field is properly extracted
 - **Data Flow Testing**: Test complete pipeline from seeder to output
 - **Edge Case Testing**: Test all configured error conditions
+- **Immediate Testing**: Test each parser as soon as it's created
 
 ## Working Directory
 All development must happen in `./generated_scraper/[scraper_name]/`
@@ -161,6 +246,11 @@ Follow all operational rules from system.md:
 - Follow mandatory selector verification protocol
 - Implement robust variable passing and context management
 - Include comprehensive error handling requirements
+
+## Important Notes
+- **URL Exploration Required**: The URLs provided in the configuration are examples only. The agent must explore the actual website to discover the correct URLs, pagination patterns, and selectors.
+- **Browser-First Approach**: Always start with browser navigation and visual analysis before implementing parsers.
+- **Progressive Pagination**: Use standard pagination methods first, network analysis only as last resort.
 
 Now, let's begin aiconfig mode with the configuration file: {{args}}
 """

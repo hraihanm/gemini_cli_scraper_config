@@ -247,9 +247,16 @@ product_name = html.at_css('h1.product-name')&.text&.strip
 
 ### General Ruby Parser Coding Style
 
+**Preloaded Libraries**:
+The following Ruby libraries are preloaded in the system and do NOT need to be explicitly required:
+- `nokogiri` - For HTML parsing
+- `json` - For JSON processing  
+- `cgi` - For URL encoding/decoding
+
 **Standard Parser Structure**:
 ```ruby
 # Standard parser template
+# NOTE: nokogiri, json, and cgi are preloaded - no require statements needed
 html = Nokogiri::HTML(content)
 vars = page['vars']
 
