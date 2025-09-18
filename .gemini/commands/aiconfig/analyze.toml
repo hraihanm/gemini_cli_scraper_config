@@ -30,6 +30,9 @@ end
 browser_navigate('{{args}}')
 browser_snapshot()
 
+// LAST RESORT: Only download HTML page if needed for offline analysis
+// browser_download_page('{{args}}-analysis.html')
+
 // Analyze each configured field
 browser_inspect_element('Field description', 'ref')
 browser_verify_selector('Field element', 'selector', 'expected_value')

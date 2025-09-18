@@ -1,0 +1,38 @@
+seeder:
+  pages:
+    - url: "www.example1.com"
+      page_type: "list"
+    - url: "www.example2.com"
+      page_type: "list"
+parsers:
+  - page_type: list
+    file: "./parsers/list.rb"
+    disabled: false
+    outputs:
+      - name: "metadata"
+        fields:
+          - name: "title"
+            description: "product title from the list"
+            selector: ""
+          - name: "price"
+            description: "product price from the list"
+            selector: ""
+    pages:
+      - url: "www.example1.com" # this can be url selector or pagination or direct link
+        page_type: "details"
+
+  - page_type: details
+    file: "./parsers/details.rb"
+    disabled: false
+    outputs:
+      - name: "products_details"
+        fields:
+          - name: "title"
+            description: "product title"
+            selector: ""
+          - name: "price"
+            description: "product price"
+            selector: ""
+          - name: "description"
+            description: "product description"
+            selector: ""

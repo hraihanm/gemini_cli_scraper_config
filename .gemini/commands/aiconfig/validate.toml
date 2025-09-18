@@ -18,7 +18,7 @@ end
 
 ### 2. Parser Validation
 ```javascript
-// Test each parser against configuration
+// PREFERRED: Test each parser with auto_download (most efficient)
 config['parsers'].forEach(parser => {
   parser_tester({
     scraper_dir: "D:\\DataHen\\projects\\playwright-mcp-mod\\generated_scraper\\[scraper_name]",
@@ -28,6 +28,19 @@ config['parsers'].forEach(parser => {
     quiet: false
   })
 })
+
+// LAST RESORT: Only use html_file if auto_download fails
+// browser_navigate('target_url')
+// browser_download_page('validation-page.html')
+// config['parsers'].forEach(parser => {
+//   parser_tester({
+//     scraper_dir: "D:\\DataHen\\projects\\playwright-mcp-mod\\generated_scraper\\[scraper_name]",
+//     parser_path: parser['file'],
+//     html_file: "D:\\DataHen\\projects\\playwright-mcp-mod\\cache\\validation-page.html",
+//     page_type: parser['page_type'],
+//     quiet: false
+//   })
+// })
 ```
 
 ### 3. Field Validation

@@ -9,6 +9,9 @@ You are analyzing a specific page type for selector discovery in **Exploration M
 // Navigate to target page and capture structure
 browser_navigate('{{args}}')
 browser_snapshot()
+
+// LAST RESORT: Only download HTML page if needed for offline analysis
+// browser_download_page('{{args}}-analysis.html')
 ```
 
 ### 2. Element Discovery

@@ -2,3 +2,5 @@ generated_scraper/*
 !generated_scraper/.gitkeep
 cache/*
 !cache/.gitkeep
+original_scraper/*
+example_scraper_project/*
