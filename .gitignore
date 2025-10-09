@@ -4,3 +4,4 @@ cache/*
 !cache/.gitkeep
 original_scraper/*
 example_scraper_project/*
+aiconfig copy.yaml

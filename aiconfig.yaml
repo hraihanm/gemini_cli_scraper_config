@@ -1,6 +1,6 @@
 seeder:
   pages:
-    - url: "https://joker.no/varer"
+    - url: "https://www.pns.hk/en/"
       page_type: "categories"
 
 parsers:
@@ -17,7 +17,7 @@ parsers:
             description: "URL link to the category page"
             selector: ""
     pages:
-      - url: "https://joker.no/varer/hus-hjem-artikler"
+      - url: "https://www.pns.hk/en/foodBeverages"
         page_type: "subcategories"
 
   - page_type: subcategories
@@ -33,7 +33,7 @@ parsers:
             description: "URL link to the subcategory page"
             selector: ""
     pages:
-      - url: "https://joker.no/varer/hus-hjem-artikler/grill-og-ild"
+      - url: "https://www.pns.hk/en/grocery/lc/04040000"
         page_type: "listings"
 
   - page_type: listings

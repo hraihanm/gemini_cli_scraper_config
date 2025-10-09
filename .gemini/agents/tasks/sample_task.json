@@ -1,0 +1,12 @@
+{
+  "id": "sample_task_1703123456789_abc123def",
+  "agent": "coder-agent",
+  "description": "Create a simple Python script that reads a CSV file and prints the first 5 rows",
+  "status": "pending",
+  "created_at": "2025-01-03T10:30:00.000Z",
+  "priority": 1,
+  "assigned_at": null,
+  "completed_at": null,
+  "result": null,
+  "error": null
+}
