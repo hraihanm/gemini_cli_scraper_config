@@ -1,0 +1,20 @@
+{
+  "task_id": "test_task_002",
+  "agent": "selector-agent",
+  "description": "Identify CSS selectors for product data extraction on Esselunga product page",
+  "status": "queued",
+  "priority": 2,
+  "dependencies": ["test_task_001"],
+  "created_at": "2025-01-27T10:05:00Z",
+  "started_at": null,
+  "completed_at": null,
+  "error": null,
+  "retry_count": 0,
+  "max_retries": 3,
+  "vars": {
+    "target_url": "https://spesaonline.esselunga.it/commerce/nav/supermercato/store/prodotto/753223/esselunga-bio-peperoni-rossi-biologici",
+    "page_type": "details",
+    "scraper_name": "esselunga-scraper",
+    "depends_on": "navigation-agent analysis"
+  }
+}

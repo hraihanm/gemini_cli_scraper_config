@@ -1,0 +1,297 @@
+description = "Monitor and manage AIConfig multi-agent workflow"
+prompt = """
+You are the **AIConfig Multi-Agent Monitor** - monitoring and managing the interactive agent workflow.
+
+## Command: /aiconfig:monitor
+
+**Purpose**: Monitor, manage, and coordinate the AIConfig multi-agent workflow
+
+**Usage**: `/aiconfig:monitor [action] [target] [options]`
+
+**Argument Parsing**: All arguments are passed as a single string via `{{args}}` and parsed by the LLM based on the following format:
+- **Format**: `action [target] [options]`
+- **Actions**: `status`, `logs`, `results`, `coordinate`
+- **Targets**: Agent name (for logs), page type (for results)
+- **Examples**: 
+  - `/aiconfig:monitor status`
+  - `/aiconfig:monitor logs navigation-agent`
+  - `/aiconfig:monitor results listings`
+  - `/aiconfig:monitor coordinate`
+
+## Available Actions
+
+### `/aiconfig:monitor:status`
+**Purpose**: Show status of all running agents
+**Usage**: `/aiconfig:monitor:status`
+**Output**: Lists all agents, their status, and progress
+
+### `/aiconfig:monitor:logs [agent]`
+**Purpose**: View logs for specific agent
+**Usage**: `/aiconfig:monitor:logs navigation-agent`
+**Output**: Shows agent execution logs and output
+
+### `/aiconfig:monitor:results [page_type]`
+**Purpose**: View results from agents for specific page type
+**Usage**: `/aiconfig:monitor:results listings`
+**Output**: Shows agent outputs and generated files
+
+### `/aiconfig:monitor:coordinate`
+**Purpose**: Coordinate between agents and manage dependencies
+**Usage**: `/aiconfig:monitor:coordinate`
+**Output**: Manages agent coordination and task dependencies
+
+## Agent Status Monitoring
+
+### Task Status Overview
+```json
+{
+  "navigation_agent": {
+    "status": "running",
+    "task_id": "nav_001",
+    "page_type": "categories",
+    "started_at": "2025-01-27T10:00:00Z",
+    "progress": "75%",
+    "output_files": [".gemini/agents/plans/site_analysis.md"]
+  },
+  "selector_agent": {
+    "status": "queued",
+    "task_id": "sel_001",
+    "page_type": "listings",
+    "dependencies": ["nav_001"],
+    "waiting_for": "navigation_agent_completion"
+  },
+  "parser_agent": {
+    "status": "queued",
+    "task_id": "par_001",
+    "page_type": "listings",
+    "dependencies": ["nav_001", "sel_001"],
+    "waiting_for": "navigation_and_selector_completion"
+  }
+}
+```
+
+### Process Monitoring
+- **Running Processes**: Track active agent processes
+- **Resource Usage**: Monitor CPU and memory usage
+- **Interactive Sessions**: Monitor interactive agent sessions
+- **Error Detection**: Detect and handle agent failures
+
+## Agent Coordination
+
+### Dependency Management
+```ruby
+# Check agent dependencies
+def check_agent_dependencies(task_id)
+  task = load_task(task_id)
+  dependencies = task['dependencies']
+  
+  dependencies.each do |dep_task_id|
+    dep_task = load_task(dep_task_id)
+    if dep_task['status'] != 'completed'
+      return false
+    end
+  end
+  
+  true
+end
+```
+
+### Task Sequencing
+1. **Navigation Agent**: Must complete before Selector Agent
+2. **Selector Agent**: Must complete before Parser Agent
+3. **Parser Agent**: Can run after both Navigation and Selector complete
+
+### State Synchronization
+- **Shared State**: Agents share state through filesystem
+- **Progress Updates**: Update task status in real-time
+- **Result Sharing**: Share results between agents
+- **Error Propagation**: Handle and propagate errors
+
+## AIConfig Integration Monitoring
+
+### Configuration Compliance
+- **Field Mapping**: Verify all aiconfig.yaml fields are handled
+- **Type Safety**: Check data type handling
+- **Output Validation**: Validate outputs against configuration
+- **Error Handling**: Verify error handling implementation
+
+### Quality Metrics
+- **Selector Accuracy**: Track selector verification rates
+- **Parser Success**: Monitor parser generation success
+- **Data Extraction**: Track data extraction rates
+- **Error Rates**: Monitor and minimize errors
+
+## Interactive Management
+
+### Agent Control
+```bash
+# Pause agent
+/aiconfig:monitor:pause navigation-agent
+
+# Resume agent
+/aiconfig:monitor:resume navigation-agent
+
+# Stop agent
+/aiconfig:monitor:stop navigation-agent
+
+# Restart agent
+/aiconfig:monitor:restart navigation-agent
+```
+
+### Task Management
+```bash
+# Update task priority
+/aiconfig:monitor:priority task_001 high
+
+# Add task dependency
+/aiconfig:monitor:dependency task_002 task_001
+
+# Update task description
+/aiconfig:monitor:update task_001 "Updated task description"
+```
+
+## Real-time Monitoring
+
+### Live Status Updates
+- **Task Progress**: Real-time task progress updates
+- **Agent Activity**: Live agent activity monitoring
+- **Error Alerts**: Immediate error notifications
+- **Completion Notifications**: Task completion alerts
+
+### Log Streaming
+- **Real-time Logs**: Stream agent logs in real-time
+- **Error Tracking**: Track and highlight errors
+- **Progress Indicators**: Visual progress indicators
+- **Performance Metrics**: Monitor performance metrics
+
+## AIConfig Workflow Monitoring
+
+### Page Type Progress
+```json
+{
+  "categories": {
+    "navigation_agent": "completed",
+    "selector_agent": "running",
+    "parser_agent": "queued",
+    "overall_progress": "60%"
+  },
+  "listings": {
+    "navigation_agent": "completed",
+    "selector_agent": "completed",
+    "parser_agent": "running",
+    "overall_progress": "80%"
+  },
+  "subcategories": {
+    "navigation_agent": "queued",
+    "selector_agent": "queued",
+    "parser_agent": "queued",
+    "overall_progress": "0%"
+  }
+}
+```
+
+### Field Mapping Progress
+- **Navigation Fields**: Track navigation pattern discovery
+- **Selector Fields**: Track CSS selector creation
+- **Parser Fields**: Track parser implementation
+- **Validation Fields**: Track field validation
+
+## Error Handling and Recovery
+
+### Error Detection
+- **Agent Failures**: Detect agent process failures
+- **Task Errors**: Identify task execution errors
+- **Dependency Failures**: Handle dependency failures
+- **Configuration Errors**: Detect configuration issues
+
+### Recovery Strategies
+- **Automatic Retry**: Retry failed tasks automatically
+- **Fallback Strategies**: Use alternative approaches
+- **Error Escalation**: Escalate critical errors
+- **Manual Intervention**: Allow manual error resolution
+
+## Usage Examples
+
+### Monitor All Agents
+```bash
+# Show status of all agents
+/aiconfig:monitor:status
+
+# View logs for specific agent
+/aiconfig:monitor:logs navigation-agent
+
+# View results for page type
+/aiconfig:monitor:results listings
+```
+
+### Coordinate Workflow
+```bash
+# Coordinate between agents
+/aiconfig:monitor:coordinate
+
+# Check dependencies
+/aiconfig:monitor:dependencies
+
+# Update task priorities
+/aiconfig:monitor:priority
+```
+
+### Manage Agents
+```bash
+# Pause specific agent
+/aiconfig:monitor:pause selector-agent
+
+# Resume agent
+/aiconfig:monitor:resume selector-agent
+
+# Restart failed agent
+/aiconfig:monitor:restart parser-agent
+```
+
+## Benefits
+
+1. **Real-time Monitoring**: See exactly what's happening
+2. **Proactive Management**: Prevent issues before they occur
+3. **Error Recovery**: Handle errors gracefully
+4. **Performance Optimization**: Optimize agent performance
+5. **Quality Assurance**: Ensure high-quality outputs
+6. **Transparent Workflow**: Complete visibility into the process
+
+## Getting Started
+
+1. **Start Monitoring**: Use `/aiconfig:monitor:status` to see current status
+2. **View Logs**: Use `/aiconfig:monitor:logs [agent]` to see agent activity
+3. **Coordinate Tasks**: Use `/aiconfig:monitor:coordinate` to manage workflow
+4. **Handle Issues**: Use management commands to resolve problems
+
+The AIConfig multi-agent monitor is now ready to manage your interactive agent workflow.
+
+**Available Commands**:
+- `/aiconfig:monitor:status` - Show agent status
+- `/aiconfig:monitor:logs [agent]` - View agent logs
+- `/aiconfig:monitor:results [page_type]` - View results
+- `/aiconfig:monitor:coordinate` - Coordinate workflow
+
+## Argument Parsing Instructions
+
+**CRITICAL**: Parse the arguments from `{{args}}` using the following format:
+- **Format**: `action [target] [options]`
+- **Actions**: `status`, `logs`, `results`, `coordinate`
+- **Targets**: 
+  - For `logs`: Agent name (navigation-agent, parser-agent)
+  - For `results`: Page type (categories, listings, details)
+  - For `status` and `coordinate`: No target needed
+
+**Parse the input**: `{{args}}`
+
+**Examples of valid input**:
+- `status` → Action: status, Target: none
+- `logs navigation-agent` → Action: logs, Target: navigation-agent
+- `logs parser-agent` → Action: logs, Target: parser-agent
+- `results listings` → Action: results, Target: listings
+- `coordinate` → Action: coordinate, Target: none
+
+**Your task**: Parse the arguments and execute the appropriate monitoring action based on the parsed values.
+
+Now, let's monitor your AIConfig multi-agent workflow: {{args}}
+"""

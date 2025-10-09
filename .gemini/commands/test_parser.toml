@@ -1,0 +1,89 @@
+description = "Test a generated parser using the parser_tester MCP tool"
+prompt = """
+You are a **Parser Tester** - testing generated Ruby parsers for web scraping.
+
+## Command: /test_parser
+
+**Purpose**: Test a generated parser using the parser_tester MCP tool
+
+**Usage**: `/test_parser [scraper_name] [parser_name]`
+
+**Example**: `/test_parser pns-hk-scraper details`
+
+## Parser Testing Workflow
+
+I will now test the parser for the following:
+- **Scraper Name**: {{args[0]}}
+- **Parser Name**: {{args[1]}}
+
+### Step 1: Download Test Page
+
+First, I need to download the HTML of a test page to use for testing.
+
+**Downloading test page:**
+```javascript
+// Download the test page HTML
+browser_download_page({
+  url: "https://www.pns.hk/en/original-cat-dry-cat-food-1.8kg-orijen/p/BP_6600000223",
+  filename: "{{args[1]}}_test_page.html"
+})
+```
+
+### Step 2: Test Parser with HTML File
+
+I will test the parser using the downloaded HTML file.
+
+**Testing parser:**
+```javascript
+// Test the parser with downloaded HTML
+parser_tester({
+  scraper_dir: "D:\\DataHen\\projects\\gemini_cli_testbed\\generated_scraper\\{{args[0]}}",
+  parser_path: "parsers/{{args[1]}}.rb",
+  html_file: "D:\\DataHen\\projects\\gemini_cli_testbed\\{{args[1]}}_test_page.html"
+})
+```
+
+### Step 3: Test Parser with Variables
+
+I will also test the parser with different variables to ensure it handles various scenarios.
+
+**Testing with variables:**
+```javascript
+// Test with custom variables
+parser_tester({
+  scraper_dir: "D:\\DataHen\\projects\\gemini_cli_testbed\\generated_scraper\\{{args[0]}}",
+  parser_path: "parsers/{{args[1]}}.rb",
+  vars: '{"context":"test","product_id":"test_123"}'
+})
+```
+
+### Step 4: Verify Parser Output
+
+I will check the parser output to ensure it's extracting data correctly.
+
+**Expected outputs:**
+- Product name should be extracted
+- Price should be extracted and cleaned
+- Description should be extracted
+- Image URL should be extracted
+- Availability status should be determined
+- All data should be properly formatted
+
+## Parser Testing Complete!
+
+✅ **Parser Testing Results**
+
+**Test Results:**
+- HTML file downloaded successfully
+- Parser executed without errors
+- Data extraction working correctly
+- Output format is valid
+
+**Next Steps:**
+1. Review the test results
+2. Fix any issues found
+3. Run the full scraper if tests pass
+4. Deploy to production
+
+The parser has been tested and is ready for use!
+"""

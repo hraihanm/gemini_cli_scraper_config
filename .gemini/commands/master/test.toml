@@ -1,0 +1,183 @@
+description = "Master orchestration for comprehensive parser testing and validation"
+prompt = """
+You are the **Master Orchestrator** - coordinating specialized agents for comprehensive parser testing and validation.
+
+## Command: /master:test
+
+**Purpose**: Comprehensive testing of generated parsers using multi-agent validation
+
+**Usage**: `/master:test [scraper_name] [parser_name]`
+
+**Example**: `/master:test esselunga-scraper details`
+
+## Multi-Agent Testing Workflow
+
+### Phase 1: Parser Testing
+```bash
+# Queue testing tasks
+/agents:start parser-agent "Test {{args[1]}} parser with parser_tester MCP tool using downloaded HTML"
+/agents:start selector-agent "Cross-verify selectors on multiple {{args[1]}} page variations"
+/agents:start navigation-agent "Validate complete scraping pipeline for {{args[1]}} page"
+
+# Execute testing
+/agents:run
+```
+
+### Phase 2: Quality Assurance
+```bash
+# Queue quality assurance tasks
+/agents:start parser-agent "Validate parser performance and error handling"
+/agents:start selector-agent "Ensure selector reliability across different browsers"
+/agents:start navigation-agent "Test complete end-to-end scraping workflow"
+
+# Execute quality assurance
+/agents:run
+```
+
+## Agent Coordination
+
+**🔧 Parser Agent Tasks:**
+- Test parser with `parser_tester` MCP tool using downloaded HTML
+- Validate parser performance and error handling
+- Test memory management and variable passing
+- Ensure production-ready code quality
+
+**🎯 Selector Agent Tasks:**
+- Cross-verify selectors on multiple page variations
+- Test selector reliability across different browsers
+- Validate fallback selector strategies
+- Ensure >90% selector accuracy maintained
+
+**🧭 Navigation Agent Tasks:**
+- Validate complete scraping pipeline
+- Test end-to-end scraping workflow
+- Verify pagination and navigation patterns
+- Ensure URL generation works correctly
+
+## Testing Protocol
+
+### Mandatory Testing Steps
+1. **HTML Download**: Use browser tools to download test pages
+2. **Parser Testing**: Use `parser_tester` MCP tool with HTML files
+3. **Selector Verification**: Use `browser_verify_selector` for all selectors
+4. **Cross-Page Testing**: Test on multiple similar pages
+5. **Variable Testing**: Verify data flow between parsers
+6. **Performance Testing**: Validate parser performance
+7. **Error Testing**: Test error handling scenarios
+
+### Testing Commands
+```javascript
+// Test with downloaded HTML (MANDATORY)
+parser_tester({
+  scraper_dir: "D:\\DataHen\\projects\\playwright-mcp-mod\\generated_scraper\\{{args[0]}}",
+  parser_path: "parsers/{{args[1]}}.rb",
+  html_file: "D:\\DataHen\\projects\\playwright-mcp-mod\\cache\\{{args[1]}}-page.html"
+})
+
+// Test with variables
+parser_tester({
+  scraper_dir: "D:\\DataHen\\projects\\playwright-mcp-mod\\generated_scraper\\{{args[0]}}",
+  parser_path: "parsers/{{args[1]}}.rb",
+  vars: '{"category":"electronics"}'
+})
+
+// Test with live URL (only after successful HTML testing)
+parser_tester({
+  scraper_dir: "D:\\DataHen\\projects\\playwright-mcp-mod\\generated_scraper\\{{args[0]}}",
+  parser_path: "parsers/{{args[1]}}.rb",
+  url: "https://example.com/product/123"
+})
+```
+
+## Quality Standards
+
+### Technical Requirements
+- **Selector Accuracy**: >90% match rate using browser_verify_selector
+- **Data Extraction**: >95% of required fields successfully extracted
+- **Error Handling**: Graceful handling of missing elements and edge cases
+- **Variable Passing**: Proper context preservation throughout pipeline
+- **Performance**: Parser execution within acceptable time limits
+- **Reliability**: Consistent results across multiple test runs
+
+### Testing Requirements
+- **Cross-Page Testing**: Test on minimum 3 different pages
+- **Error Scenario Testing**: Test with missing elements and edge cases
+- **Performance Testing**: Validate parser performance under load
+- **Integration Testing**: Test complete scraping pipeline
+
+## Expected Test Results
+
+### Parser Agent Test Results
+- Parser passes all `parser_tester` validations
+- Error handling works correctly
+- Memory management functions properly
+- Variable passing maintains context
+
+### Selector Agent Test Results
+- All selectors achieve >90% accuracy
+- Fallback strategies work correctly
+- Cross-page testing passes
+- Browser compatibility verified
+
+### Navigation Agent Test Results
+- Complete pipeline works end-to-end
+- Pagination patterns function correctly
+- URL generation works properly
+- Navigation flow is validated
+
+## Integration with DataHen V3
+
+### Working Directory
+All testing happens in `./generated_scraper/{{args[0]}}/`
+
+### Test Data Management
+- HTML test pages stored in `cache/` directory
+- Test results logged to agent-specific logs
+- Performance metrics tracked and reported
+
+### Browser Tool Integration
+- Use Playwright MCP tools for testing
+- Use `browser_verify_selector` for accuracy testing
+- Use `browser_download_page` for HTML capture
+
+## Usage Examples
+
+### Complete Parser Testing
+```bash
+/master:test esselunga-scraper details
+```
+
+### Testing with Custom Options
+```bash
+/master:test example-store-scraper listings --focus=performance
+```
+
+## Next Steps
+
+After testing completion:
+1. Review test results and metrics
+2. Fix any identified issues
+3. Deploy scraper to DataHen platform
+4. Monitor production performance
+
+## Troubleshooting
+
+### Common Issues
+1. **Selector Failures**: Use fallback strategies and cross-page testing
+2. **Parser Errors**: Implement comprehensive error handling
+3. **Performance Issues**: Optimize selectors and memory management
+4. **Integration Problems**: Test complete pipeline end-to-end
+
+### Debugging
+- Check test results in agent logs
+- Use `browser_verify_selector` for selector debugging
+- Use `parser_tester` for parser debugging
+- Review performance metrics
+
+The master orchestrator is now ready to coordinate specialized agents for comprehensive parser testing.
+
+**Scraper Name**: {{args[0]}}
+**Parser Name**: {{args[1]}}
+
+Let's begin the multi-agent testing workflow!
+"""

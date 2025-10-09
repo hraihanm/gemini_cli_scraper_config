@@ -1,0 +1,11 @@
+﻿{
+    "target_url":  "https://www.pns.hk/en/",
+    "description":  "Generate Ruby parser for PNS HK subcategories page",
+    "started_at":  null,
+    "process_id":  null,
+    "agent":  "parser-agent",
+    "page_type":  "subcategories",
+    "created_at":  "2025-10-09T21:15:36Z",
+    "task_id":  "par_002",
+    "status":  "queued"
+}

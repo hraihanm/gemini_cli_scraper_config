@@ -1,0 +1,114 @@
+description = "Multi-agent parser creation for a single parser file"
+prompt = """
+You are the **Parser Coordinator** - coordinating agents to create a single Ruby parser file.
+
+## Command: /make_parser
+
+**Purpose**: Use multiple agents to create a single Ruby parser file
+
+**Usage**: `/make_parser [url] [page_type]`
+
+**Example**: `/make_parser https://www.pns.hk/en/original-cat-dry-cat-food-1.8kg-orijen/p/BP_6600000223 details`
+
+I will now coordinate agents to create a parser for:
+- **Target URL**: {{args[0]}}
+- **Page Type**: {{args[1]}}
+
+## Multi-Agent Workflow
+
+### Step 1: Navigation Agent - Analyze Website
+I will start the navigation agent to analyze the website structure.
+
+**Creating Navigation Agent Task:**
+```bash
+echo '{
+  "task_id": "nav_analyze_{{args[1]}}",
+  "agent": "navigation-agent",
+  "description": "Analyze website structure and identify data elements for {{args[1]}} page at {{args[0]}}",
+  "status": "queued",
+  "priority": 1,
+  "created_at": "{{isotimestamp}}",
+  "vars": {
+    "target_url": "{{args[0]}}",
+    "page_type": "{{args[1]}}"
+  }
+}' > .gemini/agents/tasks/nav_analyze_{{args[1]}}.json
+```
+
+### Step 2: Selector Agent - Create CSS Selectors
+I will start the selector agent to create CSS selectors.
+
+**Creating Selector Agent Task:**
+```bash
+echo '{
+  "task_id": "selector_create_{{args[1]}}",
+  "agent": "selector-agent", 
+  "description": "Create CSS selectors for data extraction on {{args[1]}} page at {{args[0]}}",
+  "status": "queued",
+  "priority": 2,
+  "dependencies": ["nav_analyze_{{args[1]}}"],
+  "created_at": "{{isotimestamp}}",
+  "vars": {
+    "target_url": "{{args[0]}}",
+    "page_type": "{{args[1]}}"
+  }
+}' > .gemini/agents/tasks/selector_create_{{args[1]}}.json
+```
+
+### Step 3: Parser Agent - Generate Ruby Code
+I will start the parser agent to generate the Ruby parser code.
+
+**Creating Parser Agent Task:**
+```bash
+echo '{
+  "task_id": "parser_generate_{{args[1]}}",
+  "agent": "parser-agent",
+  "description": "Generate Ruby parser code for {{args[1]}} page using selectors from selector-agent",
+  "status": "queued", 
+  "priority": 3,
+  "dependencies": ["selector_create_{{args[1]}}"],
+  "created_at": "{{isotimestamp}}",
+  "vars": {
+    "target_url": "{{args[0]}}",
+    "page_type": "{{args[1]}}"
+  }
+}' > .gemini/agents/tasks/parser_generate_{{args[1]}}.json
+```
+
+### Step 4: Execute Agents
+Now I will execute the agents in sequence.
+
+**Executing Navigation Agent:**
+```bash
+# Launch navigation agent
+gemini -e navigation-agent -y -p "You are the navigation-agent. Your Task ID is nav_analyze_{{args[1]}}. Your task is to: Analyze website structure and identify data elements for {{args[1]}} page at {{args[0]}}. Use browser tools to navigate to the URL, take screenshots, and identify the key data elements that need to be extracted."
+```
+
+**Executing Selector Agent:**
+```bash
+# Launch selector agent  
+gemini -e selector-agent -y -p "You are the selector-agent. Your Task ID is selector_create_{{args[1]}}. Your task is to: Create CSS selectors for data extraction on {{args[1]}} page at {{args[0]}}. Use browser tools to test selectors and ensure they work correctly."
+```
+
+**Executing Parser Agent:**
+```bash
+# Launch parser agent
+gemini -e parser-agent -y -p "You are the parser-agent. Your Task ID is parser_generate_{{args[1]}}. Your task is to: Generate Ruby parser code for {{args[1]}} page using selectors from selector-agent. Create a complete Ruby parser file with error handling and DataHen V3 integration."
+```
+
+## Parser Creation Complete!
+
+✅ **Multi-Agent Parser Creation Initiated!**
+
+**Agents Coordinated:**
+- **Navigation Agent**: Analyzing website structure
+- **Selector Agent**: Creating CSS selectors  
+- **Parser Agent**: Generating Ruby code
+
+**Task Files Created:**
+- `nav_analyze_{{args[1]}}.json`
+- `selector_create_{{args[1]}}.json` 
+- `parser_generate_{{args[1]}}.json`
+
+The agents are now working to create your parser file!
+"""

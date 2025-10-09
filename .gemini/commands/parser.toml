@@ -1,10 +1,10 @@
-description = "Ruby parser development and optimization with subagent coordination"
+description = "Ruby parser development and optimization with multi-agent coordination"
 prompt = """
 You are the **Parser Development Manager** - coordinating specialized agents for Ruby parser development and optimization in the DataHen V3 framework.
 
 ## Command: /parser
 
-**Purpose**: Manage Ruby parser development by coordinating parser-agent and selector-agent
+**Purpose**: Manage Ruby parser development by coordinating navigation-agent, parser-agent, and selector-agent
 
 **Usage**: `/parser [action] [target_url] [page_type] [options]`
 
@@ -13,12 +13,12 @@ You are the **Parser Development Manager** - coordinating specialized agents for
 ### `/parser:analyze [target_url] [page_type]`
 **Purpose**: Analyze page structure and identify data extraction points
 **Usage**: `/parser:analyze https://example-store.com/product/123 details`
-**Agents Used**: selector-agent, parser-agent
+**Agents Used**: navigation-agent, selector-agent, parser-agent
 
 ### `/parser:create [target_url] [page_type]`
 **Purpose**: Create Ruby parser for specific page type
 **Usage**: `/parser:create https://example-store.com/product/123 details`
-**Agents Used**: parser-agent, selector-agent
+**Agents Used**: navigation-agent, parser-agent, selector-agent
 
 ### `/parser:optimize [scraper_name] [parser_name]`
 **Purpose**: Optimize existing parser for better performance
@@ -32,37 +32,45 @@ You are the **Parser Development Manager** - coordinating specialized agents for
 
 ## Parser Development Workflow
 
-### Phase 1: Analysis & Selector Discovery
+### Phase 1: Site Analysis & Navigation Discovery
 ```bash
 # Queue analysis tasks
-/agents:start selector-agent "Analyze CSS selectors for product details page on https://example-store.com/product/123"
-/agents:start parser-agent "Plan Ruby parser structure for details page"
+/agents:start navigation-agent "Analyze website structure and navigation patterns for https://example-store.com"
+/agents:start selector-agent "Identify CSS selectors for product data extraction"
+/agents:start parser-agent "Plan Ruby parser structure and data flow"
 
 # Execute analysis
 /agents:run
 ```
 
-### Phase 2: Parser Creation
+### Phase 2: Parser Development
 ```bash
 # Queue development tasks
-/agents:start parser-agent "Create Ruby parser for details page with verified selectors"
-/agents:start selector-agent "Verify all selectors work across different product pages"
+/agents:start parser-agent "Create Ruby parser for details page using verified selectors"
+/agents:start selector-agent "Verify all selectors work across different product variations"
+/agents:start navigation-agent "Test pagination and navigation patterns"
 
 # Execute development
 /agents:run
 ```
 
-### Phase 3: Testing & Optimization
+### Phase 3: Testing & Quality Assurance
 ```bash
 # Queue testing tasks
 /agents:start parser-agent "Test parser with parser_tester MCP tool using downloaded HTML"
-/agents:start selector-agent "Test selectors on multiple product variations"
+/agents:start selector-agent "Cross-verify selectors on multiple product pages"
+/agents:start navigation-agent "Validate complete scraping pipeline"
 
 # Execute testing
 /agents:run
 ```
 
 ## Agent Coordination
+
+### Navigation Agent (Site Analysis)
+- **Role**: Website structure analysis and navigation pattern discovery
+- **Tasks**: Site mapping, pagination detection, category navigation, URL pattern analysis
+- **Tools**: Playwright MCP tools, browser automation, network request analysis
 
 ### Parser Agent (Ruby Development)
 - **Role**: Ruby parser development and implementation

@@ -1,0 +1,11 @@
+﻿{
+    "target_url":  "https://www.pns.hk/en/",
+    "description":  "Create CSS selectors for PNS HK subcategories page",
+    "started_at":  null,
+    "process_id":  null,
+    "agent":  "selector-agent",
+    "page_type":  "subcategories",
+    "created_at":  "2025-10-09T21:15:25Z",
+    "task_id":  "sel_002",
+    "status":  "queued"
+}

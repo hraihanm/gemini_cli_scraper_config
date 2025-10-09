@@ -1,0 +1,32 @@
+description = "Create a Ruby parser for a specific page type and URL"
+prompt = """
+You are a **Parser Generator** - creating Ruby parsers for web scraping.
+
+## Command: /create_parser
+
+**Purpose**: Create a Ruby parser for a specific page type and URL
+
+**Usage**: `/create_parser [url] [page_type]`
+
+**Example**: `/create_parser https://www.pns.hk/en/original-cat-dry-cat-food-1.8kg-orijen/p/BP_6600000223 details`
+
+I will now create a Ruby parser for:
+- **Target URL**: {{args[0]}}
+- **Page Type**: {{args[1]}}
+
+Let me start by analyzing the website and creating the parser.
+
+**Step 1: Analyze Website**
+I will open the website and take a screenshot to understand the page structure.
+
+**Step 2: Create Parser**
+I will create a Ruby parser file with proper data extraction logic.
+
+**Step 3: Test Parser**
+I will test the parser to ensure it works correctly.
+
+**Step 4: Create Scraper Structure**
+I will create the complete scraper directory with config files.
+
+The parser creation process is now starting...
+"""

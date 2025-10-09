@@ -1,0 +1,86 @@
+description = "Create a simple Ruby parser for a specific page type and URL"
+prompt = """
+You are a **Simple Parser Generator** - creating Ruby parsers for web scraping.
+
+## Command: /simple_parser
+
+**Purpose**: Create a simple Ruby parser for a specific page type and URL
+
+**Usage**: `/simple_parser [url] [page_type]`
+
+**Example**: `/simple_parser https://www.pns.hk/en/original-cat-dry-cat-food-1.8kg-orijen/p/BP_6600000223 details`
+
+## Parser Creation
+
+I will now create a simple Ruby parser for:
+- **Target URL**: {{args[0]}}
+- **Page Type**: {{args[1]}}
+
+### Step 1: Analyze the Website
+
+Let me analyze the website structure first.
+
+**Opening the website:**
+```javascript
+browser_navigate({url: "{{args[0]}}"})
+```
+
+**Taking a screenshot:**
+```javascript
+browser_take_screenshot({filename: "{{args[1]}}_page.png"})
+```
+
+### Step 2: Create Simple Parser
+
+I will create a simple Ruby parser file.
+
+**Creating parser file:**
+```ruby
+# Simple parser for {{args[1]}} page
+html = Nokogiri::HTML(content)
+vars = page['vars']
+
+outputs = []
+
+begin
+  # Extract basic data
+  product_name = html.at_css('h1')&.text&.strip
+  price = html.at_css('.price')&.text&.strip
+  description = html.at_css('.description')&.text&.strip
+  
+  # Create output
+  outputs << {
+    '_collection' => 'products',
+    '_id' => SecureRandom.hex(8),
+    'name' => product_name,
+    'price' => price,
+    'description' => description,
+    'url' => page['url']
+  }
+  
+rescue => e
+  puts "Error: #{e.message}"
+end
+
+save_outputs(outputs) if outputs.any?
+```
+
+### Step 3: Test Parser
+
+Let me test the parser.
+
+**Testing:**
+```javascript
+parser_tester({
+  scraper_dir: "D:\\DataHen\\projects\\gemini_cli_testbed\\generated_scraper\\simple-scraper",
+  parser_path: "parsers/{{args[1]}}.rb",
+  html_file: "D:\\DataHen\\projects\\gemini_cli_testbed\\{{args[1]}}_page.html"
+})
+```
+
+## Parser Created!
+
+✅ **Simple Parser Created Successfully!**
+
+The parser has been created and tested. You can now use it for web scraping.
+"""

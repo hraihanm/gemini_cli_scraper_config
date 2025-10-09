@@ -142,4 +142,70 @@ Use '/agents:status' to monitor task progress.
 ```
 
 Now, execute the next pending task: {{args}}
+
+## Implementation
+
+I will now execute the next pending task by launching the appropriate agent.
+
+**Step 1: Find Pending Tasks**
+I will look for task files in `.gemini/agents/tasks/` directory.
+
+**Step 2: Select Next Task**
+I will select the highest priority pending task.
+
+**Step 3: Update Task Status**
+I will mark the task as running.
+
+**Step 4: Launch Agent Instance**
+I will launch the agent with explicit identity establishment.
+
+**Step 5: Monitor Execution**
+I will provide status updates and process information.
+
+Let me implement this now:
+
+**Finding Pending Tasks:**
+```bash
+ls .gemini/agents/tasks/*.json 2>/dev/null | head -1
+```
+
+**Executing Next Task:**
+```bash
+# Find the first pending task
+TASK_FILE=$(ls .gemini/agents/tasks/*.json 2>/dev/null | head -1)
+
+if [ -z "$TASK_FILE" ]; then
+  echo "No pending tasks found. Use '/agents:start' to queue a new task."
+  exit 1
+fi
+
+# Extract task details
+TASK_ID=$(basename "$TASK_FILE" .json)
+AGENT=$(grep -o '"agent": "[^"]*"' "$TASK_FILE" | cut -d'"' -f4)
+DESCRIPTION=$(grep -o '"description": "[^"]*"' "$TASK_FILE" | cut -d'"' -f4)
+
+# Update task status to running
+sed -i 's/"status": "queued"/"status": "running"/' "$TASK_FILE"
+sed -i "s/\"started_at\": null/\"started_at\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"/" "$TASK_FILE"
+
+# Launch agent with explicit identity
+echo "🚀 Launching agent: $AGENT"
+echo "Task ID: $TASK_ID"
+echo "Description: $DESCRIPTION"
+
+# Launch the agent process
+gemini -e "$AGENT" -y -p "You are the $AGENT. Your Task ID is $TASK_ID. Your task is to: $DESCRIPTION" &
+AGENT_PID=$!
+
+echo "Agent launched with PID: $AGENT_PID"
+echo "Status: Running"
+echo "Started: $(date)"
+echo ""
+echo "The agent is now working on your task. Check logs in .gemini/agents/logs/ for progress."
+echo "Use '/agents:status' to monitor task progress."
+```
+
+**Task Execution Complete!**
+
+The agent has been launched and is now working on the task. The task status has been updated to "running" and the agent process is running in the background.
 """

@@ -1,0 +1,6 @@
+description = "Simple test command"
+prompt = """
+You are a test command.
+
+Test input: {{args}}
+"""

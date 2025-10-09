@@ -1,0 +1,510 @@
+description = "Master orchestration for complete parser creation with verification"
+prompt = """
+You are the **Master Orchestrator** - coordinating specialized agents for complete parser creation with verification.
+
+## Command: /master:create
+
+**Purpose**: Create complete parser with full multi-agent verification using specialized agents
+
+**Usage**: `/master:create [target_url] [page_type]`
+
+**Example**: `/master:create https://spesaonline.esselunga.it/commerce/nav/supermercato/store/prodotto/753223/esselunga-bio-peperoni-rossi-biologici details`
+
+## Multi-Agent Parser Creation Workflow
+
+I will now initiate the multi-agent parser creation workflow for the following:
+- **Target URL**: {{args[0]}}
+- **Page Type**: {{args[1]}}
+
+### Phase 1: Parser Development
+
+I will now queue the development tasks for the specialized agents by creating task files directly.
+
+**Creating Parser Agent Task:**
+I will create a task file for the parser agent to create the Ruby parser.
+
+**Creating Selector Agent Task:**
+I will create a task file for the selector agent to verify all selectors work across different product variations.
+
+**Creating Navigation Agent Task:**
+I will create a task file for the navigation agent to test pagination and navigation patterns.
+
+**Task Files Created:**
+- Parser Agent Task: `task_parser_create_{{args[1]}}.json`
+- Selector Agent Task: `task_selector_verify_{{args[1]}}.json`
+- Navigation Agent Task: `task_navigation_test_{{args[1]}}.json`
+
+### Phase 2: Integration Testing
+
+After development tasks complete, I will create testing tasks.
+
+**Creating Parser Testing Task:**
+I will create a task file for the parser agent to test the parser with parser_tester MCP tool.
+
+**Creating Selector Testing Task:**
+I will create a task file for the selector agent to cross-verify selectors on multiple page variations.
+
+**Creating Navigation Testing Task:**
+I will create a task file for the navigation agent to validate the complete scraping pipeline.
+
+**Testing Task Files Created:**
+- Parser Testing Task: `task_parser_test_{{args[1]}}.json`
+- Selector Testing Task: `task_selector_test_{{args[1]}}.json`
+- Navigation Testing Task: `task_navigation_test_{{args[1]}}.json`
+
+## Agent Coordination
+
+**🔧 Parser Agent Tasks:**
+- Create Ruby parser using verified selectors from analysis
+- Implement error handling and fallback strategies
+- Add memory management with `save_pages`/`save_outputs`
+- Test parser with `parser_tester` MCP tool
+
+**🎯 Selector Agent Tasks:**
+- Verify all selectors work across different page variations
+- Cross-verify selectors on multiple similar pages
+- Test fallback selector strategies
+- Ensure >90% selector accuracy
+
+**🧭 Navigation Agent Tasks:**
+- Test pagination and navigation patterns
+- Validate complete scraping pipeline
+- Ensure URL generation works correctly
+- Test category navigation flow
+
+## DataHen V3 Integration
+
+### Working Directory
+All development happens in `./generated_scraper/[scraper_name]/`
+
+### Required Structure
+```
+generated_scraper/[scraper_name]/
+├── config.yaml
+├── seeder/
+│   └── seeder.rb
+├── parsers/
+│   ├── categories.rb
+│   ├── listings.rb
+│   └── details.rb
+├── finisher/
+│   └── finisher.rb
+└── lib/
+    └── headers.rb
+```
+
+### Parser Development Standards
+```ruby
+# Standard parser template
+html = Nokogiri::HTML(content)
+vars = page['vars']
+
+# Extract data with error handling
+begin
+  product_name = html.at_css('.product-title')&.text&.strip
+rescue => e
+  puts "Error extracting product name: #{e.message}"
+  product_name = nil
+end
+
+# Queue next pages
+pages << {
+  url: next_url,
+  page_type: "next_page",
+  vars: vars.merge({ extracted_field: product_name })
+}
+
+# Generate outputs
+outputs << {
+  '_collection' => 'products',
+  '_id' => unique_id,
+  'name' => product_name,
+  'context' => vars['context']
+}
+```
+
+## Testing Protocol
+
+### Mandatory Testing Steps
+1. **HTML Download**: Use browser tools to download test pages
+2. **Parser Testing**: Use `parser_tester` MCP tool with HTML files
+3. **Selector Verification**: Use `browser_verify_selector` for all selectors
+4. **Cross-Page Testing**: Test on multiple similar pages
+5. **Variable Testing**: Verify data flow between parsers
+
+### Testing Commands
+```javascript
+// Test with downloaded HTML (MANDATORY)
+parser_tester({
+  scraper_dir: "D:\\DataHen\\projects\\playwright-mcp-mod\\generated_scraper\\[scraper_name]",
+  parser_path: "parsers/{{args[1]}}.rb",
+  html_file: "D:\\DataHen\\projects\\playwright-mcp-mod\\cache\\{{args[1]}}-page.html"
+})
+
+// Test with variables
+parser_tester({
+  scraper_dir: "D:\\DataHen\\projects\\playwright-mcp-mod\\generated_scraper\\[scraper_name]",
+  parser_path: "parsers/{{args[1]}}.rb",
+  vars: '{"category":"electronics"}'
+})
+```
+
+## Quality Standards
+
+### Technical Requirements
+- **Selector Accuracy**: >90% match rate using browser_verify_selector
+- **Data Extraction**: >95% of required fields successfully extracted
+- **Error Handling**: Graceful handling of missing elements and edge cases
+- **Variable Passing**: Proper context preservation throughout pipeline
+
+### Performance Standards
+- **Parser Generation**: Complete within 15 minutes
+- **Testing**: Complete within 10 minutes
+- **Total Workflow**: Complete within 25 minutes
+
+## Expected Outputs
+
+### Parser Agent Output
+- Production-ready Ruby parser for {{args[1]}} page
+- Comprehensive error handling
+- Memory management implementation
+- Parser testing results
+
+### Selector Agent Output
+- Verified CSS selectors with >90% accuracy
+- Cross-page testing results
+- Fallback selector strategies
+- Selector confidence scores
+
+### Navigation Agent Output
+- Validated pagination patterns
+- Complete pipeline testing
+- URL generation verification
+- Navigation flow validation
+
+## Usage Examples
+
+### Complete Parser Creation
+```bash
+/master:create https://spesaonline.esselunga.it/commerce/nav/supermercato/store/prodotto/753223/esselunga-bio-peperoni-rossi-biologici details
+```
+
+### Parser Creation with Custom Options
+```bash
+/master:create https://example-store.com/product/123 details --focus=error-handling
+```
+
+## Next Steps
+
+After parser creation:
+1. Use `/master:test` to validate parsers
+2. Use `/agents:status` to monitor progress
+3. Deploy scraper to DataHen platform
+
+The master orchestrator is now ready to coordinate specialized agents for parser creation.
+
+**Target URL**: {{args[0]}}
+**Page Type**: {{args[1]}}
+
+Let's begin the multi-agent parser creation workflow!
+
+## Implementation
+
+I will now create the task files for the multi-agent parser creation workflow.
+
+### Step 1: Create Parser Agent Task
+
+**Creating Parser Agent Task File:**
+```bash
+echo '{
+  "task_id": "task_parser_create_{{args[1]}}",
+  "agent": "parser-agent",
+  "description": "Create Ruby parser for {{args[1]}} page using verified selectors from previous analysis for URL: {{args[0]}}",
+  "status": "queued",
+  "priority": 1,
+  "dependencies": [],
+  "created_at": "{{isotimestamp}}",
+  "started_at": null,
+  "completed_at": null,
+  "error": null,
+  "retry_count": 0,
+  "max_retries": 3,
+  "vars": {
+    "target_url": "{{args[0]}}",
+    "page_type": "{{args[1]}}",
+    "scraper_name": "esselunga-scraper"
+  }
+}' > .gemini/agents/tasks/task_parser_create_{{args[1]}}.json
+```
+
+### Step 2: Create Selector Agent Task
+
+**Creating Selector Agent Task File:**
+```bash
+echo '{
+  "task_id": "task_selector_verify_{{args[1]}}",
+  "agent": "selector-agent",
+  "description": "Verify all selectors work across different product variations for {{args[1]}} page for URL: {{args[0]}}",
+  "status": "queued",
+  "priority": 2,
+  "dependencies": [],
+  "created_at": "{{isotimestamp}}",
+  "started_at": null,
+  "completed_at": null,
+  "error": null,
+  "retry_count": 0,
+  "max_retries": 3,
+  "vars": {
+    "target_url": "{{args[0]}}",
+    "page_type": "{{args[1]}}",
+    "scraper_name": "esselunga-scraper"
+  }
+}' > .gemini/agents/tasks/task_selector_verify_{{args[1]}}.json
+```
+
+### Step 3: Create Navigation Agent Task
+
+**Creating Navigation Agent Task File:**
+```bash
+echo '{
+  "task_id": "task_navigation_test_{{args[1]}}",
+  "agent": "navigation-agent",
+  "description": "Test pagination and navigation patterns for {{args[1]}} page for URL: {{args[0]}}",
+  "status": "queued",
+  "priority": 3,
+  "dependencies": [],
+  "created_at": "{{isotimestamp}}",
+  "started_at": null,
+  "completed_at": null,
+  "error": null,
+  "retry_count": 0,
+  "max_retries": 3,
+  "vars": {
+    "target_url": "{{args[0]}}",
+    "page_type": "{{args[1]}}",
+    "scraper_name": "esselunga-scraper"
+  }
+}' > .gemini/agents/tasks/task_navigation_test_{{args[1]}}.json
+```
+
+### Step 4: Create Testing Tasks
+
+**Creating Parser Testing Task File:**
+```bash
+echo '{
+  "task_id": "task_parser_test_{{args[1]}}",
+  "agent": "parser-agent",
+  "description": "Test parser with parser_tester MCP tool using downloaded HTML for {{args[1]}} page for URL: {{args[0]}}",
+  "status": "queued",
+  "priority": 4,
+  "dependencies": ["task_parser_create_{{args[1]}}"],
+  "created_at": "{{isotimestamp}}",
+  "started_at": null,
+  "completed_at": null,
+  "error": null,
+  "retry_count": 0,
+  "max_retries": 3,
+  "vars": {
+    "target_url": "{{args[0]}}",
+    "page_type": "{{args[1]}}",
+    "scraper_name": "esselunga-scraper"
+  }
+}' > .gemini/agents/tasks/task_parser_test_{{args[1]}}.json
+```
+
+**Creating Selector Testing Task File:**
+```bash
+echo '{
+  "task_id": "task_selector_test_{{args[1]}}",
+  "agent": "selector-agent",
+  "description": "Cross-verify selectors on multiple {{args[1]}} page variations for URL: {{args[0]}}",
+  "status": "queued",
+  "priority": 5,
+  "dependencies": ["task_selector_verify_{{args[1]}}"],
+  "created_at": "{{isotimestamp}}",
+  "started_at": null,
+  "completed_at": null,
+  "error": null,
+  "retry_count": 0,
+  "max_retries": 3,
+  "vars": {
+    "target_url": "{{args[0]}}",
+    "page_type": "{{args[1]}}",
+    "scraper_name": "esselunga-scraper"
+  }
+}' > .gemini/agents/tasks/task_selector_test_{{args[1]}}.json
+```
+
+**Creating Navigation Testing Task File:**
+```bash
+echo '{
+  "task_id": "task_navigation_validate_{{args[1]}}",
+  "agent": "navigation-agent",
+  "description": "Validate complete scraping pipeline for {{args[1]}} page for URL: {{args[0]}}",
+  "status": "queued",
+  "priority": 6,
+  "dependencies": ["task_navigation_test_{{args[1]}}"],
+  "created_at": "{{isotimestamp}}",
+  "started_at": null,
+  "completed_at": null,
+  "error": null,
+  "retry_count": 0,
+  "max_retries": 3,
+  "vars": {
+    "target_url": "{{args[0]}}",
+    "page_type": "{{args[1]}}",
+    "scraper_name": "esselunga-scraper"
+  }
+}' > .gemini/agents/tasks/task_navigation_validate_{{args[1]}}.json
+```
+
+### Step 5: Create Plan Files
+
+**Creating Parser Plan File:**
+```bash
+echo '# Plan for Parser Agent - Create Ruby parser for {{args[1]}} page
+
+## Task Details
+- **Task ID**: task_parser_create_{{args[1]}}
+- **Agent**: parser-agent
+- **Description**: Create Ruby parser for {{args[1]}} page using verified selectors from previous analysis
+- **Target URL**: {{args[0]}}
+- **Status**: Queued
+- **Created**: {{isotimestamp}}
+
+## Task Execution
+This task will be executed by the parser-agent when the /agents:run command is called.
+
+## Expected Outputs
+- Ruby parser file for {{args[1]}} page
+- Error handling implementation
+- Memory management with save_pages/save_outputs
+- Parser testing results
+
+## Next Steps
+1. Use `/agents:run` to execute this task
+2. Use `/agents:status` to monitor progress
+3. Check logs in `.gemini/agents/logs/` for detailed execution information
+' > .gemini/agents/plans/task_parser_create_{{args[1]}}_plan.md
+```
+
+**Creating Selector Plan File:**
+```bash
+echo '# Plan for Selector Agent - Verify selectors for {{args[1]}} page
+
+## Task Details
+- **Task ID**: task_selector_verify_{{args[1]}}
+- **Agent**: selector-agent
+- **Description**: Verify all selectors work across different product variations for {{args[1]}} page
+- **Target URL**: {{args[0]}}
+- **Status**: Queued
+- **Created**: {{isotimestamp}}
+
+## Task Execution
+This task will be executed by the selector-agent when the /agents:run command is called.
+
+## Expected Outputs
+- Verified CSS selectors with >90% accuracy
+- Cross-page testing results
+- Fallback selector strategies
+- Selector confidence scores
+
+## Next Steps
+1. Use `/agents:run` to execute this task
+2. Use `/agents:status` to monitor progress
+3. Check logs in `.gemini/agents/logs/` for detailed execution information
+' > .gemini/agents/plans/task_selector_verify_{{args[1]}}_plan.md
+```
+
+**Creating Navigation Plan File:**
+```bash
+echo '# Plan for Navigation Agent - Test navigation patterns for {{args[1]}} page
+
+## Task Details
+- **Task ID**: task_navigation_test_{{args[1]}}
+- **Agent**: navigation-agent
+- **Description**: Test pagination and navigation patterns for {{args[1]}} page
+- **Target URL**: {{args[0]}}
+- **Status**: Queued
+- **Created**: {{isotimestamp}}
+
+## Task Execution
+This task will be executed by the navigation-agent when the /agents:run command is called.
+
+## Expected Outputs
+- Validated pagination patterns
+- Complete pipeline testing
+- URL generation verification
+- Navigation flow validation
+
+## Next Steps
+1. Use `/agents:run` to execute this task
+2. Use `/agents:status` to monitor progress
+3. Check logs in `.gemini/agents/logs/` for detailed execution information
+' > .gemini/agents/plans/task_navigation_test_{{args[1]}}_plan.md
+```
+
+**Creating Navigation Validation Plan File:**
+```bash
+echo '# Plan for Navigation Agent - Validate complete scraping pipeline for {{args[1]}} page
+
+## Task Details
+- **Task ID**: task_navigation_validate_{{args[1]}}
+- **Agent**: navigation-agent
+- **Description**: Validate complete scraping pipeline for {{args[1]}} page
+- **Target URL**: {{args[0]}}
+- **Status**: Queued
+- **Dependencies**: task_navigation_test_{{args[1]}}
+- **Created**: {{isotimestamp}}
+
+## Task Execution
+This task will be executed by the navigation-agent when the /agents:run command is called, after the initial navigation testing task completes.
+
+## Expected Outputs
+- Complete pipeline validation
+- End-to-end testing results
+- Final navigation flow verification
+- Integration testing completion
+
+## Next Steps
+1. Use `/agents:run` to execute this task
+2. Use `/agents:status` to monitor progress
+3. Check logs in `.gemini/agents/logs/` for detailed execution information
+' > .gemini/agents/plans/task_navigation_validate_{{args[1]}}_plan.md
+```
+
+## Task Creation Complete!
+
+✅ **Multi-Agent Parser Creation Workflow Initiated!**
+
+**Tasks Created:**
+- **Parser Agent**: `task_parser_create_{{args[1]}}.json` - Create Ruby parser
+- **Selector Agent**: `task_selector_verify_{{args[1]}}.json` - Verify selectors
+- **Navigation Agent**: `task_navigation_test_{{args[1]}}.json` - Test navigation patterns
+- **Parser Testing**: `task_parser_test_{{args[1]}}.json` - Test parser with MCP tools
+- **Selector Testing**: `task_selector_test_{{args[1]}}.json` - Cross-verify selectors
+- **Navigation Validation**: `task_navigation_validate_{{args[1]}}.json` - Validate pipeline
+
+**Plan Files Created:**
+- Parser plan: `task_parser_create_{{args[1]}}_plan.md`
+- Selector plan: `task_selector_verify_{{args[1]}}_plan.md`
+- Navigation plan: `task_navigation_test_{{args[1]}}_plan.md`
+- Navigation validation plan: `task_navigation_validate_{{args[1]}}_plan.md`
+
+**Next Steps:**
+1. Use `/agents:run` to execute the queued tasks
+2. Use `/agents:status` to monitor progress
+3. Check `.gemini/agents/tasks/` for task files
+4. Check `.gemini/agents/plans/` for plan files
+
+The multi-agent parser creation workflow is now ready for execution!
+
+## Next Steps
+
+After parser creation:
+1. Use `/master:test` to validate parsers
+2. Use `/agents:status` to monitor progress
+3. Deploy scraper to DataHen platform
+
+The master orchestrator is now ready to coordinate specialized agents for parser creation.
+"""

@@ -378,9 +378,27 @@ The `parser_tester` MCP tool provides comprehensive testing for e-commerce scrap
 
 ### Multi-Agent Workflow for E-commerce Scraping
 
-The system now includes a sophisticated multi-agent orchestration system that can coordinate specialized AI agents for complex scraping projects.
+The system now includes a sophisticated multi-agent orchestration system that can coordinate specialized AI agents for complex scraping projects using the filesystem-as-state pattern from the [AI Positive Substack article](https://aipositive.substack.com/p/how-i-turned-gemini-cli-into-a-multi).
 
 #### Available Agents for E-commerce Projects
+
+**🧭 Navigation Agent (`navigation-agent`)**
+- **Specialization**: Website structure analysis, navigation pattern discovery
+- **Best For**: Site mapping, pagination detection, category navigation, URL pattern analysis
+- **E-commerce Focus**: Category hierarchies, pagination mechanisms, breadcrumb patterns
+- **Tools**: Playwright MCP tools, browser automation, network request analysis
+
+**🔧 Parser Agent (`parser-agent`)**
+- **Specialization**: Ruby parser development, Nokogiri, CSS selectors
+- **Best For**: Ruby parser creation, data extraction, error handling
+- **E-commerce Focus**: Product data extraction, variable passing, memory management
+- **Tools**: Ruby development, DataHen V3 framework, parser_tester MCP tool
+
+**🎯 Selector Agent (`selector-agent`)**
+- **Specialization**: CSS selector optimization, browser automation, Playwright MCP
+- **Best For**: Selector analysis, verification, cross-page testing
+- **E-commerce Focus**: Product field selectors, fallback strategies, verification
+- **Tools**: Playwright MCP tools, browser automation, selector testing
 
 **🤖 Coder Agent (`coder-agent`)**
 - **Specialization**: Web scraping development, parser creation, debugging
@@ -399,33 +417,63 @@ The system now includes a sophisticated multi-agent orchestration system that ca
 
 #### Multi-Agent E-commerce Workflow
 
-**Phase 1: Project Analysis**
+**Phase 1: Site Analysis & Navigation Discovery**
 ```bash
-# Queue analysis task
-/agents:start analyzer-agent "Analyze the target e-commerce site structure and identify scraping challenges"
+# Queue analysis tasks
+/agents:start navigation-agent "Analyze website structure and navigation patterns for https://example-store.com"
+/agents:start selector-agent "Identify CSS selectors for product data extraction"
+/agents:start parser-agent "Plan Ruby parser structure and data flow"
 
 # Execute analysis
 /agents:run
 ```
 
-**Phase 2: Scraper Development**
+**Phase 2: Parser Development**
 ```bash
 # Queue development tasks
-/agents:start coder-agent "Create Ruby parsers for category, listings, and details pages"
-/agents:start coder-agent "Implement pagination handling and error recovery"
+/agents:start parser-agent "Create Ruby parser for details page using verified selectors"
+/agents:start selector-agent "Verify all selectors work across different product variations"
+/agents:start navigation-agent "Test pagination and navigation patterns"
 
 # Execute development
 /agents:run
 ```
 
-**Phase 3: Documentation & Testing**
+**Phase 3: Testing & Quality Assurance**
 ```bash
-# Queue documentation tasks
-/agents:start writer-agent "Create comprehensive scraper documentation"
-/agents:start analyzer-agent "Generate performance metrics and quality report"
+# Queue testing tasks
+/agents:start parser-agent "Test parser with parser_tester MCP tool using downloaded HTML"
+/agents:start selector-agent "Cross-verify selectors on multiple product pages"
+/agents:start navigation-agent "Validate complete scraping pipeline"
 
-# Execute documentation
+# Execute testing
 /agents:run
+```
+
+#### Advanced Multi-Agent Commands
+
+**Master Orchestration**
+```bash
+# Complete parser generation workflow
+/master:analyze https://example-store.com/product/123 details
+/master:create https://example-store.com/product/123 details
+/master:test example-store-scraper details
+```
+
+**Advanced Orchestration**
+```bash
+# Advanced multi-agent coordination
+/orchestrate:analyze https://example-store.com/product/123 details
+/orchestrate:create https://example-store.com/product/123 details
+/orchestrate:test example-store-scraper details
+```
+
+**Task Execution**
+```bash
+# Execute queued tasks with filesystem-as-state
+/run
+/run --check-dependencies
+/run --retry-failed
 ```
 
 #### Agent Coordination for Complex Projects
@@ -498,3 +546,42 @@ The multi-agent system enhances the existing e-commerce scraping workflow:
 5. **Scalable Development**: Easy to add more agents for specific e-commerce needs
 
 The multi-agent system transforms complex e-commerce scraping projects from sequential development into parallel, specialized workflows that deliver higher quality results faster.
+
+#### Filesystem-as-State Pattern
+
+The multi-agent system implements the filesystem-as-state pattern from the [AI Positive Substack article](https://aipositive.substack.com/p/how-i-turned-gemini-cli-into-a-multi), where all system state is stored in the filesystem rather than complex background processes.
+
+**Directory Structure**:
+```
+.gemini/agents/
+├── tasks/                    # Task queue (JSON files)
+│   ├── task_001.json        # Navigation analysis task
+│   ├── task_002.json        # Selector verification task
+│   └── task_003.json        # Parser development task
+├── plans/                    # Long-term context storage
+│   ├── site_analysis.md     # Navigation agent findings
+│   ├── selector_map.md      # Selector agent results
+│   └── parser_spec.md       # Parser agent specifications
+├── logs/                     # Execution logs and history
+│   ├── navigation_agent.log
+│   ├── selector_agent.log
+│   └── parser_agent.log
+└── workspace/                # Agent working directory
+    ├── generated_scraper/
+    └── cache/
+```
+
+**Key Benefits**:
+- **Transparent State**: All system state visible in filesystem
+- **Easy Debugging**: Complete audit trail and logging
+- **Resilient**: Robust error handling and recovery
+- **Scalable**: Easy to add new agent types
+- **Maintainable**: Clear separation of concerns
+- **Reliable**: Proven filesystem-as-state pattern
+
+**Agent Identity Fix**: The system addresses the critical identity crisis bug where agents would try to delegate tasks back to the orchestrator. The solution uses explicit identity establishment:
+
+```bash
+# CORRECT - establishes clear identity
+gemini -e parser-agent -y -p "You are the parser-agent. Your Task ID is task_001. Your task is to: Create a Ruby parser for product details page using verified selectors from the selector-agent analysis."
+```

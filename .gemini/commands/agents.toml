@@ -18,16 +18,25 @@ This system implements a **filesystem-as-state** pattern where agents are coordi
 Queue a new task for a specific agent
 - **Usage**: `/agents:start coder-agent "Create a Python script"`
 - **Purpose**: Add tasks to the queue for later execution
+- **Implementation**: Creates JSON task file in `.gemini/agents/tasks/`
 
 ### `/agents:run`
 Execute pending tasks by launching agent instances
 - **Usage**: `/agents:run`
 - **Purpose**: Process the next pending task in the queue
+- **Implementation**: Launches independent Gemini CLI processes with agent extensions
 
 ### `/agents:status`
 View comprehensive status of all tasks and agents
 - **Usage**: `/agents:status`
 - **Purpose**: Monitor system health and task progress
+- **Implementation**: Reads task files from `.gemini/agents/tasks/` directory
+
+### `/agents:logs [agent]`
+View execution logs for a specific agent
+- **Usage**: `/agents:logs parser-agent`
+- **Purpose**: Debug agent execution and view detailed logs
+- **Implementation**: Reads log files from `.gemini/agents/logs/` directory
 
 ## Web Scraping Commands
 
@@ -55,6 +64,11 @@ View comprehensive status of all tasks and agents
 - **Specialization**: Data analysis, research, investigation
 - **Best For**: Data analysis, research, pattern recognition
 - **Capabilities**: Insights generation, report creation, visualization
+
+### 🧭 Navigation Agent (`navigation-agent`)
+- **Specialization**: Website structure analysis, navigation pattern discovery
+- **Best For**: Site mapping, pagination detection, category navigation, URL pattern analysis
+- **Capabilities**: Browser automation, network request analysis, navigation mapping
 
 ### 🕷️ Scraper Agent (`scraper-agent`)
 - **Specialization**: Web scraping project management, DataHen V3 framework

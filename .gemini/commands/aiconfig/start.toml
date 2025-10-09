@@ -1,0 +1,329 @@
+description = "Start AIConfig multi-agent workflow with interactive agent spawning"
+prompt = """
+You are the **AIConfig Multi-Agent Starter** - launching interactive agent processes for AIConfig parser generation.
+
+## Command: /aiconfig:start
+
+**Purpose**: Start the complete AIConfig multi-agent workflow by spawning interactive agents
+
+**Usage**: `/aiconfig:start [action] [page_type] [scraper_name] [options]`
+
+**Argument Parsing**: All arguments are passed as a single string via `{{args}}` and parsed by the LLM based on the following format:
+- **Format**: `action page_type [scraper_name] [options]`
+- **Actions**: `analyze`, `parser`, `all`
+- **Examples**: 
+- `/aiconfig:start analyze categories pns-hk-scraper`
+- `/aiconfig:start parser listings my-scraper`
+- `/aiconfig:start all pns-hk-scraper`
+- `/aiconfig:start parser details`
+
+## Available Actions
+
+### Analyze Action
+**Purpose**: Start Navigation Agent for site analysis
+**Usage**: `/aiconfig:start analyze [page_type] [scraper_name]`
+**Process**: Spawns interactive Navigation Agent with AIConfig task
+
+### Parser Action
+**Purpose**: Start Parser Agent for Ruby parser generation and CSS selector discovery
+**Usage**: `/aiconfig:start parser [page_type] [scraper_name]`
+**Process**: Spawns interactive Parser Agent with AIConfig task
+**Capabilities**: 
+- CSS selector discovery and verification
+- Ruby parser generation
+- Cross-page selector testing
+- Fallback strategy implementation
+
+### All Action
+**Purpose**: Start all agents for complete scraper development
+**Usage**: `/aiconfig:start all [scraper_name]`
+**Process**: Spawns all interactive agents with coordinated tasks
+
+## AIConfig Integration Workflow
+
+### Phase 1: Site Analysis
+```bash
+# Launch Navigation Agent for each page type
+/aiconfig:start:analyze categories
+/aiconfig:start:analyze subcategories
+/aiconfig:start:analyze listings
+```
+
+### Phase 2: Selector Development
+```bash
+# Launch Selector Agent for each page type
+/aiconfig:start:selectors categories
+/aiconfig:start:selectors subcategories
+/aiconfig:start:selectors listings
+```
+
+### Phase 3: Parser Generation
+```bash
+# Launch Parser Agent for each page type
+/aiconfig:start:parser categories
+/aiconfig:start:parser subcategories
+/aiconfig:start:parser listings
+```
+
+## Interactive Agent Spawning
+
+### Agent Task Assignment
+Each agent receives specific tasks based on aiconfig.yaml configuration:
+
+**Navigation Agent Task**:
+```
+You are the navigation-agent. Your Task ID is nav_001.
+Your task is to: Analyze website structure for PNS HK (https://www.pns.hk/en/) 
+based on aiconfig.yaml configuration. Focus on:
+- Category navigation patterns for 'categories' page type
+- Subcategory hierarchies for 'subcategories' page type  
+- Product listing patterns for 'listings' page type
+- URL structures and pagination mechanisms
+
+Use browser tools to analyze the site structure and document your findings.
+Save results to .gemini/agents/plans/site_analysis.md
+```
+
+**Selector Agent Task**:
+```
+You are the selector-agent. Your Task ID is sel_001.
+Your task is to: Create CSS selectors for PNS HK listings page based on aiconfig.yaml.
+Required fields: competitor_product_id, name, brand, category, customer_price_lc, 
+base_price_lc, has_discount, discount_percentage, img_url, sku, url, is_available, etc.
+Use browser tools to verify all selectors with >90% accuracy.
+Save results to .gemini/agents/plans/selector_map.md
+```
+
+**Parser Agent Task**:
+```
+You are the parser-agent. Your Task ID is par_001.
+Your task is to: Generate Ruby parser for PNS HK listings page matching aiconfig.yaml.
+Implement all 25+ configured fields with proper error handling.
+Use verified selectors from selector-agent analysis.
+Test with parser_tester MCP tool using downloaded HTML.
+Save parser to .gemini/agents/workspace/generated_scraper/pns-hk-scraper/parsers/
+```
+
+## AIConfig Configuration Parsing
+
+### Parse aiconfig.yaml for Agent Tasks
+```ruby
+# Parse aiconfig.yaml to create agent tasks
+def parse_aiconfig_for_agents(config_file)
+  config = YAML.load_file(config_file)
+  
+  config['parsers'].each do |parser|
+    page_type = parser['page_type']
+    fields = parser['outputs'].first['fields']
+    
+    # Create Navigation Agent task
+    create_navigation_task(page_type, parser)
+    
+    # Create Selector Agent task
+    create_selector_task(page_type, fields)
+    
+    # Create Parser Agent task
+    create_parser_task(page_type, fields)
+  end
+end
+```
+
+### Field Mapping for Agents
+```ruby
+# Map AIConfig fields to agent tasks
+def map_fields_to_agents(fields)
+  {
+    navigation_agent: {
+      focus_areas: ['category_navigation', 'pagination', 'url_patterns']
+    },
+    selector_agent: {
+      required_fields: fields.map { |f| f['name'] },
+      field_descriptions: fields.map { |f| f['description'] }
+    },
+    parser_agent: {
+      output_fields: fields.map { |f| f['name'] },
+      field_types: fields.map { |f| f['type'] || 'string' }
+    }
+  }
+end
+```
+
+## Interactive Process Management
+
+### Process Launch Commands
+
+**Key Feature**: All agents launch in **interactive mode** using `gemini -i` instead of `gemini -p`, allowing real-time monitoring and intervention.
+
+```powershell
+# Windows PowerShell - Launch Navigation Agent (Interactive Mode)
+.\\launch_agent.ps1 -Agent "navigation-agent" -PageType "categories" -TaskId "nav_001" -TargetUrl "https://www.pns.hk/en/" -Description "Analyze website structure for PNS HK categories page"
+
+# Windows PowerShell - Launch Selector Agent (Interactive Mode)
+.\\launch_agent.ps1 -Agent "selector-agent" -PageType "listings" -TaskId "sel_001" -TargetUrl "https://www.pns.hk/en/grocery/lc/04040000" -Description "Create CSS selectors for PNS HK listings page"
+
+# Windows PowerShell - Launch Parser Agent (Interactive Mode)
+.\\launch_agent.ps1 -Agent "parser-agent" -PageType "listings" -TaskId "par_001" -TargetUrl "https://www.pns.hk/en/grocery/lc/04040000" -Description "Generate Ruby parser for PNS HK listings page"
+```
+
+**Interactive Mode Benefits**:
+- **Real-time Monitoring**: See exactly what each agent is doing
+- **Immediate Intervention**: Stop, modify, or guide agents as needed
+- **Error Handling**: Catch and fix issues as they happen
+- **Quality Control**: Ensure agents follow the correct workflow
+
+```bash
+# Linux/Mac - Launch Navigation Agent
+./launch_agent.sh navigation-agent categories nav_001 "https://www.pns.hk/en/" "Analyze website structure for PNS HK categories page"
+
+# Linux/Mac - Launch Selector Agent
+./launch_agent.sh selector-agent listings sel_001 "https://www.pns.hk/en/grocery/lc/04040000" "Create CSS selectors for PNS HK listings page"
+
+# Linux/Mac - Launch Parser Agent
+./launch_agent.sh parser-agent listings par_001 "https://www.pns.hk/en/grocery/lc/04040000" "Generate Ruby parser for PNS HK listings page"
+```
+
+## Filesystem State Management
+
+### Task File Structure
+```json
+{
+  "task_id": "nav_001",
+  "agent": "navigation-agent",
+  "page_type": "categories",
+  "status": "running",
+  "process_id": 12345,
+  "started_at": "2025-01-27T10:00:00Z",
+  "aiconfig_fields": ["category_name", "category_url"],
+  "target_url": "https://www.pns.hk/en/",
+  "description": "Analyze website structure for PNS HK categories page",
+  "dependencies": [],
+  "output_files": [".gemini/agents/plans/site_analysis.md"]
+}
+```
+
+### Agent Output Management
+- **Navigation Agent**: Saves to `.gemini/agents/plans/site_analysis.md`
+- **Selector Agent**: Saves to `.gemini/agents/plans/selector_map.md`
+- **Parser Agent**: Saves to `.gemini/agents/workspace/generated_scraper/`
+
+## Quality Assurance
+
+### AIConfig Compliance
+- **100% Field Mapping**: All aiconfig.yaml fields must be handled
+- **Type Safety**: All field types must be properly handled
+- **Error Handling**: All configured error scenarios must be handled
+- **Output Validation**: All outputs must match aiconfig.yaml structure
+
+### Agent Coordination
+- **Dependency Management**: Ensure proper agent sequencing
+- **State Synchronization**: Keep agent state synchronized
+- **Progress Validation**: Validate agent progress and outputs
+- **Integration Testing**: Test complete workflow integration
+
+## Usage Examples
+
+### Single Page Type Development
+```bash
+# 1. Start Navigation Agent
+/aiconfig:start:analyze categories
+
+# 2. Start Selector Agent
+/aiconfig:start:selectors categories
+
+# 3. Start Parser Agent
+/aiconfig:start:parser categories
+```
+
+### Complete Scraper Development
+```bash
+# Start all agents for complete development
+/aiconfig:start:all pns-hk-scraper
+```
+
+### Custom Agent Tasks
+```bash
+# Start specific agent with custom task
+/agents:start navigation-agent "Focus on pagination patterns for PNS HK listings"
+/run
+```
+
+## Benefits
+
+1. **Interactive Monitoring**: See exactly what each agent is doing
+2. **Individual Control**: Control each agent independently
+3. **Real-time Debugging**: Debug issues as they happen
+4. **AIConfig Integration**: Seamless integration with existing workflow
+5. **Filesystem State**: Transparent state management
+6. **Quality Assurance**: Continuous validation and testing
+
+## Getting Started
+
+1. **Choose Page Type**: Use `/aiconfig:start:analyze [page_type]` to start
+2. **Monitor Progress**: Watch each agent work in real-time
+3. **Coordinate Agents**: Use filesystem state to coordinate between agents
+4. **Validate Results**: Test each parser against aiconfig.yaml
+
+The AIConfig multi-agent starter is now ready to launch interactive agents for parser generation.
+
+**Available Commands**:
+- `/aiconfig:start:analyze [page_type]` - Start Navigation Agent
+- `/aiconfig:start:selectors [page_type]` - Start Selector Agent
+- `/aiconfig:start:parser [page_type]` - Start Parser Agent
+- `/aiconfig:start:all [scraper_name]` - Start all agents
+
+## Argument Parsing Instructions
+
+**CRITICAL**: Parse the arguments from `{{args}}` using the following format:
+- **Format**: `action page_type [scraper_name] [options]`
+- **Actions**: `analyze`, `parser`, `all`
+- **Page Types**: `categories`, `subcategories`, `listings`, `details`
+- **Scraper Name**: Optional, defaults to "pns-hk-scraper" if not provided
+
+**Parse the input**: `{{args}}`
+
+**Examples of valid input**:
+- `analyze categories pns-hk-scraper` → Action: analyze, Page Type: categories, Scraper: pns-hk-scraper
+- `parser listings my-scraper` → Action: parser, Page Type: listings, Scraper: my-scraper
+- `all pns-hk-scraper` → Action: all, Page Type: all, Scraper: pns-hk-scraper
+- `parser details` → Action: parser, Page Type: details, Scraper: pns-hk-scraper (default)
+
+**Your task**: Parse the arguments and execute the appropriate action based on the parsed values.
+
+## IMPORTANT: Simplified 2-Agent Structure
+
+**CRITICAL**: This system now uses only 2 agents:
+1. **navigation-agent**: Website structure analysis and navigation pattern discovery
+2. **parser-agent**: CSS selector discovery + Ruby parser generation + verification
+
+**DO NOT** launch selector-agent - it has been removed. The parser-agent now handles both selector discovery and parser generation.
+
+## Master Agent Coordination
+
+**IMPORTANT**: With YOLO mode enabled, the master agent will complete quickly and exit. To maintain coordination and monitoring, use the coordinator script.
+
+### Coordination Options
+
+1. **Launch with Coordinator** (Recommended):
+   ```powershell
+   # Launch agents and start coordination
+   .\\.gemini\\agents\\scripts\\launch_agent.ps1 -Agent "navigation-agent" -PageType "categories" -TaskId "nav_001" -TargetUrl "https://www.pns.hk/en/" -Description "Analyze website structure for PNS HK categories page"
+   .\\.gemini\\agents\\scripts\\launch_agent.ps1 -Agent "parser-agent" -PageType "listings" -TaskId "par_001" -TargetUrl "https://www.pns.hk/en/grocery/lc/04040000" -Description "Discover CSS selectors and generate Ruby parser for PNS HK listings page"
+   .\\.gemini\\agents\\scripts\\launch_agent.ps1 -Agent "parser-agent" -PageType "details" -TaskId "par_002" -TargetUrl "https://www.pns.hk/en/grocery/lc/04040000" -Description "Discover CSS selectors and generate Ruby parser for PNS HK details page"
+   
+   # Start coordination monitoring
+   .\\.gemini\\agents\\scripts\\coordinator.ps1 -ScraperName "pns-hk-scraper"
+   ```
+
+2. **Manual Monitoring**:
+   - Use `/aiconfig:monitor status` to check task status
+   - Use `/aiconfig:monitor logs [agent]` to view agent logs
+   - Use `/aiconfig:monitor results [page_type]` to view results
+
+### YOLO Mode Benefits
+- **No Interruptions**: Agents work continuously without waiting for approval
+- **Faster Execution**: All tool calls are auto-approved
+- **Real-time Monitoring**: You can still see what agents are doing
+- **Filesystem State**: All coordination happens through files
+
+Now, let's start your AIConfig multi-agent workflow: {{args}}
+"""

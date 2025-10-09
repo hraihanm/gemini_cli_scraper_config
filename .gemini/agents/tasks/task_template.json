@@ -1,0 +1,19 @@
+{
+  "task_id": "task_001",
+  "agent": "navigation-agent",
+  "description": "Analyze website structure and navigation patterns",
+  "status": "queued",
+  "priority": 1,
+  "dependencies": [],
+  "created_at": "2025-01-27T10:00:00Z",
+  "started_at": null,
+  "completed_at": null,
+  "error": null,
+  "retry_count": 0,
+  "max_retries": 3,
+  "vars": {
+    "target_url": "https://example-store.com",
+    "page_type": "details",
+    "scraper_name": "example-store-scraper"
+  }
+}

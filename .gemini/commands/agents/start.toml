@@ -103,4 +103,91 @@ Use '/agents:status' to view all tasks.`;
 ```
 
 Now, queue the task: {{args}}
+
+## Implementation
+
+I will now create the task file for the specified agent.
+
+**Step 1: Parse Arguments**
+- Agent Name: {{args[0]}}
+- Task Description: {{args[1]}}
+
+**Step 2: Generate Task ID**
+- Task ID: task_{{timestamp}}
+
+**Step 3: Create Task File**
+I will create the task file in `.gemini/agents/tasks/` directory.
+
+**Step 4: Create Plan File**
+I will create the plan file in `.gemini/agents/plans/` directory.
+
+**Step 5: Confirm Task Creation**
+I will provide confirmation that the task has been queued successfully.
+
+Let me implement this now:
+
+**Creating Task File:**
+```bash
+echo '{
+  "task_id": "task_{{timestamp}}",
+  "agent": "{{args[0]}}",
+  "description": "{{args[1]}}",
+  "status": "queued",
+  "priority": 1,
+  "dependencies": [],
+  "created_at": "{{isotimestamp}}",
+  "started_at": null,
+  "completed_at": null,
+  "error": null,
+  "retry_count": 0,
+  "max_retries": 3,
+  "vars": {
+    "target_url": "",
+    "page_type": "",
+    "scraper_name": ""
+  }
+}' > .gemini/agents/tasks/task_{{timestamp}}.json
+```
+
+**Creating Plan File:**
+```bash
+echo '# Plan for {{args[0]}} - {{args[1]}}
+
+## Task Details
+- **Task ID**: task_{{timestamp}}
+- **Agent**: {{args[0]}}
+- **Description**: {{args[1]}}
+- **Status**: Queued
+- **Created**: {{isotimestamp}}
+
+## Task Execution
+This task will be executed by the {{args[0]}} agent when the /agents:run command is called.
+
+## Expected Outputs
+The agent will work on the specified task and save results to the workspace directory.
+
+## Next Steps
+1. Use `/agents:run` to execute this task
+2. Use `/agents:status` to monitor progress
+3. Check logs in `.gemini/agents/logs/` for detailed execution information
+' > .gemini/agents/plans/task_{{timestamp}}_plan.md
+```
+
+**Task Created Successfully!**
+
+✅ **Task Queued Successfully!**
+
+- **Task ID**: task_{{timestamp}}
+- **Agent**: {{args[0]}}
+- **Description**: {{args[1]}}
+- **Status**: Queued
+- **Created**: {{isotimestamp}}
+
+**Next Steps:**
+1. Use `/agents:run` to execute pending tasks
+2. Use `/agents:status` to view all tasks
+3. Check `.gemini/agents/tasks/` for task files
+4. Check `.gemini/agents/plans/` for plan files
+
+The task has been successfully queued and is ready for execution!
 """

@@ -1,0 +1,19 @@
+{
+  "task_id": "task_parser_create_details",
+  "agent": "parser-agent",
+  "description": "Create Ruby parser for details page using verified selectors from previous analysis for URL: https://www.pns.hk/en/original-cat-dry-cat-food-1.8kg-orijen/p/BP_6600000223",
+  "status": "running",
+  "priority": 1,
+  "dependencies": [],
+  "created_at": "{{isotimestamp}}",
+  "started_at": "2025-10-09T12:00:00Z",
+  "completed_at": null,
+  "error": null,
+  "retry_count": 0,
+  "max_retries": 3,
+  "vars": {
+    "target_url": "https://www.pns.hk/en/original-cat-dry-cat-food-1.8kg-orijen/p/BP_6600000223",
+    "page_type": "details",
+    "scraper_name": "pns-hk-scraper"
+  }
+}
