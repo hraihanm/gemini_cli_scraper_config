@@ -116,6 +116,7 @@ parser_tester({
 - Prefer CSS selectors over XPath when possible for better maintainability
 - Test selectors on multiple similar elements to ensure robustness
 - Use semantic element descriptions when interacting with browser tools
+- **NEVER** use Playwright `ref` values (e.g., `e425`) inside CSS selectors or JavaScript DOM queries in any code (including `browser_evaluate`). Refs are not real DOM attributes; only pass them to browser action tools that accept a `ref` argument.
 
 #### Console Message Handling
 
@@ -205,6 +206,43 @@ html.css('div[ref="e433"] a')  # This will NOT work
 # CORRECT - Use real CSS selectors revealed by browser_inspect_element
 html.css('.category-item a')   # This will work
 ```
+
+#### HARD ENFORCEMENT: Playwright refs are NOT DOM attributes
+
+- `ref` values shown in Playwright snapshots (e.g., `link "Tax Number: 300544591200003" [ref=e11586]`) are internal handles for Playwright tools only.
+- They DO NOT exist in the actual page HTML and MUST NOT be used in CSS selectors or JavaScript DOM queries.
+- The ONLY valid use of `ref` is as the second argument to browser action tools (click, hover, type) that explicitly accept a `ref` parameter.
+
+**STRICTLY FORBIDDEN (these will fail):**
+```javascript
+// In browser_evaluate or any JS DOM code
+() => document.querySelector('h2[ref="e1089"]')
+() => document.querySelectorAll('a[ref="e11586"]')
+```
+
+**Correct workflow:**
+1) Use `browser_inspect_element('Element description', '<ref>')` to get the real CSS selector from the DOM.
+2) Validate with `browser_verify_selector('Element description', '<real_css_selector>', '<expected>')`.
+3) Use the REAL selector in Ruby parsers or `browser_evaluate`:
+```javascript
+// CORRECT: use real DOM selectors only
+() => Array.from(document.querySelectorAll('.category-list a')).map(a => a.href)
+```
+
+**Example translation:**
+```
+Snapshot: link "Tax Number: 300544591200003" [ref=e11586]
+WRONG:  document.querySelector('a[ref="e11586"]')
+RIGHT:  document.querySelector('a.tax-number')  // use the real selector revealed by inspect
+```
+
+**Self-check rule (must abort and fix if matched):**
+Before executing any JS or saving any parser code, scan for these anti-patterns and correct them:
+- `[ref=`
+- `querySelector("[ref=` or `querySelector('[ref=`
+- `querySelectorAll("[ref=` or `querySelectorAll('[ref=`
+
+If any are found, STOP, run `browser_inspect_element` to obtain the real selector, verify it, and then proceed.
 
 **Console Message Warning**:
 **CRITICAL**: IGNORE console messages and errors during browser automation:
