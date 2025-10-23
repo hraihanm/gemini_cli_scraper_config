@@ -1,5 +1,24 @@
 # Custom Slash Commands for Web Scraping
 
+### New: `/create-parser`
+
+Scaffold a minimal DataHen scraper with a single details parser from a field spec (CSV or JSON). Creates `config.yaml`, `seeder/seeder.rb`, and `parsers/details.rb`, and can optionally run `parser_tester` with an HTML file or URL.
+
+Usage examples:
+
+```
+/create-parser name=shopper --spec "spec_general_sample.csv" --collection products --url "https://example.com/p/123"
+
+/create-parser --scraper "my_restaurant" spec='{"fields":["name","description","img_url","rating"]}' html="D:/fixtures/restaurant-detail.html"
+
+/create-parser out=./generated_scraper name=electronics --spec ./specs/electronics_fields.json
+```
+
+Notes:
+- Spec may be CSV (header row with field names) or JSON (array of field names or an object with `fields`).
+- Default base directory is `./generated_scraper`; default collection is `products`.
+- Prefer `html=` for testing; `url=` is supported if HTML is not available.
+
 ## Overview
 
 Based on the articles you provided and your current configuration, I've created specialized slash commands for two distinct scraping workflows:
