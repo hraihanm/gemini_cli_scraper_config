@@ -70,15 +70,45 @@ browser_evaluate(() => {
     }))
 })
 
+// STEP 4: Targeted element inspection and verification
 browser_inspect_element('Element description', 'ref')
-browser_verify_selector('Element', 'selector', 'expected')
+
+// STEP 5: Text-based field verification ONLY (not for image URLs or data attributes)
+browser_verify_selector('Product name', '.product-title', 'Expected product name')
+
+// STEP 6: For non-text attributes (images, data attributes), use browser_evaluate
+browser_evaluate(() => {
+  const img = document.querySelector('.product-image img');
+  return img ? { src: img.src, loaded: img.complete } : null;
+})
 
 // LAST RESORT: Network request analysis ONLY if standard pagination fails
 // browser_network_requests()
 
-// LAST RESORT: Only download HTML pages if auto_download fails
-// browser_download_page('page-name.html')
+// FALLBACK: If element-by-element inspection fails repeatedly, analyze complete HTML
+// WARNING: High token usage - use strategically
+// browser_view_html({ includeScripts: false, isSanitized: true })
 ```
+
+### Browser Tool Selection Strategy
+
+**Understanding browser_verify_selector Limitations**:
+- ✅ **Works For**: Text-based content (names, prices, descriptions, labels)
+- ❌ **Does NOT Work For**: Image URLs, data attributes, hidden values, non-semantic content
+- **Rule**: Use `browser_verify_selector()` ONLY for text-based fields
+- **Alternative**: Use `browser_evaluate()` for image URLs and non-text attributes
+
+**Progressive Fallback Strategy**:
+1. **First**: Try `browser_snapshot()` + `browser_inspect_element()` for targeted discovery
+2. **Second**: Use `browser_verify_selector()` for text-based fields only
+3. **Third**: Use `browser_evaluate()` for non-text attributes (images, data attributes)
+4. **Last Resort**: Use `browser_view_html()` for comprehensive HTML analysis (high token cost)
+
+**When to Use browser_view_html()**:
+- ✅ Multiple failed attempts with element inspection
+- ✅ Complex nested structures requiring full HTML understanding
+- ✅ Batch selector discovery for multiple fields at once
+- ⚠️ WARNING: High token consumption - use strategically
 
 ### Pagination Strategy (Progressive Approach)
 
@@ -189,6 +219,8 @@ parser_tester({
 - **Pagination Coverage**: ALL pages and subcategories must be accessed
 - **Standard Pagination First**: Use visible pagination buttons, page numbers, and "Next" links before network analysis
 - **Network Analysis Last Resort**: Only use browser_network_requests when standard pagination methods fail
+- **HTML Analysis Fallback**: Use browser_view_html only when element-by-element inspection fails repeatedly
+- **Tool Selection**: Use browser_verify_selector for text, browser_evaluate for non-text (images, data attributes)
 - **Type Safety**: Proper data type handling for each field
 - **Error Handling**: Comprehensive error handling for all configured scenarios
 

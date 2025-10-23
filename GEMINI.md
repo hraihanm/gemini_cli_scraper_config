@@ -52,10 +52,11 @@ For each parser development cycle:
 **Strategic MCP Tool Workflow**:
 1. **Site Analysis**: Use `browser_navigate(url)` and `browser_snapshot()` to understand e-commerce structure
 2. **Category Discovery**: Use `browser_inspect_element()` to analyze navigation patterns and reveal real CSS selectors
-3. **Product Analysis**: Use `browser_verify_selector()` to ensure product field selectors work
+3. **Product Analysis**: Use `browser_verify_selector()` to ensure product field selectors work (text-based only)
 4. **Image URL Verification**: Use `browser_evaluate()` to verify image URLs load properly (NOT `browser_verify_selector`)
 5. **Pagination Detection**: Use `browser_network_requests()` to detect pagination patterns
 6. **Cross-Page Verification**: Test selectors across different product types for consistency
+7. **HTML Analysis Fallback**: If `browser_inspect_element()` and `browser_verify_selector()` fail repeatedly, use `browser_view_html()` to analyze the complete HTML structure at once (WARNING: high token usage)
 
 ### Playwright Element Reference Protocol
 **CRITICAL**: Playwright uses internal references (`ref=e123`) that are NOT real HTML attributes:
@@ -136,8 +137,37 @@ browser_network_requests();
 // Generate URLs: ?page=1, ?page=2, ?page=3, ?page=4, ?page=5, ?page=6
 ```
 
-### Image URL Verification Protocol
-**CRITICAL**: For image URL verification, always use `browser_evaluate()` instead of `browser_verify_selector()`:
+### Browser Tool Selection Protocol
+
+#### Overlay Handling Priority
+
+- Treat blocking overlays (cookie consent, age gate, location selector, newsletter/app prompts) as first-class UI.
+- Attempt a clean dismissal first:
+  - Click clear dismiss/confirm buttons (e.g., "Accept", "Close", "X", "Continue").
+  - If no button exists, try pressing Escape or interacting with overlay controls only.
+- If the overlay is persistent or required, stop clicking blocked background elements.
+  - Navigate using links and controls available inside the overlay.
+  - Derive selectors and continue flow from the active overlay context.
+- Avoid wasting attempts on elements behind the overlay; verify clickability via snapshot/inspect before acting.
+
+#### Understanding browser_verify_selector Limitations
+**CRITICAL**: `browser_verify_selector()` ONLY works for **text-based similarity matching**:
+
+**What browser_verify_selector Works For** ✅:
+- Product names, titles, headings (semantic text)
+- Prices, descriptions, labels (readable text)
+- Category names, breadcrumbs (text content)
+- Button text, link text (visible text)
+
+**What browser_verify_selector DOES NOT Work For** ❌:
+- Image URLs (`src` attributes - no semantic meaning)
+- Data attributes (`data-id`, `data-sku` - arbitrary values)
+- Hidden values (IDs, SKUs stored in attributes)
+- CSS classes or complex attributes
+- Non-text content or numeric identifiers
+
+#### Image URL Verification Protocol
+**CRITICAL**: For image URLs and non-text attributes, always use `browser_evaluate()`:
 
 ```javascript
 // Correct approach for image URL verification
@@ -156,16 +186,39 @@ browser_evaluate(() => {
 })
 ```
 
-**Why `browser_evaluate()` for Images**:
-- Checks if image actually loads (not just if selector exists)
-- Verifies image dimensions and loading status
-- Tests image URL accessibility and validity
-- Provides detailed image loading information
+**Why `browser_evaluate()` for Non-Text Content**:
+- Checks actual attribute values (URLs, IDs, data attributes)
+- Verifies image loading status and dimensions
+- Tests URL accessibility and validity
+- No reliance on semantic text matching
 
-**Avoid `browser_verify_selector()` for Images**:
-- Only checks if selector exists, not if image loads
-- Doesn't verify image URL validity
-- No information about image loading status
+**Never Use `browser_verify_selector()` For**:
+- Image URLs (use `browser_evaluate()` to check `img.src`)
+- Data attributes (use `browser_evaluate()` to read attributes)
+- Hidden values (use `browser_evaluate()` for DOM properties)
+- Any non-text or non-semantic content
+
+#### HTML Analysis Fallback Strategy
+**When to Use `browser_view_html()`**:
+- ✅ Multiple failed attempts with `browser_inspect_element()` and `browser_verify_selector()`
+- ✅ Complex nested structures that are hard to navigate element-by-element
+- ✅ Need to understand overall HTML structure for selector generation
+- ✅ Batch selector discovery for multiple fields at once
+
+**WARNING**: High token consumption - use strategically:
+```javascript
+// Use when element-by-element inspection fails
+browser_view_html({
+  includeScripts: false,  // Reduce tokens
+  isSanitized: true       // Remove unnecessary content
+})
+```
+
+**Progressive Fallback Strategy**:
+1. **First**: Try `browser_snapshot()` + `browser_inspect_element()` for targeted discovery
+2. **Second**: Use `browser_verify_selector()` for text-based fields only
+3. **Third**: Use `browser_evaluate()` for non-text attributes (images, data attributes)
+4. **Last Resort**: Use `browser_view_html()` for comprehensive HTML analysis (high token cost)
 
 ## E-commerce Data Patterns
 
