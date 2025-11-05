@@ -1,91 +1,61 @@
-description = "Scaffold a minimal DataHen scraper with a details parser from a field spec (CSV/JSON)."
+description = "End-to-end: visit URL, discover selectors, scaffold scraper, generate details.rb, then run parser_tester."
 
 prompt = """
-You are operating in Gemini CLI with file and code tools available. Create a minimal, runnable DataHen scraper that includes:
+Perform a single end-to-end pipeline. Do NOT generate a dummy parser without visiting the URL. Use the browser-first workflow from GEMINI.md to discover selectors, then scaffold and test.
 
-1) Directory structure (defaults shown):
-   - <base_dir>/<scraper_name>/
-     - config.yaml
-     - seeder/seeder.rb
-     - parsers/details.rb
-   
+Inputs (order-agnostic via {{args}}):
+  - name=<scraper_name> | --scraper <scraper_name>
+  - out=<base_dir> (default: ./generated_scraper)
+  - collection=<collection_name> (default: products)
+  - spec=<path-to-CSV-or-JSON> OR inline JSON after spec=
+  - url=<details_page_url> (REQUIRED unless html= is provided for testing; url is still recommended for exploration)
+  - html=<path-to-local-html-file> (optional; prefer for parser_tester if available)
 
-2) Behavior:
-   - Only one parser: page_type "details" that extracts fields into a single collection
-   - Generate selectors and extraction logic semantically from a provided field spec (CSV or JSON)
-   - Provide robust fallbacks and safe parsing
-   - Optionally seed a single details URL if provided
-   - Optionally run parser testing with the parser_tester tool when an HTML file or URL is provided
+Spec parsing:
+  - CSV: header row provides field names (like spec_general_sample.csv). Use first column as field ids.
+  - JSON: accept ["field", ...], or { fields: [...] }, or array of objects (use keys).
+  - Normalize fields to snake_case. Recognize common fields (name, brand, category, sub_category, description, sku, img_url, url, customer_price_lc, base_price_lc, has_discount, discount_percentage, is_available, competitor_product_id, etc.).
 
-Input (from {{args}}):
-   Accept flexible, order-agnostic args. Support any combination of:
-   - name=<scraper_name> or --scraper <scraper_name>
-   - out=<base_dir> (default: ./generated_scraper)
-   - collection=<collection_name> (default: products)
-   - spec=<path-to-CSV-or-JSON> OR inline JSON after spec=
-   - url=<details_page_url> (optional)
-   - html=<path-to-local-html-file> (optional; preferred for testing)
+Pipeline:
+  1) Explore (browser-first):
+     - browser_navigate(url) → browser_snapshot
+     - Use browser_inspect_element to reveal real CSS selectors for key fields
+     - Use browser_verify_selector for text fields only (names, prices, labels)
+     - Use browser_evaluate for non-text attributes (img src, data-*). Do NOT use verify_selector for images
+     - Fallback to browser_view_html only if targeted inspection fails repeatedly (high token usage)
+     - Produce a concise Selector Plan (field → ranked selectors, notes)
 
-Parsing the spec:
-   - If CSV: first row contains field names (and possibly type/notes). Use the first column values as field ids. Example: spec_general_sample.csv
-   - If JSON: accept either an array of field names or an object with { fields: [..] } or an array of objects (use object keys)
-   - Normalize field ids to snake_case
-   - Common fields to recognize with semantics: name, title, brand, category, sub_category, description, sku, barcode, img_url, image, url, customer_price_lc, base_price_lc, has_discount, discount_percentage, is_available, availability, rating, reviews_count, competitor_product_id
+  2) Implement:
+     - Create directories and files at <base_dir>/<scraper_slug>/:
+         - config.yaml
+         - seeder/seeder.rb
+         - parsers/details.rb
+     - Parsers/details.rb:
+         - Use Nokogiri; helper methods: query_first, text_of, number_from, boolean_from
+         - Implement selector arrays from the discovered plan; add safe fallbacks
+         - Normalize prices; compute has_discount and discount_percentage
+         - Set '_collection' to collection; set '_id' from sku or competitor_product_id; fallback to hash(name+url)
+         - Always include 'url' from page['url'] when missing
+     - Seeder: if url provided, enqueue a single details page; else create placeholder example
+     - config.yaml: reference the seeder and details parser
 
-Selector strategy (inside parsers/details.rb):
-   - Use Nokogiri; build helper methods:
-     - query_first(html, selectors: [])
-     - text_of(node)
-     - number_from(text)
-     - boolean_from(text)
-   - For each recognized field, define a prioritized selector list with safe fallbacks. Example for name/title: ["h1.product-title", "h1", "meta[property='og:title']@content", "title"]
-   - For price fields, strip currency symbols, normalize decimal, cast to Float
-   - Compute has_discount = base_price_lc > customer_price_lc when both present; discount_percentage accordingly
-   - Always set '_collection' to the chosen collection; set '_id' if possible using sku or competitor_product_id or a hash of name+url
-   - Always include 'url' from page['url'] if not extracted from DOM
-
-Seeder behavior (seeder/seeder.rb):
-   - If url is provided, seed a single page with page_type: "details" and vars: {}
-   - If no url, still create a placeholder seeder with a TODO comment and example structure so parser_tester can target the parser file
-
-config.yaml:
-   seeder:
-     file: ./seeder/seeder.rb
-   parsers:
-     - page_type: details
-       file: ./parsers/details.rb
-
-Testing (optional, when html or url provided):
-   - Prefer html over url
-   - Call the parser_tester tool with:
-       scraper_dir = <base_dir>/<scraper_slug>
-       parser_path = parsers/details.rb
-       html_file = <html> (if provided)
-       url = <url> (only if html not provided)
-       page_type = details
-       vars = {}
-       quiet = true
-
-Implementation steps:
-   1. Parse {{args}} into key=value entries (be liberal). Infer scraper_slug from name (kebab-case). Set defaults when missing.
-   2. Read and parse the spec file if spec points to a file. If not a file, attempt to parse inline JSON after spec=. If nothing valid found, ask for a proper spec and stop.
-   3. Determine collection name (use provided or default). Build a canonical list of fields from the spec.
-   4. Create directories and files exactly at: <base_dir>/<scraper_slug>/(config.yaml, seeder/seeder.rb, parsers/details.rb).
-   5. Generate a robust details parser using Nokogiri following the strategy above. Ensure it never crashes when selectors missing.
-   6. Generate a minimal seeder. If url provided, enqueue one details page. If not, leave an example and no-op.
-   7. Write config.yaml referencing the seeder and details parser.
-   8. If html or url provided, run parser_tester. If it fails, analyze errors and refine selectors minimally. Re-run once.
-   9. Summarize: created files, inferred fields, testing result, and next steps.
+  3) Test:
+     - Prepare and execute parser_tester with:
+         scraper_dir=<base_dir>/<scraper_slug>
+         parser_path=parsers/details.rb
+         page_type=details
+         quiet=true
+         html_file=<html> (if provided) else url=<url>
+     - If the environment asks for confirmation, present it to the user; run once. If it fails, analyze errors, refine selectors minimally, and re-run one time.
 
 Output expectations:
-   - Actually create the files on disk with the exact paths
-   - Print a concise summary with tree of created files
-   - If testing ran, include a short report
+  - Show the Selector Plan (concise table)
+  - Print the file tree of created files
+  - Show the parser_tester command and a short result summary
 
-Examples of invocation:
-   /create-details-parser name=shopper --spec "spec_general_sample.csv" --collection products --url "https://example.com/p/123"
-   /create-details-parser --scraper "my_restaurant" spec='{"fields":["name","description","img_url","rating"]}' html="D:/fixtures/restaurant-detail.html"
-   /create-details-parser out=./generated_scraper name=electronics --spec ./specs/electronics_fields.json
+Examples:
+  /create-details-parser name=shopper spec="spec_general_sample.csv" url="https://example.com/p/123"
+  /create-details-parser --scraper my_restaurant spec='{"fields":["name","description","img_url","rating"]}' url="https://example.com/restaurant" html="D:/fixtures/detail.html"
 """
 
 
