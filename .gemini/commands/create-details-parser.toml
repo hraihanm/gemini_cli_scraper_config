@@ -1,223 +1,413 @@
-description = "End-to-end: visit URL, discover selectors, scaffold scraper, generate details.rb with navigation context, then run parser_tester."
+description = "Phase 3: Generate detail parser with navigation context. Reads navigation knowledge, writes detail knowledge, completes independently."
 
 prompt = """
-Perform a single end-to-end pipeline. Do NOT generate a dummy parser without visiting the URL. Use the browser-first workflow from GEMINI.md to discover selectors, then scaffold and test.
+You are performing Phase 3: Detail Parser Generation. This command is COMPLETELY INDEPENDENT - it reads navigation state files, generates detail parser, writes ALL findings, and completes. No conversation history needed.
 
-This enhanced version integrates with navigation parsers - reads navigation-selectors.json to understand page flow and incorporates vars from listings parser.
+🚨 MODULAR DESIGN PRINCIPLES:
+1. **Read State Files First** - Load navigation-selectors.json, navigation-knowledge.md, discovery-knowledge.md
+2. **Write ALL Findings** - Before completion, write everything discovered
+3. **Write Knowledge Files** - Human-readable + AI-readable summaries
+4. **Self-Contained** - All needed info from state files
+5. **Clear Completion** - Report what's done, what's next
+
+🚨 CRITICAL - ABSOLUTE PATHS REQUIRED:
+- **ALL WriteFile operations MUST use ABSOLUTE PATHS** - Relative paths will fail
+- Before writing any file, convert relative path to absolute:
+  * Determine workspace root (current working directory)
+  * Convert: `generated_scraper/<scraper>/.scraper-state/file.json`
+  * To absolute: `<workspace_root>/generated_scraper/<scraper>/.scraper-state/file.json`
+- Use absolute paths for: detail-selectors.json, detail-knowledge.md, phase-status.json, parsers/details.rb
 
 Inputs (order-agnostic via {{args}}):
-  - name=<scraper_name> | --scraper <scraper_name>
-  - out=<base_dir> (default: ./generated_scraper)
-  - collection=<collection_name> (default: products)
-  - spec=<path-to-CSV-or-JSON> OR inline JSON after spec=
-  - url=<details_page_url> (REQUIRED unless html= or navigation-state provided; url is still recommended for exploration)
-  - html=<path-to-local-html-file> (optional; prefer for parser_tester if available)
-  - resume-url=<url> (OPTIONAL - resume browser from this URL, overrides state file)
-  - navigation-state=<path> (OPTIONAL - defaults to generated_scraper/<scraper>/.scraper-state/navigation-selectors.json)
-  - browser-context=<path> (OPTIONAL - defaults to generated_scraper/<scraper>/.scraper-state/browser-context.json)
+  - scraper=<scraper_name> (REQUIRED - scraper must exist with navigation-selectors.json)
+  - url=<details_page_url> (OPTIONAL - uses sample URL from navigation-selectors.json if not provided)
+  - spec=<path-to-CSV-or-JSON> (OPTIONAL - field specification)
+  - collection=<collection_name> (OPTIONAL, default: "products")
+  - resume-url=<url> (OPTIONAL - resume browser from this URL)
+  - out=<base_dir> (OPTIONAL - defaults to ./generated_scraper)
 
-Spec parsing:
-  - CSV: header row provides field names (like spec_general_sample.csv). Use first column as field ids.
-  - JSON: accept ["field", ...], or { fields: [...] }, or array of objects (use keys).
-  - Normalize fields to snake_case. Recognize common fields (name, brand, category, sub_category, description, sku, img_url, url, customer_price_lc, base_price_lc, has_discount, discount_percentage, is_available, competitor_product_id, etc.).
+Process:
 
-Context Loading (Before Pipeline):
-  0) Load navigation context (if available):
-     - Check for navigation-state file (default: generated_scraper/<scraper>/.scraper-state/navigation-selectors.json)
-     - If exists, load navigation-selectors.json to understand:
-       * Page flow: categories → subcategories → listings → details
-       * Sample detail URLs (use first if url not provided)
-       * Expected vars from listings parser (category_name, breadcrumb, rank, page_number)
-     - Load browser-context.json for browser resume (if available)
-     - Load phase-status.json to check if detail_discovery already completed
+=== STEP 1: Load State Files ===
+**CRITICAL**: Use ReadManyFiles to load state files (ReadFile fails due to ignore patterns)
 
-Pipeline:
-  1) Determine Detail URL:
-     Priority order:
-     - resume-url parameter (if provided)
-     - url parameter (if provided)
-     - navigation-state['listings']['sample_detail_urls'][0] (from navigation discovery)
-     - browser-context['last_url_visited'] (if it's a detail page)
-     - Must ask user if none available
+1) Load all required state files using ReadManyFiles:
+   ```javascript
+   ReadManyFiles({
+     patterns: [
+       "generated_scraper/<scraper>/.scraper-state/phase-status.json",
+       "generated_scraper/<scraper>/.scraper-state/navigation-selectors.json",
+       "generated_scraper/<scraper>/.scraper-state/navigation-knowledge.md",
+       "generated_scraper/<scraper>/.scraper-state/discovery-knowledge.md",
+       "generated_scraper/<scraper>/.scraper-state/discovery-state.json",
+       "generated_scraper/<scraper>/.scraper-state/detail-selectors.json",
+       "generated_scraper/<scraper>/.scraper-state/detail-knowledge.md"
+     ],
+     target_directory: "<workspace_root>"
+   })
+   ```
 
-  2) Explore (browser-first):
-     - browser_navigate(detail_url) → browser_snapshot
-     - Use browser_inspect_element to reveal real CSS selectors for key fields
-     - Use browser_verify_selector for text fields only (names, prices, labels)
-     - Use browser_evaluate for non-text attributes (img src, data-*). Do NOT use verify_selector for images
-     - Fallback to browser_view_html only if targeted inspection fails repeatedly (high token usage)
-     - Produce a concise Selector Plan (field → ranked selectors, notes)
+2) Parse loaded files:
+   - **phase-status.json**: Check detail_discovery.status
+     * If "completed": Display summary, suggest next steps (testing/deployment)
+     * If "in_progress": Resume from checkpoint
+     * Else: Start fresh detail discovery
+   - **navigation-selectors.json**: Extract navigation context
+     * Vars flow: categories → listings → details
+     * Expected vars: `category_name`, `breadcrumb`, `rank`, `page_number`
+     * Sample detail URLs from `listings.sample_detail_urls`
+   - **navigation-knowledge.md**: Read for vars flow understanding
+   - **discovery-knowledge.md**: Read for site structure context
+   - **discovery-state.json**: Read for site structure if needed
+   - **detail-selectors.json**: If exists, check what's already discovered
+   - **detail-knowledge.md**: If exists, read previous discoveries
 
-  3) Implement:
-     - Create directories and files at <base_dir>/<scraper_slug>/ (if not exists):
-         - config.yaml (update if exists)
-         - seeder/seeder.rb (update if exists, preserve navigation seeders)
-         - parsers/details.rb (create/update)
-     - Parsers/details.rb - Enhanced with navigation context:
-       ```ruby
-       html = Nokogiri::HTML(content)
-       vars = page['vars'] || {}
-       
-       # Navigation context integration:
-       # This parser receives vars from listings parser:
-       # - category_name: from categories/subcategories parser
-       # - subcategory_name: from subcategories parser (if applicable)
-       # - breadcrumb: hierarchical category path
-       # - rank: product position in listing
-       # - page_number: pagination page number
-       # - listing_position: position within current page
-       
-       # Extract product fields using discovered selectors
-       # Use selector arrays with fallbacks as discovered in exploration
-       
-       # Helper functions (if needed)
-       def text_of(element)
-         element&.text&.strip
-       end
-       
-      def number_from(text)
-        text.to_s.gsub(/[^\\d.]/, '').to_f if text
-      end
-       
-       def boolean_from(text)
-         text.to_s.downcase.match?(/true|yes|available|in.?stock/i)
-       end
-       
-       # Extract product data
-       name = text_of(html.at_css('.product-name-selector')) || text_of(html.at_css('h1'))
-       # ... extract all fields using discovered selectors ...
-       
-       # Normalize prices
-       customer_price = number_from(customer_price_text)
-       base_price = number_from(base_price_text)
-       has_discount = base_price > 0 && customer_price < base_price
-       discount_percentage = has_discount ? ((base_price - customer_price) / base_price * 100).round(2) : 0
-       
-       # Generate unique ID
-       product_id = vars['competitor_product_id'] || 
-                    sku || 
-                    html.at_css('[data-product-id]')&.[]('data-product-id') ||
-                    Digest::MD5.hexdigest("#{name}#{page['url']}")
-       
-       # Build output with navigation context
-       outputs << {
-         '_collection' => '#{collection}',  # Use collection parameter
-         '_id' => product_id,
-         
-         # Core product fields
-         'name' => name,
-         'brand' => brand,
-         'sku' => sku,
-         'description' => description,
-         'img_url' => img_url,
-         'url' => page['url'],
-         
-         # Pricing
-         'customer_price_lc' => customer_price,
-         'base_price_lc' => base_price,
-         'has_discount' => has_discount,
-         'discount_percentage' => discount_percentage,
-         
-         # Availability
-         'is_available' => is_available,
-         
-         # Navigation context (from vars passed by listings parser)
-         'category_name' => vars['category_name'],
-         'subcategory_name' => vars['subcategory_name'],
-         'breadcrumb' => vars['breadcrumb'],
-         'rank_in_listing' => vars['rank'],
-         'page_number' => vars['page_number'],
-         'listing_position' => vars['listing_position'],
-         
-         # Additional metadata
-         'competitor_product_id' => competitor_product_id,
-         'store_name' => vars['store_name'],
-         'country' => vars['country'],
-         'currency' => vars['currency']
+3) Validate prerequisites:
+   - **REQUIRED**: navigation-selectors.json must exist (run `/create-navigation-parser` first if missing)
+   - If missing: Display error: "Navigation parsers not found. Run: /create-navigation-parser scraper=<scraper>"
+   - If exists: Continue with detail parser generation
+
+**Note**: ReadManyFiles will return empty/not found for missing files - handle gracefully.
+
+=== STEP 2: Determine Detail URL ===
+4) Priority order for detail URL:
+   - resume-url parameter (if provided)
+   - url parameter (if provided)
+   - navigation-selectors.json['listings']['sample_detail_urls'][0]
+   - discovery-state.json['sample_urls']['detail']
+   - Must ask user if none available
+
+=== STEP 3: Selector Discovery ===
+5) Navigate to detail page:
+   - browser_navigate(detail_url)
+   - browser_snapshot()
+
+6) Discover selectors for each field (browser-first workflow):
+   - Use browser_inspect_element() to reveal real CSS selectors
+   - Use browser_verify_selector() for text fields (names, prices, labels)
+   - Use browser_evaluate() for non-text attributes (img src, data-*)
+   - Fallback to browser_view_html() only if targeted inspection fails
+   - Discover selectors for:
+     * Product name
+     * Brand
+     * SKU / Product ID
+     * Customer price
+     * Base price (if discounted)
+     * Description
+     * Images (primary and secondary)
+     * Availability status
+     * Any other fields from spec
+
+7) Create Selector Plan (document each field):
+   ```json
+   {
+     "name": {
+       "selectors": [".product-title", "h1"],
+       "verified": true,
+       "confidence": 0.95,
+       "notes": "Product name in h1 tag"
+     },
+     "customer_price": {
+       "selectors": ["p > span.font-bold.text-naivas-green"],
+       "verified": true,
+       "confidence": 0.95,
+       "notes": "Price span inside p tag"
+     },
+     "base_price": {
+       "selectors": ["p.text-naivas-red.line-through"],
+       "verified": true,
+       "confidence": 0.90,
+       "notes": "Only present when product has discount",
+       "fallback_logic": "If not found, base_price = customer_price"
+     }
+   }
+   ```
+
+=== STEP 4: Generate Detail Parser ===
+8) Generate parsers/details.rb:
+   ```ruby
+   html = Nokogiri::HTML(content)
+   vars = page['vars'] || {}
+   
+   # Navigation context integration:
+   # This parser receives vars from listings parser:
+   # - category_name: from categories/subcategories parser
+   # - subcategory_name: from subcategories parser (if applicable)
+   # - breadcrumb: hierarchical category path
+   # - rank: product position in listing
+   # - page_number: pagination page number
+   # - listing_position: position within current page
+   
+   # Helper functions
+   def text_of(element)
+     element&.text&.strip
+   end
+   
+   def number_from(text)
+     text.to_s.gsub(/[^\\d.]/, '').to_f if text
+   end
+   
+   def boolean_from(text)
+     text.to_s.downcase.match?(/true|yes|available|in.?stock/i)
+   end
+   
+   # Extract product fields using discovered selectors
+   name = text_of(html.at_css('.product-name-selector')) || text_of(html.at_css('h1'))
+   brand = text_of(html.at_css('.brand-selector'))
+   sku = html.at_css('[data-product-id]')&.[]('data-product-id') || 
+         text_of(html.at_css('.sku-selector'))
+   
+   # Price extraction
+   customer_price_text = text_of(html.at_css('.customer-price-selector'))
+   customer_price = number_from(customer_price_text)
+   
+   base_price_element = html.at_css('.base-price-selector')
+   base_price_text = base_price_element&.text&.strip
+   base_price = base_price_text ? number_from(base_price_text) : customer_price
+   
+   has_discount = base_price > 0 && customer_price < base_price
+   discount_percentage = has_discount ? ((base_price - customer_price) / base_price * 100).round(2) : 0
+   
+   # Images
+   img_url = html.at_css('.product-image img')&.[]('src') ||
+             html.at_css('.main-image img')&.[]('src')
+   
+   # Description
+   description = text_of(html.at_css('.description-selector')) ||
+                 text_of(html.at_css('.product-description'))
+   
+   # Availability
+   availability_text = text_of(html.at_css('.availability-selector'))
+   is_available = boolean_from(availability_text)
+   
+   # Generate unique ID
+   product_id = vars['competitor_product_id'] || 
+                sku || 
+                html.at_css('[data-product-id]')&.[]('data-product-id') ||
+                Digest::MD5.hexdigest("#{name}#{page['url']}")
+   
+   # Build output with navigation context
+   outputs << {
+     '_collection' => '#{collection}',  # Use collection parameter
+     '_id' => product_id,
+     
+     # Core product fields
+     'name' => name,
+     'brand' => brand,
+     'sku' => sku,
+     'description' => description,
+     'img_url' => img_url,
+     'url' => page['url'],
+     
+     # Pricing
+     'customer_price_lc' => customer_price,
+     'base_price_lc' => base_price,
+     'has_discount' => has_discount,
+     'discount_percentage' => discount_percentage,
+     
+     # Availability
+     'is_available' => is_available,
+     
+     # Navigation context (from vars passed by listings parser)
+     'category_name' => vars['category_name'],
+     'subcategory_name' => vars['subcategory_name'],
+     'breadcrumb' => vars['breadcrumb'],
+     'rank_in_listing' => vars['rank'],
+     'page_number' => vars['page_number'],
+     'listing_position' => vars['listing_position'],
+     
+     # Additional metadata
+     'competitor_product_id' => vars['competitor_product_id'],
+     'store_name' => vars['store_name'],
+     'country' => vars['country'],
+     'currency' => vars['currency']
+   }
+   ```
+
+=== STEP 5: Write Detail Selectors (JSON) ===
+**CRITICAL**: Use ABSOLUTE PATH for WriteFile operation
+
+9) Save detail-selectors.json (USE ABSOLUTE PATH):
+   ```json
+   {
+     "product_fields": {
+       "name": {
+         "selectors": [".product-title", "h1"],
+         "verified": true,
+         "confidence": 0.95,
+         "notes": "Product name in h1 tag"
+       },
+       "customer_price": {
+         "selectors": ["p.my-0.leading-none.flex.flex-col.md\\:flex-row.pb-0 > span.font-bold.text-naivas-green"],
+         "verified": true,
+         "confidence": 0.95,
+         "notes": "Price span inside p tag"
+       },
+       "base_price": {
+         "selectors": ["p.text-naivas-red.line-through"],
+         "verified": true,
+         "confidence": 0.90,
+         "notes": "Only present when product has discount",
+         "fallback_logic": "If not found, base_price = customer_price"
        }
-       ```
-     - Seeder: Only update if this is standalone (no navigation parsers exist). If navigation parsers exist, preserve existing seeder structure.
-     - config.yaml: Update to include details parser (preserve navigation parsers if they exist)
+     },
+     "navigation_integration": {
+       "vars_received": ["category_name", "breadcrumb", "rank", "page_number"],
+       "integration_status": "complete"
+     }
+   }
+   ```
 
-  4) Update State Files:
-     - Write detail-selectors.json:
-       ```json
-       {
-         "product_fields": {
-           "name": {
-             "selectors": [".product-title", "h1"],
-             "verified": true,
-             "confidence": 0.95
-           },
-           "price": {
-             "selectors": [".price", ".product-price"],
-             "verified": true
-           },
-           // ... all fields
-         },
-         "navigation_integration": {
-           "vars_received": ["category_name", "breadcrumb", "rank", "page_number"],
-           "integration_status": "complete"
-         }
-       }
-       ```
-     - Update phase-status.json:
-       ```json
-       "detail_discovery": {
-         "status": "completed",
-         "completed_at": "<timestamp>",
-         "parser_file": "parsers/details.rb",
-         "collection_name": "<collection>"
-       }
-       ```
-     - Update browser-context.json:
-       ```json
-       {
-         "last_url_visited": "<detail_url>",
-         "last_phase": "detail_discovery",
-         "last_activity": "<timestamp>"
-       }
-       ```
+=== STEP 6: Write Detail Knowledge (Markdown) ===
+**CRITICAL**: Use ABSOLUTE PATH for WriteFile operation
 
-  5) Test:
-     - Prepare and execute parser_tester with:
-         scraper_dir=<base_dir>/<scraper_slug> (ABSOLUTE PATH REQUIRED)
-         parser_path=parsers/details.rb
-         page_type=details
-         quiet=false (for testing - show verbose output)
-         vars='{"category_name":"Electronics","rank":1,"page_number":1}' (include navigation vars for realistic test)
-         html_file=<html> (if provided) else url=<url> (ONLY if html_file not provided)
-     - If the environment asks for confirmation, present it to the user; run once. If it fails, analyze errors, refine selectors minimally, and re-run one time.
-     - Verify that navigation vars (category_name, breadcrumb) are properly included in output
+10) Save detail-knowledge.md (USE ABSOLUTE PATH):
+   ```markdown
+   # Detail Parser Knowledge - <scraper_name>
+   
+   **Completed**: <timestamp>
+   **Phase**: Detail Discovery
+   
+   ## Parser Generated
+   
+   ### Details Parser (parsers/details.rb)
+   - **Status**: ✅ Complete
+   - **Collection**: products
+   - **Product ID Source**: SKU from data-product-id attribute
+   
+   ## Field Discoveries
+   
+   ### Product Name
+   - **Selector**: `.product-title` (primary), `h1` (fallback)
+   - **Verified**: Yes, tested on 3 products
+   - **Confidence**: 95%
+   - **Notes**: Always present, reliable selector
+   
+   ### Customer Price
+   - **Selector**: `p.my-0.leading-none.flex.flex-col.md\\:flex-row.pb-0 > span.font-bold.text-naivas-green`
+   - **Verified**: Yes, tested on 5 products
+   - **Confidence**: 95%
+   - **Notes**: Price span inside p tag with specific classes
+   
+   ### Base Price
+   - **Selector**: `p.text-naivas-red.line-through` (when discounted)
+   - **Verified**: Yes, tested on discounted products
+   - **Confidence**: 90%
+   - **Fallback Logic**: If not found, base_price = customer_price
+   - **Notes**: Only present when product has discount
+   
+   ### Images
+   - **Selector**: `.product-image img` (primary), `.main-image img` (fallback)
+   - **Attribute**: `src`
+   - **Notes**: Primary product image
+   
+   ### Availability
+   - **Selector**: `.availability-selector`
+   - **Logic**: Boolean from text matching "available", "in stock"
+   - **Notes**: May need adjustment based on site's availability text
+   
+   ## Edge Cases Discovered
+   
+   1. **No Discount Products**: Base price selector not present, fallback to customer_price works
+   2. **Missing Images**: Some products may not have images (handled with fallback)
+   3. **Price Formatting**: Prices may include currency symbols (stripped in number_from)
+   4. **Availability Text**: Varies ("In Stock", "Available", "Out of Stock") - boolean logic handles this
+   
+   ## Navigation Integration
+   
+   ### Vars Received from Listings Parser
+   - `category_name`: Used in output for categorization
+   - `breadcrumb`: Full category path
+   - `rank`: Product position in listing
+   - `page_number`: Pagination context
+   - `listing_position`: Position within page
+   
+   ### Vars Flow
+   ```
+   Categories → Subcategories → Listings → Details
+   (category_name, breadcrumb) → (rank, page_number) → (all product fields + context)
+   ```
+   
+   ## Testing Notes
+   
+   - Tested on products with discounts: ✅ Base price extraction works
+   - Tested on products without discounts: ✅ Fallback logic works
+   - Tested with navigation vars: ✅ Context preserved correctly
+   - Tested product ID generation: ✅ SKU preferred, hash fallback works
+   
+   ## Next Steps
+   
+   **Scraper is now complete!**
+   
+   **To test:**
+   ```bash
+   # Test detail parser
+   parser_tester({
+     scraper_dir: "generated_scraper/<scraper>",
+     parser_path: "parsers/details.rb",
+     html_file: "<downloaded_html>",
+     vars: '{"category_name":"Electronics","rank":1,"page_number":1}'
+   })
+   ```
+   
+   **To deploy:**
+   ```bash
+   hen scraper deploy <scraper_name>
+   ```
+   ```
 
-Output expectations:
-  - Show navigation context loaded (if available)
-  - Show the Selector Plan (concise table)
-  - Print the file tree of created/updated files
-  - Show navigation vars integration (vars received from listings parser)
-  - Show the parser_tester command and a short result summary
-  - Confirm detail-selectors.json created
-  - Confirm phase-status.json updated
+=== STEP 7: Update Phase Status ===
+11) Update phase-status.json:
+   ```json
+   "detail_discovery": {
+     "status": "completed",
+     "completed_at": "<timestamp>",
+     "parser_file": "parsers/details.rb",
+     "collection_name": "<collection>"
+   }
+   ```
 
-Navigation Integration Notes:
-  - If navigation-state exists, the detail parser will automatically receive vars from listings parser
-  - Vars flow: categories → subcategories → listings → details
-  - Detail parser should preserve and output all navigation context vars
-  - This ensures complete product data with full category hierarchy
+12) Update browser-context.json
+
+=== STEP 8: Completion Report ===
+13) Display completion summary:
+   ```
+   ✅ Detail Parser Complete
+   
+   Scraper: <scraper_slug>
+   
+   Parser Generated:
+   - parsers/details.rb ✅
+   
+   Files Created:
+   - generated_scraper/<scraper>/.scraper-state/detail-selectors.json
+   - generated_scraper/<scraper>/.scraper-state/detail-knowledge.md
+   - generated_scraper/<scraper>/.scraper-state/phase-status.json (updated)
+   
+   Scraper Status:
+   - Site Discovery: ✅ Complete
+   - Navigation Parsers: ✅ Complete
+   - Detail Parser: ✅ Complete
+   
+   Next Steps:
+   1. Test parsers using parser_tester
+   2. Deploy scraper: hen scraper deploy <scraper_name>
+   
+   All knowledge files available in .scraper-state/ directory.
+   ```
+
+**CRITICAL COMPLETION REQUIREMENTS:**
+- ✅ detail-selectors.json written (machine-readable)
+- ✅ detail-knowledge.md written (human + AI readable)
+- ✅ parsers/details.rb generated with navigation context
+- ✅ phase-status.json updated
+- ✅ Completion report displayed
+
+**This command is now COMPLETE and INDEPENDENT.**
+**Scraper generation is complete. All knowledge preserved in files.**
 
 Examples:
-  # Standalone usage (no navigation context)
-  /create-details-parser name=shopper spec="spec_general_sample.csv" url="https://example.com/p/123"
-  
-  # With navigation context (recommended)
-  /create-details-parser --scraper my_store url="https://example.com/p/123"
-  # (Automatically loads navigation-selectors.json if exists)
-  
-  # Resume from browser state
-  /create-details-parser scraper=shop resume-url="https://shop.com/product/456"
-  
-  # With explicit navigation state
-  /create-details-parser scraper=store navigation-state="./generated_scraper/store/.scraper-state/navigation-selectors.json" url="https://store.com/p/789"
+  /create-details-parser scraper=naivas_online
+  /create-details-parser scraper=my_store url="https://example.com/p/123"
+  /create-details-parser scraper=shop spec="fields.csv" collection=products
 """
-
-

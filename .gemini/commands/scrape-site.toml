@@ -1,93 +1,97 @@
-description = "Master orchestrator: Complete scraper generation pipeline. Coordinates site discovery → navigation → detail → assembly with full resumability."
+description = "Phase 1: Site discovery and scraper directory setup. Analyzes site structure, writes discovery knowledge, completes independently."
 
 prompt = """
-You are the Master Orchestrator for generating complete DataHen v3 scrapers. This command coordinates the entire pipeline: site discovery, navigation parser generation, detail parser generation, and final assembly.
+You are performing Phase 1: Site Discovery for scraper generation. This command is COMPLETELY INDEPENDENT - it reads no conversation history, only state files. It writes ALL findings to files before completion.
 
-🚨 CRITICAL FIRST STEP - READ THIS BEFORE ANYTHING ELSE:
-When this command is executed, the user provides a URL parameter via {{args}}. 
+🚨 MODULAR DESIGN PRINCIPLES:
+1. **Read State Files First** - Check for existing discovery-state.json
+2. **Write ALL Findings** - Before completion, write everything discovered
+3. **Write Knowledge Files** - Human-readable + AI-readable summaries
+4. **Self-Contained** - All needed info comes from state files or user input
+5. **Clear Completion** - Report what's done, what's next, how to continue
 
-STEP 1: Parse {{args}} immediately and extract the `url=` parameter value
-STEP 2: Use ONLY that URL for all navigation - NEVER use any other URL
-STEP 3: Ignore ALL references to Dmart, example sites, or any URLs in GEMINI.md
-
-Example: If {{args}} contains `url="https://naivas.online" name=naivas_online`
-         → You MUST navigate to "https://naivas.online" and nothing else
-         → DO NOT navigate to "https://www.dmart.in/" or any other URL
-
-CRITICAL INSTRUCTIONS:
-1. **ALWAYS use the EXACT URL provided in the `url` parameter** - DO NOT use any other URL from context, examples, or previous conversations
-2. **Ignore any site-specific references in context (including Dmart mentions)** - The URL parameter is the ONLY source of truth for the target website
-3. This orchestrator manages browser session across all phases. Browser state is maintained and passed between phases via browser-context.json
-4. **Before navigating anywhere, verify you have extracted the correct URL from {{args}}**
+🚨 CRITICAL - ABSOLUTE PATHS REQUIRED:
+- **ALL WriteFile operations MUST use ABSOLUTE PATHS** - Relative paths will fail
+- Before writing any file, convert relative path to absolute:
+  * Determine workspace root (current working directory)
+  * Convert: `generated_scraper/<scraper>/.scraper-state/file.json`
+  * To absolute: `<workspace_root>/generated_scraper/<scraper>/.scraper-state/file.json`
+  * Example: `D:\DataHen\projects\gemini_cli_testbed\generated_scraper\naivas_online\.scraper-state\phase-status.json`
+- Use absolute paths for: phase-status.json, discovery-state.json, discovery-knowledge.md, browser-context.json
 
 Inputs (order-agnostic via {{args}}):
-  - url=<site_url> (REQUIRED - target website URL, typically home page) - YOU MUST USE THIS EXACT URL
+  - url=<site_url> (REQUIRED - target website URL) - USE THIS EXACT URL ONLY
   - name=<scraper_name> | --scraper <scraper_name> (REQUIRED)
-  - spec=<path-to-CSV-or-JSON> (OPTIONAL - field specification for detail parser)
-  - collection=<collection_name> (OPTIONAL, default: "products")
   - out=<base_dir> (OPTIONAL, default: "./generated_scraper")
-  - --keep-state (FLAG - retain state files after completion, default: delete)
-  - --resume (FLAG - resume from existing state if available)
 
-State Management:
-  - State directory: generated_scraper/<scraper_name>/.scraper-state/
-  - State files: discovery-state.json, navigation-selectors.json, detail-selectors.json, phase-status.json, browser-context.json
-  - On success: Delete state files (unless --keep-state)
-  - On --resume: Load phase-status.json to determine resume point
+CRITICAL: Parse {{args}} immediately and extract the `url` parameter. Use ONLY that URL - ignore any other URLs in context.
 
-Pipeline Overview:
-  Phase 1: Site Discovery → understand site structure
-  Phase 2: Navigation Generation → call /create-navigation-parser
-  Phase 3: Detail Generation → call /create-details-parser  
-  Phase 4: Assembly & Validation → generate config.yaml, seeder, test
+Process:
 
-Pipeline Details:
+=== STEP 1: Load State Files (if exist) ===
+**CRITICAL**: Use ReadManyFiles to load state files (ReadFile fails due to ignore patterns)
 
-=== PHASE 1: Site Discovery ===
-Goal: Analyze site structure and detect navigation patterns
+1) Load existing state files using ReadManyFiles:
+   ```javascript
+   ReadManyFiles({
+     patterns: [
+       "generated_scraper/<scraper_slug>/.scraper-state/phase-status.json",
+       "generated_scraper/<scraper_slug>/.scraper-state/discovery-state.json",
+       "generated_scraper/<scraper_slug>/.scraper-state/discovery-knowledge.md"
+     ],
+     target_directory: "<workspace_root>"
+   })
+   ```
 
-0) Extract URL Parameter (FIRST STEP):
-   - Parse {{args}} to extract the `url` parameter value
-   - Example: If user ran `/scrape-site url="https://naivas.online" name=naivas_online`
-     Then the URL to use is EXACTLY "https://naivas.online"
-   - Store this URL and use it for ALL navigation in this pipeline
-   - DO NOT use any URL from GEMINI.md, examples, or context
+2) Handle results:
+   - **If phase-status.json exists**: Parse and check site_discovery.status
+     * If "completed": Display summary, suggest next phase (`/create-navigation-parser`)
+     * If "in_progress": Resume from checkpoint
+     * Else: Start fresh discovery
+   - **If discovery-state.json exists**: Parse site structure, use for context
+   - **If discovery-knowledge.md exists**: Read for additional context
+   - **If no files exist**: Start fresh discovery (expected for first run)
 
-1) Check Resume State:
-   - If --resume flag: Load phase-status.json
-   - If site_discovery.status == "completed": Skip to Phase 2
-   - If site_discovery.status == "in_progress": Resume from checkpoint
-   - Else: Start fresh discovery
+**Note**: ReadManyFiles will return empty/not found for missing files - handle gracefully.
 
-2) Initialize State Directory:
-   - Create generated_scraper/<scraper_slug>/
-   - Create .scraper-state/ subdirectory
-   - Initialize phase-status.json:
-     ```json
-     {
-       "scraper_name": "<scraper_slug>",
-       "version": "1.0.0",
-       "created_at": "<timestamp>",
-       "current_phase": "site_discovery",
-       "completed_phases": [],
-       "keep_state": false,
-       "phase_status": {
-         "site_discovery": {"status": "in_progress"},
-         "navigation_discovery": {"status": "pending"},
-         "detail_discovery": {"status": "pending"},
-         "assembly": {"status": "pending"}
-       }
+=== STEP 2: Initialize Directory Structure ===
+2) Create scraper directory:
+   ```
+   generated_scraper/<scraper_slug>/
+   ├── .scraper-state/          # State directory
+   └── parsers/                  # Will be created by parser commands
+   ```
+
+**CRITICAL - ABSOLUTE PATHS FOR FILE WRITES:**
+Before writing ANY file, convert relative path to absolute:
+- Determine workspace root (current working directory)
+- Convert: `generated_scraper/<scraper>/.scraper-state/file.json`
+- To absolute: `<workspace_root>/generated_scraper/<scraper>/.scraper-state/file.json`
+- Example: `D:\DataHen\projects\gemini_cli_testbed\generated_scraper\naivas_online\.scraper-state\phase-status.json`
+
+3) Initialize phase-status.json (USE ABSOLUTE PATH):
+   ```json
+   {
+     "scraper_name": "<scraper_slug>",
+     "version": "1.0.0",
+     "created_at": "<timestamp>",
+     "current_phase": "site_discovery",
+     "completed_phases": [],
+     "phase_status": {
+       "site_discovery": {"status": "in_progress"},
+       "navigation_discovery": {"status": "pending"},
+       "detail_discovery": {"status": "pending"}
      }
-     ```
+   }
+   ```
 
-3) Browser Navigation:
-   - **CRITICAL**: Navigate to the EXACT URL from the `url` parameter provided by the user
-   - DO NOT use any URL from context, examples, or GEMINI.md
-   - If url parameter is "https://naivas.online", navigate to "https://naivas.online" - nothing else
-   - Use browser_navigate() with the exact URL from the parameter
+=== STEP 3: Site Discovery ===
+4) Navigate to site URL (from {{args}} parameter):
+   - Extract URL from {{args}}: `url="https://example.com"` → use `https://example.com`
+   - browser_navigate(extracted_url)
    - browser_snapshot() to understand page structure
 
-4) Site Structure Analysis:
+5) Analyze site structure:
    - Detect navigation patterns:
      * Main menu/category links
      * Breadcrumb structure
@@ -95,7 +99,7 @@ Goal: Analyze site structure and detect navigation patterns
      * Pagination indicators
    - Identify page types:
      * Categories page (main navigation)
-     * Subcategories page (nested navigation)
+     * Subcategories page (nested navigation) - optional
      * Listings page (product grid/list)
      * Details page (individual product)
    - Determine navigation depth:
@@ -104,17 +108,23 @@ Goal: Analyze site structure and detect navigation patterns
      * Two levels: categories → subcategories → listings
      * Three+ levels: handle hierarchy
 
-5) Sample URL Discovery:
+6) Discover sample URLs:
    - Navigate through site to find:
      * Sample category URL
      * Sample subcategory URL (if applicable)
      * Sample listings URL
-     * Sample detail URL (if accessible)
+     * Sample detail URL (if accessible from home/listings)
+   - Document each URL with its purpose
 
-6) Save Discovery State:
+=== STEP 4: Write Discovery State (JSON) ===
+**CRITICAL**: Use ABSOLUTE PATH for WriteFile operation
+
+7) Save discovery-state.json (USE ABSOLUTE PATH):
    ```json
    {
      "site_url": "<input_url>",
+     "scraper_name": "<scraper_slug>",
+     "discovered_at": "<timestamp>",
      "site_structure": {
        "has_categories": true/false,
        "has_subcategories": true/false,
@@ -129,11 +139,90 @@ Goal: Analyze site structure and detect navigation patterns
        "listings": "https://example.com/categories/electronics/laptops",
        "detail": "https://example.com/p/123"
      },
-     "discovered_at": "<timestamp>"
+     "navigation_notes": {
+       "category_pattern": "Main menu uses dropdown",
+       "pagination_pattern": "Query parameter ?page=2",
+       "special_notes": "Site has search functionality"
+     }
    }
    ```
 
-7) Update Phase Status:
+=== STEP 5: Write Discovery Knowledge (Markdown) ===
+**CRITICAL**: Use ABSOLUTE PATH for WriteFile operation
+
+8) Save discovery-knowledge.md (USE ABSOLUTE PATH):
+   ```markdown
+   # Site Discovery Knowledge - <scraper_name>
+   
+   **Completed**: <timestamp>
+   **Site URL**: <site_url>
+   
+   ## Site Structure Analysis
+   
+   ### Navigation Pattern
+   - **Type**: Hierarchical (categories → subcategories → listings)
+   - **Depth**: 2 levels
+   - **Category Discovery**: Main menu dropdown
+   - **Subcategory Discovery**: Sidebar on category pages
+   
+   ### Page Types Found
+   1. **Categories**: Main navigation page
+   2. **Subcategories**: Category detail pages
+   3. **Listings**: Product listing pages
+   4. **Details**: Individual product pages
+   
+   ### Sample URLs Discovered
+   - **Category**: https://example.com/categories
+     - Purpose: Entry point for category navigation
+     - Notes: Contains 12 main categories
+   
+   - **Subcategory**: https://example.com/categories/electronics
+     - Purpose: Shows subcategories within Electronics
+     - Notes: 8 subcategories found
+   
+   - **Listings**: https://example.com/categories/electronics/laptops
+     - Purpose: Product listing page
+     - Notes: 24 products per page, pagination via ?page=2
+   
+   - **Detail**: https://example.com/p/123
+     - Purpose: Individual product page
+     - Notes: Accessible from listings page
+   
+   ## Navigation Patterns
+   
+   ### Category Navigation
+   - **Selector Pattern**: Main menu dropdown
+   - **URL Pattern**: /categories/<category-slug>
+   - **Notes**: Categories are in main navigation, no separate categories page
+   
+   ### Pagination
+   - **Type**: Query parameter
+   - **Pattern**: ?page=2, ?page=3, etc.
+   - **Products Per Page**: 24
+   - **Notes**: Next button present, also supports direct page access
+   
+   ## Next Steps
+   
+   **For Navigation Parser Generation:**
+   1. Use sample category URL to discover category link selectors
+   2. Use sample subcategory URL to discover subcategory patterns
+   3. Use sample listings URL to discover product link selectors and pagination
+   
+   **For Detail Parser Generation:**
+   1. Use sample detail URL from listings discovery
+   2. Extract product fields using discovered selectors
+   
+   ## Commands to Run Next
+   
+   ```bash
+   /create-navigation-parser scraper=<scraper_slug>
+   ```
+   
+   This will use discovery-state.json and discovery-knowledge.md to understand site structure.
+   ```
+
+=== STEP 6: Update Phase Status ===
+9) Update phase-status.json:
    ```json
    "site_discovery": {
      "status": "completed",
@@ -143,7 +232,7 @@ Goal: Analyze site structure and detect navigation patterns
    }
    ```
 
-8) Save Browser Context:
+10) Save browser-context.json:
    ```json
    {
      "last_url_visited": "<last_url_analyzed>",
@@ -152,244 +241,42 @@ Goal: Analyze site structure and detect navigation patterns
    }
    ```
 
-=== PHASE 2: Navigation Generation ===
-Goal: Generate navigation parsers (categories, subcategories, listings)
-
-1) Check Phase Status:
-   - Load phase-status.json
-   - If navigation_discovery.status == "completed": Skip to Phase 3
-   - If navigation_discovery.status == "in_progress": Navigation Master will handle resume
-
-2) Call Navigation Master:
-   Execute the navigation parser generation workflow:
+=== STEP 7: Completion Report ===
+11) Display completion summary:
+   ```
+   ✅ Site Discovery Complete
    
-   Instructions to execute (inline the /create-navigation-parser logic):
+   Scraper: <scraper_slug>
+   Site: <site_url>
    
-   "Generate navigation parsers for scraper <scraper_name>.
+   Discovered:
+   - Navigation depth: <depth> levels
+   - Page types: <list>
+   - Sample URLs: <count> URLs documented
    
-   Inputs provided:
-   - scraper: <scraper_name>
-   - discovery-state: generated_scraper/<scraper>/.scraper-state/discovery-state.json
-   - browser-context: generated_scraper/<scraper>/.scraper-state/browser-context.json
+   Files Created:
+   - generated_scraper/<scraper>/.scraper-state/discovery-state.json
+   - generated_scraper/<scraper>/.scraper-state/discovery-knowledge.md
+   - generated_scraper/<scraper>/.scraper-state/phase-status.json
    
-   Follow the complete /create-navigation-parser pipeline:
-   1. Load discovery-state.json to understand site structure
-   2. Resume browser from browser-context.json or discovery sample URLs
-   3. Generate categories.rb parser (if has_categories)
-   4. Generate subcategories.rb parser (if has_subcategories)
-   5. Generate listings.rb parser (if has_listings)
-   6. Save navigation-selectors.json
-   7. Update phase-status.json with navigation_discovery completion
+   Next Command:
+   /create-navigation-parser scraper=<scraper_slug>
    
-   Ensure all parsers generate proper vars for detail parser:
-   - category_name, subcategory_name, breadcrumb
-   - rank, page_number, listing_position
-   "
-   
-   Then execute the navigation parser generation following those instructions.
-
-3) Verify Navigation Completion:
-   - Check that navigation-selectors.json exists
-   - Verify parsers generated: categories.rb, listings.rb (and subcategories.rb if applicable)
-   - Confirm phase-status.json updated with navigation_discovery.status = "completed"
-
-=== PHASE 3: Detail Generation ===
-Goal: Generate detail parser with navigation context
-
-1) Check Phase Status:
-   - If detail_discovery.status == "completed": Skip to Phase 4
-   - Load navigation-selectors.json for sample detail URLs
-
-2) Extract Detail URL:
-   Priority order:
-   - navigation-selectors.json['listings']['sample_detail_urls'][0]
-   - discovery-state.json['sample_urls']['detail']
-   - Must ask user if none available
-
-3) Call Detail Master:
-   Execute the detail parser generation workflow:
-   
-   Instructions to execute (inline the /create-details-parser logic):
-   
-   "Generate detail parser for scraper <scraper_name>.
-   
-   Inputs provided:
-   - scraper: <scraper_name>
-   - url: <detail_url> (from navigation or discovery)
-   - navigation-state: generated_scraper/<scraper>/.scraper-state/navigation-selectors.json
-   - browser-context: generated_scraper/<scraper>/.scraper-state/browser-context.json
-   - spec: <spec> (if provided)
-   - collection: <collection> (if provided)
-   
-   Follow the complete /create-details-parser pipeline:
-   1. Load navigation-selectors.json to understand vars flow
-   2. Navigate to detail page and discover selectors
-   3. Generate details.rb parser with navigation context integration
-   4. Include vars from listings parser: category_name, breadcrumb, rank, etc.
-   5. Save detail-selectors.json
-   6. Update phase-status.json with detail_discovery completion
-   "
-   
-   Then execute the detail parser generation following those instructions.
-
-4) Verify Detail Completion:
-   - Check that detail-selectors.json exists
-   - Verify parsers/details.rb generated
-   - Confirm navigation vars integration in parser code
-   - Confirm phase-status.json updated
-
-=== PHASE 4: Assembly & Validation ===
-Goal: Generate config.yaml, seeder, and run integration tests
-
-1) Load All State Files:
-   - discovery-state.json
-   - navigation-selectors.json
-   - detail-selectors.json
-   - phase-status.json
-
-2) Generate config.yaml:
-   Determine page types from state:
-   ```yaml
-   seeder:
-     file: ./seeder/seeder.rb
-     disabled: false
-   
-   parsers:
-     # Add parsers based on discovery-state.json page_types_found
-     - page_type: categories
-       file: ./parsers/categories.rb
-       disabled: false
-     # Only add if has_subcategories
-     - page_type: subcategories
-       file: ./parsers/subcategories.rb
-       disabled: false
-     - page_type: listings
-       file: ./parsers/listings.rb
-       disabled: false
-     - page_type: details
-       file: ./parsers/details.rb
-       disabled: false
-   
-   exporters:
-     - exporter_name: products_json
-       exporter_type: json
-       collection: <collection>
-       write_mode: pretty_array
-       start_on_job_done: true
+   This command will read discovery-state.json and discovery-knowledge.md
+   to generate navigation parsers.
    ```
 
-3) Generate seeder/seeder.rb:
-   ```ruby
-   # Seeder for <scraper_name>
-   # Generated by Master Orchestrator
-   
-   # Initial pages to seed
-   pages << {
-     url: "<site_url>",  # From discovery-state
-     page_type: discovery_state['has_categories'] ? "categories" : "listings",
-     method: "GET",
-     vars: {
-       base_url: "<base_url>",
-       store_name: "<scraper_name>",
-       country: nil,  # User can add
-       currency: nil  # User can add
-     }
-   }
-   ```
+**CRITICAL COMPLETION REQUIREMENTS:**
+- ✅ discovery-state.json written (machine-readable)
+- ✅ discovery-knowledge.md written (human + AI readable)
+- ✅ phase-status.json updated
+- ✅ browser-context.json saved
+- ✅ Completion report displayed with next steps
 
-4) Verify File Structure:
-   ```
-   generated_scraper/<scraper_name>/
-   ├── config.yaml ✓
-   ├── seeder/
-   │   └── seeder.rb ✓
-   ├── parsers/
-   │   ├── categories.rb ✓ (if has_categories)
-   │   ├── subcategories.rb ✓ (if has_subcategories)
-   │   ├── listings.rb ✓
-   │   └── details.rb ✓
-   ```
-
-5) Integration Testing:
-   - Test each parser in sequence:
-     * Test categories parser → should generate subcategories/listings pages
-     * Test subcategories parser → should generate listings pages
-     * Test listings parser → should generate details pages with vars
-     * Test details parser → should output products with navigation vars
-   - Use parser_tester MCP tool with proper vars flow
-   - Verify vars are passed correctly through chain
-
-6) Final Status Update:
-   ```json
-   "assembly": {
-     "status": "completed",
-     "completed_at": "<timestamp>",
-     "config_generated": true,
-     "seeder_generated": true,
-     "tests_passed": true
-   }
-   ```
-
-7) State Cleanup:
-   - If --keep-state flag: Keep all state files
-   - Else: Delete .scraper-state/ directory and all state files
-   - Confirm: "State files cleaned up (use --keep-state to retain)"
-
-=== Resume Logic ===
-
-If --resume flag provided:
-  1. Load phase-status.json
-  2. Determine current_phase:
-     - "site_discovery" → Resume Phase 1
-     - "navigation_discovery" → Resume Phase 2
-     - "detail_discovery" → Resume Phase 3
-     - "assembly" → Resume Phase 4
-  3. Load browser-context.json to resume browser session
-  4. Continue from determined phase
-
-=== Error Handling ===
-
-- If any phase fails:
-  - Save current state (checkpoint)
-  - Update phase-status.json with error status
-  - Provide clear error message with resume instructions
-  - Do NOT delete state files on error
-
-- Resume instructions should include:
-  "To resume, run: /scrape-site url=<url> name=<name> --resume"
-  "Or continue manually with: /create-navigation-parser scraper=<name> --resume-url=<url>"
-
-=== Output Expectations ===
-
-1. Show current phase progress:
-   "Phase 1/4: Site Discovery..."
-   "Phase 2/4: Navigation Generation..."
-   "Phase 3/4: Detail Generation..."
-   "Phase 4/4: Assembly & Validation..."
-
-2. For each phase:
-   - Show key discoveries/actions
-   - Display generated files
-   - Confirm checkpoints saved
-
-3. Final summary:
-   - Complete file structure
-   - Parser chain: categories → listings → details
-   - Vars flow confirmation
-   - Test results
-   - Next steps (deployment instructions)
+**This command is now COMPLETE and INDEPENDENT.**
+**Next session can run /create-navigation-parser without any conversation history.**
 
 Examples:
-  # Full pipeline (new scraper)
-  /scrape-site url="https://example.com" name=example_store
-  
-  # With field specification
-  /scrape-site url="https://shop.com" name=my_shop spec="fields.csv" collection=products
-  
-  # Resume from interruption
-  /scrape-site url="https://site.com" name=store --resume
-  
-  # Keep state files for debugging
-  /scrape-site url="https://store.com" name=store --keep-state
+  /scrape-site url="https://naivas.online" name=naivas_online
+  /scrape-site url="https://example.com" --scraper my_store
 """
-

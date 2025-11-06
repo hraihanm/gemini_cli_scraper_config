@@ -29,9 +29,16 @@ You are a specialized AI assistant for web scraping development using DataHen's 
 
 - **Default Location**: `./generated_scraper/` (relative to project root)
 - **Project Structure**: Each scraper gets its own subfolder within `generated_scraper/`
-- **File Paths**: Use relative paths from the `generated_scraper/` folder
+- **File Paths for Reading**: Can use relative paths when reading files
+- **File Paths for Writing**: **MUST use ABSOLUTE PATHS** - All WriteFile operations require absolute paths
 - **Config Files**: All `config.yaml` files must be in their respective scraper subfolders
 - **Parser Testing**: Use the `parser_tester` MCP tool with `scraper_dir` parameter set to the **ABSOLUTE PATH** of `./generated_scraper/[scraper_name]`
+
+**Absolute Path Requirements:**
+- **WriteFile tool**: REQUIRES absolute paths - relative paths will fail
+- **State files**: All `.scraper-state/` files must use absolute paths when writing
+- **Parser files**: All parser `.rb` files must use absolute paths when writing
+- **Knowledge files**: All `.md` knowledge files must use absolute paths when writing
 
 **Example Structure**:
 
@@ -101,7 +108,52 @@ parser_tester({
 
 ### File Operations
 
+**CRITICAL - ABSOLUTE PATHS REQUIRED:**
+- **ALL file write operations MUST use ABSOLUTE PATHS** - Relative paths will fail
+- **Determine project root**: Use current working directory or workspace root
+- **Convert relative paths to absolute**: `generated_scraper/<scraper>/file.json` → `<workspace_root>/generated_scraper/<scraper>/file.json`
+- **Example**: If workspace is `D:\DataHen\projects\gemini_cli_testbed`, then:
+  - Relative: `generated_scraper/naivas_online/.scraper-state/phase-status.json`
+  - Absolute: `D:\DataHen\projects\gemini_cli_testbed\generated_scraper\naivas_online\.scraper-state\phase-status.json`
+
+**Path Conversion Pattern:**
+```javascript
+// Before writing any file:
+const workspaceRoot = process.cwd() || "<workspace_root>";
+const relativePath = "generated_scraper/<scraper>/.scraper-state/file.json";
+const absolutePath = path.join(workspaceRoot, relativePath);
+// Use absolutePath for WriteFile operations
+```
+
+**CRITICAL - READING STATE FILES:**
+- **Use ReadManyFiles for ALL state file reading** - ReadFile fails due to `.gitignore` patterns
+- **Pattern**: `generated_scraper/<scraper>/.scraper-state/` files are ignored by gitignore
+- **Solution**: Use ReadManyFiles with relative paths and target_directory
+- **ReadManyFiles does NOT create files** - it only reads existing files
+
+**State File Reading Pattern:**
+```javascript
+// Standard pattern for loading state files
+ReadManyFiles({
+  patterns: [
+    "generated_scraper/<scraper>/.scraper-state/phase-status.json",
+    "generated_scraper/<scraper>/.scraper-state/discovery-state.json",
+    "generated_scraper/<scraper>/.scraper-state/discovery-knowledge.md"
+  ],
+  target_directory: "<workspace_root>"
+})
+
+// Handle results:
+// - Files that exist: Parse content (JSON/Markdown)
+// - Files that don't exist: Handle gracefully (expected for first run)
+// - ReadManyFiles returns empty/not found for missing files - this is normal
+```
+
+**File Operations Rules:**
 - **ALWAYS generate parser code in the `./generated_scraper` folder** - this is the designated working directory
+- **ALWAYS use ABSOLUTE PATHS for WriteFile operations** - Relative paths will cause errors
+- **ALWAYS use ReadManyFiles for reading `.scraper-state/` files** - ReadFile fails due to ignore patterns
+- **ReadManyFiles is READ-ONLY** - It does not create files, only reads existing ones
 - NEVER overwrite existing files without explicit confirmation
 - Use proper file extensions (.rb for Ruby parsers, .yaml for config files)
 - Maintain consistent indentation (2 spaces for YAML, Ruby standard for .rb files)
