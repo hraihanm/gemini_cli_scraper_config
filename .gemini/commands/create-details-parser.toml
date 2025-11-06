@@ -84,10 +84,47 @@ Process:
    - If missing: Display error: "Navigation parsers not found. Run: /create-navigation-parser scraper=<scraper>"
    - If exists: Continue with detail parser generation
 
+5) Check for existing detail parser and test it:
+   **CRITICAL**: Before generating new parser, check if parser already exists and test it
+   
+   a) Check if `parsers/details.rb` exists:
+      - If exists: Read parser code
+      - Test parser using parser_tester MCP tool:
+        ```javascript
+        parser_tester({
+          scraper_dir: "<absolute_path>/generated_scraper/<scraper>",
+          parser_path: "parsers/details.rb",
+          page_type: "details",
+          html_file: "<absolute_path>/cache/product-page.html",
+          // OR: auto_download: true
+          vars: '{"category_name":"Electronics","breadcrumb":"Electronics","rank":1,"page_number":1}',
+          quiet: false
+        })
+        ```
+   
+   b) Analyze test results:
+      - **If test passes**: 
+        * Parser is working correctly
+        * Option 1: Skip generation (parser already good)
+        * Option 2: Enhance with additional fields from field-spec.json
+        * Option 3: Verify selectors still work, then continue
+      - **If test fails**:
+        * Analyze failure reason (selectors broken? missing fields?)
+        * Discover new/updated selectors
+        * Modify existing parser (don't regenerate from scratch)
+        * Preserve working parts, fix broken selectors
+      - **If parser doesn't exist**:
+        * Continue with normal discovery and generation workflow
+   
+   c) Decision logic:
+      - **Parser exists AND test passes**: Can enhance or skip
+      - **Parser exists AND test fails**: Modify parser with new selectors
+      - **Parser doesn't exist**: Generate new parser
+
 **Note**: ReadManyFiles will return empty/not found for missing files - handle gracefully.
 
 === STEP 2: Determine Detail URL ===
-5) Priority order for detail URL:
+6) Priority order for detail URL:
    - resume-url parameter (if provided)
    - url parameter (if provided)
    - navigation-selectors.json['listings']['sample_detail_urls'][0]
@@ -95,11 +132,12 @@ Process:
    - Must ask user if none available
 
 === STEP 3: Selector Discovery ===
-6) Navigate to detail page:
+7) Navigate to detail page (if parser doesn't exist or test failed):
    - browser_navigate(detail_url)
    - browser_snapshot()
 
-7) Discover selectors for each field (browser-first workflow):
+8) Discover selectors for each field (browser-first workflow):
+   **CRITICAL**: If parser exists, focus on updating broken selectors or adding missing fields
    **CRITICAL**: Use field-spec.json to guide discovery (if available)
    
    a) Determine fields to discover:
@@ -128,7 +166,7 @@ Process:
       * Images (primary and secondary)
       * Availability status
 
-8) Create Selector Plan and update field-spec.json:
+9) Create Selector Plan and update field-spec.json:
    a) For each discovered field, update field-spec.json:
       ```json
       {
@@ -165,14 +203,24 @@ Process:
       - Path: `generated_scraper/<scraper>/.scraper-state/field-spec.json`
       - This now contains discovered selectors for all FIND fields
 
-=== STEP 4: Generate Detail Parser ===
-9) Generate parsers/details.rb (USE ABSOLUTE PATH):
-   **CRITICAL**: Use field-spec.json to generate parser outputs
+=== STEP 4: Generate or Modify Detail Parser ===
+10) Generate or modify parsers/details.rb (USE ABSOLUTE PATH):
+   **CRITICAL**: If parser exists, modify it instead of regenerating
    
-   a) Read field-spec.json to determine which fields to extract
-   b) For each FIND field: Use discovered selectors from field-spec.json
-   c) For each PROCESS field: Implement computation logic from field-spec.json
-   d) Generate outputs array matching field-spec.json structure
+   a) If parser exists:
+      - Read existing parser code
+      - Identify selector locations in code
+      - Update broken selectors with newly discovered ones
+      - Add missing fields from field-spec.json (if any)
+      - Preserve existing logic (helper functions, navigation context, etc.)
+      - Keep working parts, fix broken selectors
+      - Maintain code structure and style
+   
+   b) If parser doesn't exist:
+      - Read field-spec.json to determine which fields to extract
+      - For each FIND field: Use discovered selectors from field-spec.json
+      - For each PROCESS field: Implement computation logic from field-spec.json
+      - Generate outputs array matching field-spec.json structure
    ```ruby
    html = Nokogiri::HTML(content)
    vars = page['vars'] || {}
@@ -269,9 +317,9 @@ Process:
    **Note**: The actual implementation should iterate through field-spec.json fields and extract/compute each one. This is a simplified example showing the pattern.
 
 === STEP 5: Test Detail Parser ===
-**MANDATORY**: Test parser immediately after generation
+**MANDATORY**: Test parser immediately after generation/modification
 
-10) Test Detail Parser:
+11) Test Detail Parser (or re-test if modified):
    a) Download HTML for testing:
       - Use browser_navigate() to visit detail URL (already navigated)
       - Use browser_view_html() to get HTML content
@@ -301,7 +349,7 @@ Process:
 === STEP 6: Write Detail Selectors (JSON) ===
 **CRITICAL**: Use ABSOLUTE PATH for WriteFile operation
 
-11) Save detail-selectors.json (USE ABSOLUTE PATH):
+12) Save detail-selectors.json (USE ABSOLUTE PATH):
    ```json
    {
      "product_fields": {
@@ -335,7 +383,7 @@ Process:
 === STEP 7: Update Config.yaml ===
 **CRITICAL**: Use ABSOLUTE PATH for WriteFile operation
 
-12) Update config.yaml to add details parser and exporter fields (USE ABSOLUTE PATH):
+13) Update config.yaml to add details parser and exporter fields (USE ABSOLUTE PATH):
    a) Read existing config.yaml (from generated_scraper/<scraper>/config.yaml)
    b) Parse YAML structure
    c) Append details parser to existing parsers array:
@@ -371,7 +419,7 @@ Process:
 === STEP 8: Write Detail Knowledge (Markdown) ===
 **CRITICAL**: Use ABSOLUTE PATH for WriteFile operation
 
-13) Save detail-knowledge.md (USE ABSOLUTE PATH):
+14) Save detail-knowledge.md (USE ABSOLUTE PATH):
    ```markdown
    # Detail Parser Knowledge - <scraper_name>
    
@@ -467,7 +515,7 @@ Process:
    ```
 
 === STEP 9: Update Phase Status ===
-14) Update phase-status.json (USE ABSOLUTE PATH):
+15) Update phase-status.json (USE ABSOLUTE PATH):
    ```json
    "detail_discovery": {
      "status": "completed",
@@ -477,10 +525,10 @@ Process:
    }
    ```
 
-15) Update browser-context.json (USE ABSOLUTE PATH)
+16) Update browser-context.json (USE ABSOLUTE PATH)
 
 === STEP 10: Completion Report ===
-16) Display completion summary:
+17) Display completion summary:
    ```
    ✅ Detail Parser Complete
    
@@ -509,10 +557,11 @@ Process:
    ```
 
 **CRITICAL COMPLETION REQUIREMENTS:**
-- ✅ parsers/details.rb generated with navigation context
+- ✅ parsers/details.rb generated or modified with navigation context
+- ✅ Existing parser tested first (if exists) before modification
 - ✅ Field extraction guided by field-spec.json (if provided)
 - ✅ field-spec.json updated with discovered selectors for all FIND fields
-- ✅ Detail parser tested with parser_tester MCP tool
+- ✅ Detail parser tested with parser_tester MCP tool (after generation/modification)
 - ✅ config.yaml updated with details parser + CSV exporter fields (from field-spec.json)
 - ✅ detail-selectors.json written (machine-readable)
 - ✅ detail-knowledge.md written (human + AI readable)
