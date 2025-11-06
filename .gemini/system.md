@@ -209,10 +209,17 @@ ReadManyFiles({
 
 1. **`browser_navigate(url)`** - Navigate to target website
 2. **`browser_snapshot()`** - Capture page structure and get element references
-3. **`browser_inspect_element(element_description, ref)`** - Get detailed DOM info for target elements
-4. **`browser_verify_selector(element, selector, expected)`** - Verify every CSS selector works
+3. **`browser_inspect_element(element_description, ref)`** - **MANDATORY FIRST STEP** - Get detailed DOM info and REAL CSS selector
+4. **`browser_verify_selector(element, selector, expected)`** - Verify every CSS selector works (MUST use REAL selector from step 3)
 5. **`browser_evaluate(function)`** - Quick test selectors with JavaScript for rapid validation
 6. **Repeat verification** on 2-3 similar pages to ensure selector reliability
+
+**🚨 CRITICAL RULE FOR `browser_verify_selector`**:
+- **NEVER** use Playwright refs (like `e62`, `e425`) in the `selector` parameter
+- **ALWAYS** call `browser_inspect_element` FIRST to get the REAL CSS selector
+- **FORBIDDEN**: `browser_verify_selector('Element', 'nav[ref="e62"] li a', ...)` ❌
+- **REQUIRED**: `browser_inspect_element('Element', 'e62')` → get real selector → `browser_verify_selector('Element', 'nav.menu li a', ...)` ✅
+- If you see a ref in a selector, STOP and call `browser_inspect_element` to get the real selector
 
 #### Playwright Element Reference Protocol
 
@@ -233,7 +240,13 @@ ReadManyFiles({
 | **Browser Interaction** | ✅ `browser_hover(element, ref)` | ❌ Never |
 | **Browser Actions** | ✅ `browser_type(element, ref)` | ❌ Never |
 | **Ruby Parser Code** | ❌ Never | ✅ `html.css('.selector')` |
-| **Selector Verification** | ❌ Never | ✅ `browser_verify_selector()` |
+| **Selector Verification** | ❌ Never | ✅ `browser_verify_selector(element, REAL_CSS_SELECTOR, expected)` |
+| **browser_inspect_element** | ✅ `browser_inspect_element(element, ref)` | ❌ Never - MUST use ref |
+
+**🚨 CRITICAL FOR `browser_verify_selector`**:
+- The `selector` parameter MUST be a REAL CSS selector (e.g., `'nav.menu li a'`)
+- The `selector` parameter MUST NEVER contain refs (e.g., `'nav[ref="e62"] li a'` ❌)
+- **MANDATORY WORKFLOW**: `browser_snapshot()` → `browser_inspect_element(element, ref)` → extract REAL selector → `browser_verify_selector(element, REAL_SELECTOR, expected)`
 
 **Correct Workflow**:
 ```javascript
@@ -289,10 +302,17 @@ RIGHT:  document.querySelector('a.tax-number')  // use the real selector reveale
 ```
 
 **Self-check rule (must abort and fix if matched):**
-Before executing any JS or saving any parser code, scan for these anti-patterns and correct them:
-- `[ref=`
+Before executing any JS, calling `browser_verify_selector`, or saving any parser code, scan for these anti-patterns and correct them:
+- `[ref=` (in any selector string)
 - `querySelector("[ref=` or `querySelector('[ref=`
 - `querySelectorAll("[ref=` or `querySelectorAll('[ref=`
+- `browser_verify_selector(..., '...ref="...`, ...)` (refs in selector parameter)
+- Any selector containing `ref="e` or `ref='e` or `[ref=e`
+
+**MANDATORY CHECK BEFORE `browser_verify_selector`:**
+- If the selector parameter contains ANY ref (like `e62`, `e425`), STOP immediately
+- Call `browser_inspect_element(element, ref)` FIRST to get the real CSS selector
+- Only then call `browser_verify_selector` with the REAL selector
 
 If any are found, STOP, run `browser_inspect_element` to obtain the real selector, verify it, and then proceed.
 
@@ -315,8 +335,14 @@ If any are found, STOP, run `browser_inspect_element` to obtain the real selecto
 // Use these exact MCP tools before writing Ruby parser code:
 browser_navigate('https://target-site.com/product/123')
 browser_snapshot()  // Get page structure with element refs (e.g., "Product title" [ref=e45])
-browser_inspect_element('Product title', 'e45')  // Get DOM details and real CSS selector
-browser_verify_selector('Product title', 'h1.product-name', 'Expected Product Name')
+
+// STEP 1: MANDATORY - Inspect element to get REAL CSS selector
+browser_inspect_element('Product title', 'e45')  
+// Returns: Real selector like 'h1.product-name' or '.product-title h1'
+
+// STEP 2: Use the REAL selector (extracted from step 1), NOT the ref
+browser_verify_selector('Product title', 'h1.product-name', 'Expected Product Name')  // ✅ CORRECT
+// NEVER: browser_verify_selector('Product title', 'h1[ref="e45"]', ...)  // ❌ WRONG - refs don't work in selectors
 ```
 
 **Then implement in Ruby parser**:

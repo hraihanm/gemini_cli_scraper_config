@@ -75,7 +75,18 @@ For each parser development cycle:
 | **Browser Interaction** | ✅ `browser_hover(element, ref)` | ❌ Never |
 | **Browser Actions** | ✅ `browser_type(element, ref)` | ❌ Never |
 | **Ruby Parser Code** | ❌ Never | ✅ `html.css('.selector')` |
-| **Selector Verification** | ❌ Never | ✅ `browser_verify_selector()` |
+| **Selector Verification** | ❌ Never | ✅ `browser_verify_selector(element, REAL_CSS_SELECTOR, expected)` |
+| **browser_inspect_element** | ✅ `browser_inspect_element(element, ref)` | ❌ Never - MUST use ref |
+
+**🚨 CRITICAL RULE FOR `browser_verify_selector`**:
+- **NEVER** use Playwright refs (like `e62`, `e425`) in the `selector` parameter
+- **ALWAYS** call `browser_inspect_element` FIRST to get the REAL CSS selector
+- **FORBIDDEN**: `browser_verify_selector('Element', 'nav[ref="e62"] li a', ...)` ❌
+- **REQUIRED WORKFLOW**: 
+  1. `browser_snapshot()` → see element with `[ref=e62]`
+  2. `browser_inspect_element('Element', 'e62')` → get REAL selector like `'nav.menu li a'`
+  3. `browser_verify_selector('Element', 'nav.menu li a', 'Expected Text')` ✅
+- If you see a ref in a selector, STOP and call `browser_inspect_element` to get the real selector
 
 **Correct Workflow**:
 ```javascript
@@ -85,11 +96,16 @@ For each parser development cycle:
 // 2. For browser actions - USE the ref directly
 browser_click('Product Name', 'e425')  // ✅ CORRECT
 
-// 3. For Ruby parser - inspect element to get real CSS selector
+// 3. For selector verification - MUST inspect element FIRST to get real CSS selector
 browser_inspect_element('Product Name', 'e425')
+// Returns: Real selector like '.product-item a.product-link' or 'nav.menu li a'
 
-// 4. Use the revealed CSS selector in Ruby parser
-// Real selector might be: '.product-item a.product-link'
+// 4. Use the REAL selector (NOT the ref) in browser_verify_selector
+browser_verify_selector('Product Name', '.product-item a.product-link', 'Expected Text')  // ✅ CORRECT
+// NEVER: browser_verify_selector('Product Name', 'a[ref="e425"]', ...)  // ❌ WRONG
+
+// 5. Use the revealed CSS selector in Ruby parser
+// Real selector: '.product-item a.product-link'
 ```
 
 **Common Mistakes**:
