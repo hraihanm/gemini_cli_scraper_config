@@ -1,0 +1,311 @@
+description = "Generate comprehensive navigation parsers (categories, subcategories, listings) with checkpointing and resumability."
+
+prompt = """
+You are generating navigation parsers for a DataHen v3 scraper. This command creates parsers that handle site navigation: categories → subcategories → listings, with proper variable passing and pagination handling.
+
+CRITICAL: Use browser-first workflow from GEMINI.md. Do NOT generate dummy parsers without visiting URLs and discovering real selectors.
+
+Inputs (order-agnostic via {{args}}):
+  - scraper=<scraper_name> | --scraper <scraper_name> (REQUIRED - scraper must exist)
+  - resume-url=<url> (OPTIONAL - resume browser from this URL, overrides state file)
+  - discovery-state=<path> (OPTIONAL - defaults to generated_scraper/<scraper>/.scraper-state/discovery-state.json)
+  - browser-context=<path> (OPTIONAL - defaults to generated_scraper/<scraper>/.scraper-state/browser-context.json)
+  - --checkpoint (FLAG - save checkpoint after each page type, enabled by default)
+  - out=<base_dir> (OPTIONAL - defaults to ./generated_scraper)
+
+State Management:
+  - Read phase-status.json to determine what's already completed
+  - Load discovery-state.json to understand site structure (if available)
+  - Load browser-context.json for browser resume (if available)
+  - Save checkpoints after each parser generation
+  - Write navigation-selectors.json with all discovered selectors
+  - Update phase-status.json with progress
+
+Resume Logic:
+  1. Check phase-status.json for navigation_discovery.checkpoints
+  2. If listings_analyzed: true → skip to completion (all parsers done)
+  3. If subcategories_analyzed: true → resume from listings generation
+  4. If categories_analyzed: true → resume from subcategories generation
+  5. Else → start from categories generation
+
+Pipeline (with checkpointing):
+
+Phase 1: Load Context & Determine Starting Point
+  1) Parse inputs and determine scraper path: generated_scraper/<scraper_slug>/
+  2) Load phase-status.json from .scraper-state/ directory
+  3) Check checkpoints to determine resume point:
+     - If all checkpoints complete → exit with "Navigation parsers already generated"
+     - If partial completion → resume from last checkpoint
+  4) Load discovery-state.json (if exists) to understand site structure:
+     - has_categories, has_subcategories, has_listings
+     - navigation_depth, sample_urls
+  5) Determine browser starting URL:
+     - Priority 1: resume-url parameter (override)
+     - Priority 2: browser-context['last_url_visited']
+     - Priority 3: discovery-state['sample_category_url']
+     - Priority 4: Must ask user for category page URL
+
+Phase 2: Categories Parser Generation (if needed)
+  Checkpoint check: If categories_analyzed: true → SKIP this phase
+  
+  1) Navigate to category page (use starting URL from Phase 1)
+  2) Browser-first exploration:
+     - browser_snapshot() to understand page structure
+     - browser_inspect_element() to reveal category link selectors
+     - browser_verify_selector() for category text/names (text-based only)
+     - browser_evaluate() for category URLs and navigation patterns
+     - Fallback to browser_view_html() only if targeted inspection fails
+  3) Discover category patterns:
+     - Category link selector (e.g., ".category-item a", ".nav-menu a")
+     - Category name extraction pattern
+     - URL pattern (absolute vs relative, query params)
+  4) Generate parsers/categories.rb:
+     ```ruby
+     html = Nokogiri::HTML(content)
+     vars = page['vars']
+     
+     # Extract base URL from current page if not in vars
+     base_url = vars['base_url'] || page['url'].split('/')[0..2].join('/')
+     
+     # Extract categories
+     categories = html.css('.category-link-selector')  # Use discovered selector
+     categories.each do |category|
+       cat_name = category.text.strip
+       cat_url = category['href']
+       # Handle relative URLs
+       cat_url = base_url + cat_url unless cat_url.start_with?('http')
+       
+       pages << {
+         url: cat_url,
+         page_type: vars['has_subcategories'] ? "subcategories" : "listings",
+         vars: vars.merge({
+           category_name: cat_name,
+           category_level: vars['category_level'].to_i + 1,
+           breadcrumb: vars['breadcrumb'] ? "#{vars['breadcrumb']} > #{cat_name}" : cat_name
+         })
+       }
+     end
+     
+     # Memory management for large category lists
+     save_pages(pages) if pages.count > 99
+     ```
+  5) CHECKPOINT: Update phase-status.json
+     ```json
+     "navigation_discovery": {
+       "checkpoints": {
+         "categories_analyzed": true,
+         "categories_parser_generated": true,
+         "last_category_url": "<current_url>"
+       }
+     }
+     ```
+  6) Save browser context:
+     ```json
+     {
+       "last_url_visited": "<category_page_url>",
+       "last_phase": "navigation_discovery",
+       "last_activity": "<timestamp>"
+     }
+     ```
+
+Phase 3: Subcategories Parser Generation (conditional - if has_subcategories)
+  Checkpoint check: If subcategories_analyzed: true → SKIP this phase
+  
+  1) Navigate to subcategory page:
+     - Use sample subcategory URL from discovery-state
+     - Or use category link discovered in Phase 2
+  2) Browser-first exploration:
+     - Discover subcategory link selectors
+     - Understand subcategory navigation pattern
+  3) Generate parsers/subcategories.rb:
+     ```ruby
+     html = Nokogiri::HTML(content)
+     vars = page['vars']
+     base_url = vars['base_url'] || page['url'].split('/')[0..2].join('/')
+     
+     subcategories = html.css('.subcategory-link-selector')  # Discovered selector
+     subcategories.each do |subcat|
+       subcat_name = subcat.text.strip
+       subcat_url = subcat['href']
+       subcat_url = base_url + subcat_url unless subcat_url.start_with?('http')
+       
+       pages << {
+         url: subcat_url,
+         page_type: "listings",
+         vars: vars.merge({
+           subcategory_name: subcat_name,
+           category_name: vars['category_name'],
+           breadcrumb: "#{vars['breadcrumb']} > #{subcat_name}"
+         })
+       }
+     end
+     
+     save_pages(pages) if pages.count > 99
+     ```
+  4) CHECKPOINT: Update phase-status.json
+  5) Save browser context
+
+Phase 4: Listings Parser Generation (if has_listings)
+  Checkpoint check: If listings_analyzed: true → SKIP this phase
+  
+  1) Navigate to listings page:
+     - Use sample listings URL from discovery-state
+     - Or use subcategory/category link
+  2) Browser-first exploration:
+     - browser_snapshot() to see product listings
+     - browser_inspect_element() for product link selectors
+     - Analyze pagination pattern (critical):
+       * Query parameter pagination: ?page=2, ?p=2
+       * Path pagination: /page/2, /products/page-2
+       * Infinite scroll detection (check for "Load more" buttons)
+       * Next button detection: .next-page, a[aria-label="Next"]
+  3) Pagination investigation (if needed):
+     - Use browser_network_requests() to detect pagination API calls
+     - Check for product count indicators
+     - Calculate total pages if product count available
+  4) Extract sample detail URLs (for detail master):
+     - Extract 3-5 product URLs from current listings page
+     - Store in navigation-selectors.json for detail parser generation
+  5) Generate parsers/listings.rb:
+     ```ruby
+     html = Nokogiri::HTML(content)
+     vars = page['vars']
+     base_url = vars['base_url'] || page['url'].split('/')[0..2].join('/')
+     
+     # Extract product links
+     products = html.css('.product-link-selector')  # Discovered selector
+     products.each_with_index do |product, idx|
+       product_url = product['href'] || product.at_css('a')['href']
+       product_url = base_url + product_url unless product_url.start_with?('http')
+       
+       pages << {
+         url: product_url,
+         page_type: "details",
+         vars: vars.merge({
+           rank: idx + 1,
+           page_number: vars['page'] || 1,
+           listing_position: idx + 1
+         })
+       }
+     end
+     
+     # Pagination handling
+     # Method 1: Next button detection
+     next_button = html.at_css('.next-page, a[aria-label="Next"]')
+     if next_button && next_button['href']
+       next_url = next_button['href']
+       next_url = base_url + next_url unless next_url.start_with?('http')
+       
+       pages << {
+         url: next_url,
+         page_type: "listings",
+         vars: vars.merge({ page: (vars['page'] || 1).to_i + 1 })
+       }
+     end
+     
+     # Method 2: Query parameter pagination (fallback)
+     # If no next button, check if current URL has page parameter
+     current_page = vars['page'] || 1
+     if products.length > 0 && current_page < 100  # Safety limit
+      current_url = page['url']
+      if current_url.include?('?')
+        next_url = current_url.gsub(/[?&]page=\\d+/, '') + "?page=#{current_page + 1}"
+       else
+         next_url = current_url + "?page=#{current_page + 1}"
+       end
+       
+       pages << {
+         url: next_url,
+         page_type: "listings",
+         vars: vars.merge({ page: current_page + 1 })
+       }
+     end
+     
+     save_pages(pages) if pages.count > 99
+     ```
+  6) CHECKPOINT: Update phase-status.json
+  7) Save browser context
+  8) Extract and save sample detail URLs:
+     ```json
+     {
+       "sample_detail_urls": [
+         "https://example.com/p/123",
+         "https://example.com/p/456",
+         ...
+       ]
+     }
+     ```
+
+Phase 5: Generate navigation-selectors.json
+  Create comprehensive selector documentation:
+  ```json
+  {
+    "categories": {
+      "category_link_selector": [".category-item a", ".nav-link a"],
+      "category_name_selectors": [".category-title", "a"],
+      "verified": true,
+      "confidence": 0.95,
+      "notes": "Categories found in main navigation menu"
+    },
+    "subcategories": {
+      "subcategory_link_selector": [".subcategory-item a", ".sub-nav a"],
+      "subcategory_name_selectors": [".subcategory-name"],
+      "verified": true,
+      "confidence": 0.90,
+      "notes": "Subcategories appear in sidebar"
+    },
+    "listings": {
+      "product_link_selector": [".product-item a", ".product-card a"],
+      "pagination_next": [".next-page", "a[aria-label='Next']"],
+      "pagination_pattern": "query_param",
+      "pagination_param": "page",
+      "verified": true,
+      "confidence": 0.95,
+      "sample_detail_urls": ["https://example.com/p/123", "..."],
+      "notes": "Products listed in grid, pagination via query param"
+    }
+  }
+  ```
+
+Phase 6: Final Status Update
+  Update phase-status.json:
+  ```json
+  "navigation_discovery": {
+    "status": "completed",
+    "completed_at": "<timestamp>",
+    "checkpoints": {
+      "categories_analyzed": true,
+      "categories_parser_generated": true,
+      "subcategories_analyzed": true,
+      "subcategories_parser_generated": true,
+      "listings_analyzed": true,
+      "listings_parser_generated": true
+    }
+  }
+  ```
+
+Error Recovery:
+  - If any phase fails, checkpoint is saved
+  - User can re-run command with --resume-url to continue
+  - Check phase-status.json checkpoints to skip completed work
+  - Provide clear error messages with resume instructions
+
+Output Expectations:
+  - Show discovered selector plan (table format)
+  - Print file tree of generated parsers
+  - Display checkpoint status
+  - Show sample detail URLs extracted for detail master
+  - Confirm navigation-selectors.json created
+
+Validation:
+  - Verify all required parsers generated based on discovery-state
+  - Ensure selectors are verified (not placeholders)
+  - Confirm variable passing chain: categories → subcategories → listings → details
+  - Check that pagination is properly handled
+
+Examples:
+  /create-navigation-parser scraper=example_site
+  /create-navigation-parser --scraper my_store resume-url="https://example.com/categories"
+  /create-navigation-parser scraper=shop discovery-state="./generated_scraper/shop/.scraper-state/discovery-state.json"
+"""
+
