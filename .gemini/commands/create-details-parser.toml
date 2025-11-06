@@ -21,7 +21,10 @@ You are performing Phase 3: Detail Parser Generation. This command is COMPLETELY
 Inputs (order-agnostic via {{args}}):
   - scraper=<scraper_name> (REQUIRED - scraper must exist with navigation-selectors.json)
   - url=<details_page_url> (OPTIONAL - uses sample URL from navigation-selectors.json if not provided)
-  - spec=<path-to-CSV-or-JSON> (OPTIONAL - field specification)
+  - spec=<path-to-CSV-or-JSON> (OPTIONAL - field specification, e.g., spec_general_sample.csv)
+    * If provided: Parse and update field-spec.json (overrides existing if any)
+    * If not provided: Use existing field-spec.json from scrape-site (if exists)
+    * If neither exists: Discover common fields (name, price, brand, etc.)
   - collection=<collection_name> (OPTIONAL, default: "products")
   - resume-url=<url> (OPTIONAL - resume browser from this URL)
   - out=<base_dir> (OPTIONAL - defaults to ./generated_scraper)
@@ -40,6 +43,7 @@ Process:
        "generated_scraper/<scraper>/.scraper-state/navigation-knowledge.md",
        "generated_scraper/<scraper>/.scraper-state/discovery-knowledge.md",
        "generated_scraper/<scraper>/.scraper-state/discovery-state.json",
+       "generated_scraper/<scraper>/.scraper-state/field-spec.json",
        "generated_scraper/<scraper>/.scraper-state/detail-selectors.json",
        "generated_scraper/<scraper>/.scraper-state/detail-knowledge.md"
      ],
@@ -52,6 +56,13 @@ Process:
      * If "completed": Display summary, suggest next steps (testing/deployment)
      * If "in_progress": Resume from checkpoint
      * Else: Start fresh detail discovery
+   - **field-spec.json**: **CRITICAL** - Field specification guide
+     * If `spec` parameter provided: Parse spec file and create/update field-spec.json
+     * If `spec` parameter not provided but field-spec.json exists: Use existing spec
+     * If neither exists: Discover common fields (name, price, brand, etc.)
+     * Extract: field names, types, extraction_method (FIND/PROCESS), notes
+     * For FIND fields: Discover selectors for each field
+     * For PROCESS fields: Document computation logic
    - **navigation-selectors.json**: Extract navigation context
      * Vars flow: categories → listings → details
      * Expected vars: `category_name`, `breadcrumb`, `rank`, `page_number`
@@ -62,7 +73,13 @@ Process:
    - **detail-selectors.json**: If exists, check what's already discovered
    - **detail-knowledge.md**: If exists, read previous discoveries
 
-3) Validate prerequisites:
+3) Handle field specification:
+   - If `spec` parameter provided: Parse spec file (CSV or JSON) and create/update field-spec.json
+   - If `spec` parameter not provided: Check for existing field-spec.json
+   - If field-spec.json exists: Use it to guide field discovery
+   - If field-spec.json missing: Discover common fields (fallback mode)
+
+4) Validate prerequisites:
    - **REQUIRED**: navigation-selectors.json must exist (run `/create-navigation-parser` first if missing)
    - If missing: Display error: "Navigation parsers not found. Run: /create-navigation-parser scraper=<scraper>"
    - If exists: Continue with detail parser generation
@@ -70,7 +87,7 @@ Process:
 **Note**: ReadManyFiles will return empty/not found for missing files - handle gracefully.
 
 === STEP 2: Determine Detail URL ===
-4) Priority order for detail URL:
+5) Priority order for detail URL:
    - resume-url parameter (if provided)
    - url parameter (if provided)
    - navigation-selectors.json['listings']['sample_detail_urls'][0]
@@ -78,53 +95,84 @@ Process:
    - Must ask user if none available
 
 === STEP 3: Selector Discovery ===
-5) Navigate to detail page:
+6) Navigate to detail page:
    - browser_navigate(detail_url)
    - browser_snapshot()
 
-6) Discover selectors for each field (browser-first workflow):
-   - Use browser_inspect_element() to reveal real CSS selectors
-   - Use browser_verify_selector() for text fields (names, prices, labels)
-   - Use browser_evaluate() for non-text attributes (img src, data-*)
-   - Fallback to browser_view_html() only if targeted inspection fails
-   - Discover selectors for:
-     * Product name
-     * Brand
-     * SKU / Product ID
-     * Customer price
-     * Base price (if discounted)
-     * Description
-     * Images (primary and secondary)
-     * Availability status
-     * Any other fields from spec
+7) Discover selectors for each field (browser-first workflow):
+   **CRITICAL**: Use field-spec.json to guide discovery (if available)
+   
+   a) Determine fields to discover:
+      - If field-spec.json exists: Only discover fields marked as "FIND" in spec
+      - If field-spec.json missing: Discover common fields (name, brand, price, etc.)
+      - Skip fields marked as "PROCESS" (they're computed, not extracted)
+   
+   b) For each FIND field, discover selectors:
+      - Use browser_inspect_element() to reveal real CSS selectors
+      - Use browser_verify_selector() for text fields (names, prices, labels)
+      - Use browser_evaluate() for non-text attributes (img src, data-*)
+      - Fallback to browser_view_html() only if targeted inspection fails
+   
+   c) Field discovery priority (if field-spec.json exists):
+      - Follow order in field-spec.json
+      - Focus on fields marked as "FIND"
+      - Document selectors in field-spec.json structure
+   
+   d) Common fields to discover (if no spec):
+      * Product name
+      * Brand
+      * SKU / Product ID
+      * Customer price
+      * Base price (if discounted)
+      * Description
+      * Images (primary and secondary)
+      * Availability status
 
-7) Create Selector Plan (document each field):
-   ```json
-   {
-     "name": {
-       "selectors": [".product-title", "h1"],
-       "verified": true,
-       "confidence": 0.95,
-       "notes": "Product name in h1 tag"
-     },
-     "customer_price": {
-       "selectors": ["p > span.font-bold.text-naivas-green"],
-       "verified": true,
-       "confidence": 0.95,
-       "notes": "Price span inside p tag"
-     },
-     "base_price": {
-       "selectors": ["p.text-naivas-red.line-through"],
-       "verified": true,
-       "confidence": 0.90,
-       "notes": "Only present when product has discount",
-       "fallback_logic": "If not found, base_price = customer_price"
-     }
-   }
-   ```
+8) Create Selector Plan and update field-spec.json:
+   a) For each discovered field, update field-spec.json:
+      ```json
+      {
+        "name": "competitor_product_id",
+        "type": "str",
+        "extraction_method": "FIND",
+        "notes": "Find the product-id if possible or else use sku or barcode",
+        "selectors": [".product-id", "[data-product-id]"],
+        "verified": true,
+        "confidence": 0.95,
+        "extraction_notes": "Product ID found in data-product-id attribute"
+      }
+      ```
+   
+   b) Document selector discovery results:
+      - Add `selectors` array to each FIND field
+      - Add `verified: true` after browser verification
+      - Add `confidence` score (0.0-1.0)
+      - Add `extraction_notes` with selector details
+   
+   c) For PROCESS fields, document computation:
+      ```json
+      {
+        "name": "has_discount",
+        "type": "boolean",
+        "extraction_method": "PROCESS",
+        "notes": "true if it has discount",
+        "computation": "customer_price_lc < base_price_lc",
+        "verified": true
+      }
+      ```
+   
+   d) Save updated field-spec.json (USE ABSOLUTE PATH):
+      - Path: `generated_scraper/<scraper>/.scraper-state/field-spec.json`
+      - This now contains discovered selectors for all FIND fields
 
 === STEP 4: Generate Detail Parser ===
-8) Generate parsers/details.rb:
+9) Generate parsers/details.rb (USE ABSOLUTE PATH):
+   **CRITICAL**: Use field-spec.json to generate parser outputs
+   
+   a) Read field-spec.json to determine which fields to extract
+   b) For each FIND field: Use discovered selectors from field-spec.json
+   c) For each PROCESS field: Implement computation logic from field-spec.json
+   d) Generate outputs array matching field-spec.json structure
    ```ruby
    html = Nokogiri::HTML(content)
    vars = page['vars'] || {}
@@ -186,48 +234,74 @@ Process:
                 html.at_css('[data-product-id]')&.[]('data-product-id') ||
                 Digest::MD5.hexdigest("#{name}#{page['url']}")
    
-   # Build output with navigation context
-   outputs << {
+   # Build output based on field-spec.json
+   # If field-spec.json exists, only include fields from spec
+   # If field-spec.json missing, include common fields
+   
+   output_hash = {
      '_collection' => '#{collection}',  # Use collection parameter
-     '_id' => product_id,
-     
-     # Core product fields
-     'name' => name,
-     'brand' => brand,
-     'sku' => sku,
-     'description' => description,
-     'img_url' => img_url,
-     'url' => page['url'],
-     
-     # Pricing
-     'customer_price_lc' => customer_price,
-     'base_price_lc' => base_price,
-     'has_discount' => has_discount,
-     'discount_percentage' => discount_percentage,
-     
-     # Availability
-     'is_available' => is_available,
-     
-     # Navigation context (from vars passed by listings parser)
-     'category_name' => vars['category_name'],
-     'subcategory_name' => vars['subcategory_name'],
-     'breadcrumb' => vars['breadcrumb'],
-     'rank_in_listing' => vars['rank'],
-     'page_number' => vars['page_number'],
-     'listing_position' => vars['listing_position'],
-     
-     # Additional metadata
-     'competitor_product_id' => vars['competitor_product_id'],
-     'store_name' => vars['store_name'],
-     'country' => vars['country'],
-     'currency' => vars['currency']
+     '_id' => product_id
    }
+   
+   # Add fields from field-spec.json (if exists) or common fields
+   # For FIND fields: Extract using discovered selectors
+   # For PROCESS fields: Compute using logic from spec
+   
+   # Example: If field-spec.json has "name" field marked as FIND
+   if field_spec_exists && field_spec['fields'].any? { |f| f['name'] == 'name' && f['extraction_method'] == 'FIND' }
+     output_hash['name'] = name  # Use discovered selector
+   end
+   
+   # Example: If field-spec.json has "has_discount" marked as PROCESS
+   if field_spec_exists && field_spec['fields'].any? { |f| f['name'] == 'has_discount' && f['extraction_method'] == 'PROCESS' }
+     output_hash['has_discount'] = customer_price < base_price  # Compute
+   end
+   
+   # Always include navigation context (from vars)
+   output_hash['category_name'] = vars['category_name']
+   output_hash['breadcrumb'] = vars['breadcrumb']
+   output_hash['rank_in_listing'] = vars['rank']
+   output_hash['page_number'] = vars['page_number']
+   
+   outputs << output_hash
    ```
+   
+   **Note**: The actual implementation should iterate through field-spec.json fields and extract/compute each one. This is a simplified example showing the pattern.
 
-=== STEP 5: Write Detail Selectors (JSON) ===
+=== STEP 5: Test Detail Parser ===
+**MANDATORY**: Test parser immediately after generation
+
+10) Test Detail Parser:
+   a) Download HTML for testing:
+      - Use browser_navigate() to visit detail URL (already navigated)
+      - Use browser_view_html() to get HTML content
+      - Save HTML to cache/ directory (or use auto_download in parser_tester)
+   
+   b) Test with parser_tester MCP tool:
+      ```javascript
+      parser_tester({
+        scraper_dir: "<absolute_path>/generated_scraper/<scraper>",
+        parser_path: "parsers/details.rb",
+        page_type: "details",
+        html_file: "<absolute_path>/cache/product-page.html",
+        // OR: auto_download: true  // Downloads from active browser tab
+        vars: '{"category_name":"Electronics","breadcrumb":"Electronics","rank":1,"page_number":1}',
+        quiet: false  // Show verbose output for testing
+      })
+      ```
+   
+   c) Validate test results:
+      - Parser should output product data with all fields
+      - Check that navigation vars (category_name, breadcrumb, rank) are included
+      - Verify price extraction (customer_price, base_price logic)
+      - Check product ID generation (_id field)
+      - If test fails: Analyze errors, refine selectors, re-test
+      - If test passes: Continue
+
+=== STEP 6: Write Detail Selectors (JSON) ===
 **CRITICAL**: Use ABSOLUTE PATH for WriteFile operation
 
-9) Save detail-selectors.json (USE ABSOLUTE PATH):
+11) Save detail-selectors.json (USE ABSOLUTE PATH):
    ```json
    {
      "product_fields": {
@@ -258,10 +332,46 @@ Process:
    }
    ```
 
-=== STEP 6: Write Detail Knowledge (Markdown) ===
+=== STEP 7: Update Config.yaml ===
 **CRITICAL**: Use ABSOLUTE PATH for WriteFile operation
 
-10) Save detail-knowledge.md (USE ABSOLUTE PATH):
+12) Update config.yaml to add details parser and exporter fields (USE ABSOLUTE PATH):
+   a) Read existing config.yaml (from generated_scraper/<scraper>/config.yaml)
+   b) Parse YAML structure
+   c) Append details parser to existing parsers array:
+      ```yaml
+      - page_type: details
+        file: ./parsers/details.rb
+        disabled: false
+      ```
+   d) Add CSV exporter with fields from field-spec.json (if exists):
+      ```yaml
+      exporters:
+        - exporter_name: products_csv
+          exporter_type: csv
+          collection: products
+          start_on_job_done: true
+          fields:
+            # Generate from field-spec.json
+            - header: "competitor_product_id"
+              path: "competitor_product_id"
+              disable_scientific_notation: true
+            - header: "name"
+              path: "name"
+              disable_scientific_notation: true
+            # ... one entry per field in field-spec.json
+      ```
+   e) Write updated config.yaml (preserve seeder and navigation parsers, add details parser and exporter)
+   
+   **Note**: 
+   - Keep existing seeder and navigation parsers
+   - Append details parser to parsers array
+   - Generate exporter fields from field-spec.json (if exists) or use common fields
+
+=== STEP 8: Write Detail Knowledge (Markdown) ===
+**CRITICAL**: Use ABSOLUTE PATH for WriteFile operation
+
+13) Save detail-knowledge.md (USE ABSOLUTE PATH):
    ```markdown
    # Detail Parser Knowledge - <scraper_name>
    
@@ -356,8 +466,8 @@ Process:
    ```
    ```
 
-=== STEP 7: Update Phase Status ===
-11) Update phase-status.json:
+=== STEP 9: Update Phase Status ===
+14) Update phase-status.json (USE ABSOLUTE PATH):
    ```json
    "detail_discovery": {
      "status": "completed",
@@ -367,22 +477,24 @@ Process:
    }
    ```
 
-12) Update browser-context.json
+15) Update browser-context.json (USE ABSOLUTE PATH)
 
-=== STEP 8: Completion Report ===
-13) Display completion summary:
+=== STEP 10: Completion Report ===
+16) Display completion summary:
    ```
    ✅ Detail Parser Complete
    
    Scraper: <scraper_slug>
    
-   Parser Generated:
-   - parsers/details.rb ✅
+   Parser Generated & Tested:
+   - parsers/details.rb ✅ (tested)
    
-   Files Created:
-   - generated_scraper/<scraper>/.scraper-state/detail-selectors.json
-   - generated_scraper/<scraper>/.scraper-state/detail-knowledge.md
-   - generated_scraper/<scraper>/.scraper-state/phase-status.json (updated)
+   Files Created/Updated:
+   - generated_scraper/<scraper>/config.yaml ✅ (updated with details parser + exporter fields)
+   - generated_scraper/<scraper>/.scraper-state/field-spec.json ✅ (updated with discovered selectors)
+   - generated_scraper/<scraper>/.scraper-state/detail-selectors.json ✅
+   - generated_scraper/<scraper>/.scraper-state/detail-knowledge.md ✅
+   - generated_scraper/<scraper>/.scraper-state/phase-status.json ✅ (updated)
    
    Scraper Status:
    - Site Discovery: ✅ Complete
@@ -397,9 +509,13 @@ Process:
    ```
 
 **CRITICAL COMPLETION REQUIREMENTS:**
+- ✅ parsers/details.rb generated with navigation context
+- ✅ Field extraction guided by field-spec.json (if provided)
+- ✅ field-spec.json updated with discovered selectors for all FIND fields
+- ✅ Detail parser tested with parser_tester MCP tool
+- ✅ config.yaml updated with details parser + CSV exporter fields (from field-spec.json)
 - ✅ detail-selectors.json written (machine-readable)
 - ✅ detail-knowledge.md written (human + AI readable)
-- ✅ parsers/details.rb generated with navigation context
 - ✅ phase-status.json updated
 - ✅ Completion report displayed
 

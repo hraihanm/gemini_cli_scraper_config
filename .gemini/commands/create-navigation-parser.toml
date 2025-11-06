@@ -73,7 +73,7 @@ Process:
    - browser_verify_selector() for category names
    - Discover category link pattern, URL structure
 
-6) Generate parsers/categories.rb:
+6) Generate parsers/categories.rb (USE ABSOLUTE PATH):
    ```ruby
    html = Nokogiri::HTML(content)
    vars = page['vars'] || {}
@@ -100,7 +100,34 @@ Process:
    save_pages(pages) if pages.count > 99
    ```
 
-7) Save checkpoint:
+7) Test Categories Parser:
+   **MANDATORY**: Test parser immediately after generation
+   
+   a) Download HTML for testing:
+      - Use browser_navigate() to visit sample category URL
+      - Use browser_view_html() to get HTML content
+      - Save HTML to cache/ directory (or use auto_download in parser_tester)
+   
+   b) Test with parser_tester MCP tool:
+      ```javascript
+      parser_tester({
+        scraper_dir: "<absolute_path>/generated_scraper/<scraper>",
+        parser_path: "parsers/categories.rb",
+        page_type: "categories",
+        html_file: "<absolute_path>/cache/category-page.html",  // OR use auto_download: true
+        // OR: auto_download: true  // Downloads from active browser tab
+        vars: '{"base_url":"<site_url>"}',
+        quiet: false  // Show verbose output for testing
+      })
+      ```
+   
+   c) Validate test results:
+      - Parser should generate pages with page_type "subcategories" or "listings"
+      - Check that category_name and breadcrumb vars are set correctly
+      - If test fails: Analyze errors, refine selectors, re-test
+      - If test passes: Continue to next parser
+
+8) Save checkpoint:
    ```json
    "navigation_discovery": {
      "checkpoints": {
@@ -119,7 +146,7 @@ Process:
    - Discover subcategory link selectors
    - Understand subcategory navigation pattern
 
-10) Generate parsers/subcategories.rb:
+10) Generate parsers/subcategories.rb (USE ABSOLUTE PATH):
    ```ruby
    html = Nokogiri::HTML(content)
    vars = page['vars'] || {}
@@ -145,12 +172,30 @@ Process:
    save_pages(pages) if pages.count > 99
    ```
 
-11) Save checkpoint
+11) Test Subcategories Parser:
+   **MANDATORY**: Test parser immediately after generation
+   
+   a) Download HTML for testing (use sample subcategory URL)
+   b) Test with parser_tester:
+      ```javascript
+      parser_tester({
+        scraper_dir: "<absolute_path>/generated_scraper/<scraper>",
+        parser_path: "parsers/subcategories.rb",
+        page_type: "subcategories",
+        html_file: "<absolute_path>/cache/subcategory-page.html",
+        // OR: auto_download: true
+        vars: '{"category_name":"Electronics","breadcrumb":"Electronics"}',
+        quiet: false
+      })
+      ```
+   c) Validate: Should generate pages with page_type "listings"
+
+12) Save checkpoint
 
 === STEP 4: Listings Parser ===
-12) Check checkpoint: If listings_analyzed == true, skip to step 16
+13) Check checkpoint: If listings_analyzed == true, skip to step 17
 
-13) Navigate and discover:
+14) Navigate and discover:
    - Use sample_urls.listings from discovery-state.json
    - browser_navigate(sample_listings_url)
    - Discover product link selectors
@@ -161,7 +206,7 @@ Process:
      * Next button: .next-page, a[aria-label="Next"]
    - Extract 3-5 sample detail URLs for detail parser
 
-14) Generate parsers/listings.rb:
+14) Generate parsers/listings.rb (USE ABSOLUTE PATH):
    ```ruby
    html = Nokogiri::HTML(content)
    vars = page['vars'] || {}
@@ -199,12 +244,36 @@ Process:
    save_pages(pages) if pages.count > 99
    ```
 
-15) Extract sample detail URLs and save checkpoint
+15) Test Listings Parser:
+   **MANDATORY**: Test parser immediately after generation
+   
+   a) Download HTML for testing (use sample listings URL)
+   b) Test with parser_tester:
+      ```javascript
+      parser_tester({
+        scraper_dir: "<absolute_path>/generated_scraper/<scraper>",
+        parser_path: "parsers/listings.rb",
+        page_type: "listings",
+        html_file: "<absolute_path>/cache/listings-page.html",
+        // OR: auto_download: true
+        vars: '{"category_name":"Electronics","breadcrumb":"Electronics","page":1}',
+        quiet: false
+      })
+      ```
+   c) Validate test results:
+      - Parser should generate pages with page_type "details"
+      - Check that rank, page_number, listing_position vars are set
+      - Check pagination: Should generate next listings page if pagination exists
+      - Extract sample detail URLs from generated pages for detail parser
+      - If test fails: Analyze errors, refine selectors, re-test
+      - If test passes: Continue
+
+16) Extract sample detail URLs and save checkpoint
 
 === STEP 5: Write Navigation Selectors (JSON) ===
 **CRITICAL**: Use ABSOLUTE PATH for WriteFile operation
 
-16) Save navigation-selectors.json (USE ABSOLUTE PATH):
+17) Save navigation-selectors.json (USE ABSOLUTE PATH):
    ```json
    {
      "categories": {
@@ -235,10 +304,34 @@ Process:
    }
    ```
 
-=== STEP 6: Write Navigation Knowledge (Markdown) ===
+=== STEP 6: Update Config.yaml ===
 **CRITICAL**: Use ABSOLUTE PATH for WriteFile operation
 
-17) Save navigation-knowledge.md (USE ABSOLUTE PATH):
+17) Update config.yaml to add navigation parsers (USE ABSOLUTE PATH):
+   a) Read existing config.yaml (from generated_scraper/<scraper>/config.yaml)
+   b) Parse YAML structure
+   c) Add navigation parsers to parsers array:
+      ```yaml
+      parsers:
+        - page_type: categories
+          file: ./parsers/categories.rb
+          disabled: false
+        # Only add if has_subcategories (check discovery-state.json)
+        - page_type: subcategories
+          file: ./parsers/subcategories.rb
+          disabled: false
+        - page_type: listings
+          file: ./parsers/listings.rb
+          disabled: false
+      ```
+   d) Write updated config.yaml (preserve seeder section, update parsers array)
+   
+   **Note**: Keep existing seeder section, only update parsers array. Details parser will be added by create-details-parser.
+
+=== STEP 7: Write Navigation Knowledge (Markdown) ===
+**CRITICAL**: Use ABSOLUTE PATH for WriteFile operation
+
+18) Save navigation-knowledge.md (USE ABSOLUTE PATH):
    ```markdown
    # Navigation Parser Knowledge - <scraper_name>
    
@@ -319,8 +412,8 @@ Process:
    to understand page flow and vars.
    ```
 
-=== STEP 7: Update Phase Status ===
-18) Update phase-status.json:
+=== STEP 8: Update Phase Status ===
+19) Update phase-status.json (USE ABSOLUTE PATH):
    ```json
    "navigation_discovery": {
      "status": "completed",
@@ -336,24 +429,25 @@ Process:
    }
    ```
 
-19) Update browser-context.json
+20) Update browser-context.json (USE ABSOLUTE PATH)
 
-=== STEP 8: Completion Report ===
-20) Display completion summary:
+=== STEP 9: Completion Report ===
+21) Display completion summary:
    ```
    ✅ Navigation Parsers Complete
    
    Scraper: <scraper_slug>
    
-   Parsers Generated:
-   - parsers/categories.rb ✅
-   - parsers/subcategories.rb ✅ (if applicable)
-   - parsers/listings.rb ✅
+   Parsers Generated & Tested:
+   - parsers/categories.rb ✅ (tested)
+   - parsers/subcategories.rb ✅ (tested, if applicable)
+   - parsers/listings.rb ✅ (tested)
    
-   Files Created:
-   - generated_scraper/<scraper>/.scraper-state/navigation-selectors.json
-   - generated_scraper/<scraper>/.scraper-state/navigation-knowledge.md
-   - generated_scraper/<scraper>/.scraper-state/phase-status.json (updated)
+   Files Created/Updated:
+   - generated_scraper/<scraper>/config.yaml ✅ (updated with navigation parsers)
+   - generated_scraper/<scraper>/.scraper-state/navigation-selectors.json ✅
+   - generated_scraper/<scraper>/.scraper-state/navigation-knowledge.md ✅
+   - generated_scraper/<scraper>/.scraper-state/phase-status.json ✅ (updated)
    
    Next Command:
    /create-details-parser scraper=<scraper_slug>
@@ -364,6 +458,8 @@ Process:
 
 **CRITICAL COMPLETION REQUIREMENTS:**
 - ✅ All parsers generated (categories, subcategories if needed, listings)
+- ✅ All parsers tested with parser_tester MCP tool
+- ✅ config.yaml updated with navigation parsers
 - ✅ navigation-selectors.json written (machine-readable)
 - ✅ navigation-knowledge.md written (human + AI readable)
 - ✅ phase-status.json updated

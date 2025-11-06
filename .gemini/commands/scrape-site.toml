@@ -16,12 +16,13 @@ You are performing Phase 1: Site Discovery for scraper generation. This command 
   * Determine workspace root (current working directory)
   * Convert: `generated_scraper/<scraper>/.scraper-state/file.json`
   * To absolute: `<workspace_root>/generated_scraper/<scraper>/.scraper-state/file.json`
-  * Example: `D:\DataHen\projects\gemini_cli_testbed\generated_scraper\naivas_online\.scraper-state\phase-status.json`
+  * Example: `D:\\DataHen\\projects\\gemini_cli_testbed\\generated_scraper\\naivas_online\\.scraper-state\\phase-status.json`
 - Use absolute paths for: phase-status.json, discovery-state.json, discovery-knowledge.md, browser-context.json
 
 Inputs (order-agnostic via {{args}}):
   - url=<site_url> (REQUIRED - target website URL) - USE THIS EXACT URL ONLY
   - name=<scraper_name> | --scraper <scraper_name> (REQUIRED)
+  - spec=<path-to-CSV-or-JSON> (OPTIONAL - field specification file, e.g., spec_general_sample.csv)
   - out=<base_dir> (OPTIONAL, default: "./generated_scraper")
 
 CRITICAL: Parse {{args}} immediately and extract the `url` parameter. Use ONLY that URL - ignore any other URLs in context.
@@ -54,12 +55,51 @@ Process:
 
 **Note**: ReadManyFiles will return empty/not found for missing files - handle gracefully.
 
-=== STEP 2: Initialize Directory Structure ===
-2) Create scraper directory:
+=== STEP 2: Parse Field Specification (if provided) ===
+2) If `spec` parameter provided:
+   a) Read spec file (CSV or JSON):
+      - CSV format: `column_name,column_type,dev_notes`
+      - Parse each row to extract: field name, type, extraction method (FIND/PROCESS), notes
+      - Normalize field names to snake_case
+   
+   b) Create field-spec.json structure:
+      ```json
+      {
+        "source_file": "<spec_file_path>",
+        "parsed_at": "<timestamp>",
+        "fields": [
+          {
+            "name": "competitor_product_id",
+            "type": "str",
+            "extraction_method": "FIND",
+            "notes": "Find the product-id if possible or else use sku or barcode",
+            "selectors": [],
+            "verified": false
+          },
+          {
+            "name": "has_discount",
+            "type": "boolean",
+            "extraction_method": "PROCESS",
+            "notes": "true if it has discount",
+            "computation": "customer_price_lc < base_price_lc"
+          }
+        ]
+      }
+      ```
+   
+   c) Save field-spec.json (USE ABSOLUTE PATH):
+      - Path: `generated_scraper/<scraper>/.scraper-state/field-spec.json`
+      - This will be used by create-details-parser to guide field discovery
+
+=== STEP 3: Initialize Directory Structure ===
+3) Create scraper directory structure:
    ```
    generated_scraper/<scraper_slug>/
    ├── .scraper-state/          # State directory
-   └── parsers/                  # Will be created by parser commands
+   ├── seeder/                   # Seeder directory
+   │   └── seeder.rb            # Will be generated
+   ├── parsers/                  # Will be created by parser commands
+   └── config.yaml              # Will be generated
    ```
 
 **CRITICAL - ABSOLUTE PATHS FOR FILE WRITES:**
@@ -67,9 +107,9 @@ Before writing ANY file, convert relative path to absolute:
 - Determine workspace root (current working directory)
 - Convert: `generated_scraper/<scraper>/.scraper-state/file.json`
 - To absolute: `<workspace_root>/generated_scraper/<scraper>/.scraper-state/file.json`
-- Example: `D:\DataHen\projects\gemini_cli_testbed\generated_scraper\naivas_online\.scraper-state\phase-status.json`
+- Example: `D:\\DataHen\\projects\\gemini_cli_testbed\\generated_scraper\\naivas_online\\.scraper-state\\phase-status.json`
 
-3) Initialize phase-status.json (USE ABSOLUTE PATH):
+4) Initialize phase-status.json (USE ABSOLUTE PATH):
    ```json
    {
      "scraper_name": "<scraper_slug>",
@@ -85,13 +125,13 @@ Before writing ANY file, convert relative path to absolute:
    }
    ```
 
-=== STEP 3: Site Discovery ===
-4) Navigate to site URL (from {{args}} parameter):
+=== STEP 4: Site Discovery ===
+5) Navigate to site URL (from {{args}} parameter):
    - Extract URL from {{args}}: `url="https://example.com"` → use `https://example.com`
    - browser_navigate(extracted_url)
    - browser_snapshot() to understand page structure
 
-5) Analyze site structure:
+6) Analyze site structure:
    - Detect navigation patterns:
      * Main menu/category links
      * Breadcrumb structure
@@ -108,7 +148,7 @@ Before writing ANY file, convert relative path to absolute:
      * Two levels: categories → subcategories → listings
      * Three+ levels: handle hierarchy
 
-6) Discover sample URLs:
+7) Discover sample URLs:
    - Navigate through site to find:
      * Sample category URL
      * Sample subcategory URL (if applicable)
@@ -116,10 +156,10 @@ Before writing ANY file, convert relative path to absolute:
      * Sample detail URL (if accessible from home/listings)
    - Document each URL with its purpose
 
-=== STEP 4: Write Discovery State (JSON) ===
+=== STEP 5: Write Discovery State (JSON) ===
 **CRITICAL**: Use ABSOLUTE PATH for WriteFile operation
 
-7) Save discovery-state.json (USE ABSOLUTE PATH):
+8) Save discovery-state.json (USE ABSOLUTE PATH):
    ```json
    {
      "site_url": "<input_url>",
@@ -147,10 +187,10 @@ Before writing ANY file, convert relative path to absolute:
    }
    ```
 
-=== STEP 5: Write Discovery Knowledge (Markdown) ===
+=== STEP 6: Write Discovery Knowledge (Markdown) ===
 **CRITICAL**: Use ABSOLUTE PATH for WriteFile operation
 
-8) Save discovery-knowledge.md (USE ABSOLUTE PATH):
+9) Save discovery-knowledge.md (USE ABSOLUTE PATH):
    ```markdown
    # Site Discovery Knowledge - <scraper_name>
    
@@ -221,8 +261,48 @@ Before writing ANY file, convert relative path to absolute:
    This will use discovery-state.json and discovery-knowledge.md to understand site structure.
    ```
 
-=== STEP 6: Update Phase Status ===
-9) Update phase-status.json:
+=== STEP 7: Generate Seeder ===
+10) Generate seeder/seeder.rb (USE ABSOLUTE PATH):
+   ```ruby
+   # Seeder for <scraper_slug>
+   # Generated by Site Discovery
+   
+   # Initial pages to seed based on site structure
+   pages << {
+     url: "<site_url>",  # From discovery-state.json
+     page_type: "<initial_page_type>",  # "categories" if has_categories, else "listings"
+     method: "GET",
+     vars: {
+       base_url: "<base_url>",  # Extract from site_url
+       store_name: "<scraper_slug>",
+       country: nil,  # User can add later
+       currency: nil  # User can add later
+     }
+   }
+   ```
+   
+   **Determine initial_page_type:**
+   - If discovery-state.json has_categories == true: page_type = "categories"
+   - Else if has_listings == true: page_type = "listings"
+   - Else: page_type = "categories" (default)
+
+=== STEP 8: Generate Initial Config.yaml ===
+11) Generate config.yaml (USE ABSOLUTE PATH):
+   ```yaml
+   seeder:
+     file: ./seeder/seeder.rb
+     disabled: false
+   
+   parsers: []
+   # Parsers will be added by:
+   # - create-navigation-parser: Adds categories, subcategories (if needed), listings
+   # - create-details-parser: Adds details
+   ```
+   
+   **Note**: This is an initial config.yaml with empty parsers array. Parsers will be added incrementally by subsequent commands.
+
+=== STEP 9: Update Phase Status ===
+12) Update phase-status.json (USE ABSOLUTE PATH):
    ```json
    "site_discovery": {
      "status": "completed",
@@ -232,7 +312,7 @@ Before writing ANY file, convert relative path to absolute:
    }
    ```
 
-10) Save browser-context.json:
+13) Save browser-context.json (USE ABSOLUTE PATH):
    ```json
    {
      "last_url_visited": "<last_url_analyzed>",
@@ -241,8 +321,8 @@ Before writing ANY file, convert relative path to absolute:
    }
    ```
 
-=== STEP 7: Completion Report ===
-11) Display completion summary:
+=== STEP 10: Completion Report ===
+14) Display completion summary:
    ```
    ✅ Site Discovery Complete
    
@@ -255,9 +335,12 @@ Before writing ANY file, convert relative path to absolute:
    - Sample URLs: <count> URLs documented
    
    Files Created:
-   - generated_scraper/<scraper>/.scraper-state/discovery-state.json
-   - generated_scraper/<scraper>/.scraper-state/discovery-knowledge.md
-   - generated_scraper/<scraper>/.scraper-state/phase-status.json
+   - generated_scraper/<scraper>/seeder/seeder.rb ✅
+   - generated_scraper/<scraper>/config.yaml ✅ (initial, parsers will be added)
+   - generated_scraper/<scraper>/.scraper-state/discovery-state.json ✅
+   - generated_scraper/<scraper>/.scraper-state/discovery-knowledge.md ✅
+   - generated_scraper/<scraper>/.scraper-state/field-spec.json ✅ (if spec provided)
+   - generated_scraper/<scraper>/.scraper-state/phase-status.json ✅
    
    Next Command:
    /create-navigation-parser scraper=<scraper_slug>
@@ -267,6 +350,9 @@ Before writing ANY file, convert relative path to absolute:
    ```
 
 **CRITICAL COMPLETION REQUIREMENTS:**
+- ✅ seeder/seeder.rb generated (initial scraper entry point)
+- ✅ config.yaml generated (initial config, parsers will be added later)
+- ✅ field-spec.json written (if spec provided) - guides detail parser field discovery
 - ✅ discovery-state.json written (machine-readable)
 - ✅ discovery-knowledge.md written (human + AI readable)
 - ✅ phase-status.json updated
@@ -277,6 +363,12 @@ Before writing ANY file, convert relative path to absolute:
 **Next session can run /create-navigation-parser without any conversation history.**
 
 Examples:
+  # Basic usage (no field spec - will use common fields)
   /scrape-site url="https://naivas.online" name=naivas_online
-  /scrape-site url="https://example.com" --scraper my_store
+  
+  # With field specification (recommended)
+  /scrape-site url="https://example.com" name=my_store spec="spec_general_sample.csv"
+  
+  # Custom output directory
+  /scrape-site url="https://shop.com" --scraper shop spec="fields.csv" out="./custom_scrapers"
 """
