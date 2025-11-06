@@ -60,12 +60,61 @@ Process:
    - If missing: Display error: "Discovery not found. Run: /scrape-site url=<url> name=<scraper>"
    - If exists: Continue with navigation parser generation
 
+4) Check for existing parsers and test them:
+   **CRITICAL**: Before generating new parsers, check if parsers already exist and test them
+   
+   a) Check for existing parser files:
+      - `parsers/categories.rb` (if has_categories)
+      - `parsers/subcategories.rb` (if has_subcategories)
+      - `parsers/listings.rb`
+   
+   b) For each existing parser:
+      - If parser file exists: Test it using parser_tester MCP tool
+      - Download sample HTML if needed
+      - Run parser_tester with appropriate vars
+      - Analyze test results:
+        * If test passes: Parser is working, can skip or enhance
+        * If test fails: Parser needs modification, continue with discovery
+        * If selectors outdated: Update selectors, keep parser structure
+   
+   c) Decision logic:
+      - **If parser exists AND test passes**: 
+        * Option 1: Skip this parser (already working)
+        * Option 2: Enhance with additional fields/selectors
+        * Option 3: Verify selectors still work, then continue
+      - **If parser exists AND test fails**:
+        * Analyze failure reason
+        * Discover new selectors
+        * Modify existing parser (don't regenerate from scratch)
+      - **If parser doesn't exist**:
+        * Continue with normal discovery and generation workflow
+
 **Note**: ReadManyFiles will return empty/not found for missing files - handle gracefully.
 
 === STEP 2: Categories Parser (if has_categories) ===
-4) Check checkpoint: If categories_analyzed == true, skip to step 7
+5) Check for existing parser and test:
+   a) Check if `parsers/categories.rb` exists
+   b) If exists:
+      - Test with parser_tester:
+        ```javascript
+        parser_tester({
+          scraper_dir: "<absolute_path>/generated_scraper/<scraper>",
+          parser_path: "parsers/categories.rb",
+          page_type: "categories",
+          html_file: "<absolute_path>/cache/category-page.html",
+          // OR: auto_download: true
+          vars: '{"base_url":"<site_url>"}',
+          quiet: false
+        })
+        ```
+      - Analyze results:
+        * If passes: Parser working, can skip or enhance
+        * If fails: Need to discover new selectors and modify parser
+   c) If doesn't exist OR test failed: Continue with discovery
 
-5) Navigate and discover:
+6) Check checkpoint: If categories_analyzed == true AND parser exists AND test passed, skip to step 10
+
+7) Navigate and discover (if parser doesn't exist or test failed):
    - Use sample_urls.category from discovery-state.json
    - browser_navigate(sample_category_url)
    - browser_snapshot()
@@ -73,7 +122,18 @@ Process:
    - browser_verify_selector() for category names
    - Discover category link pattern, URL structure
 
-6) Generate parsers/categories.rb (USE ABSOLUTE PATH):
+8) Generate or modify parsers/categories.rb (USE ABSOLUTE PATH):
+   **CRITICAL**: If parser exists, modify it instead of regenerating
+   
+   a) If parser exists:
+      - Read existing parser code
+      - Identify selector locations
+      - Update selectors with newly discovered ones
+      - Preserve existing logic and structure
+      - Keep working parts, fix broken selectors
+   
+   b) If parser doesn't exist:
+      - Generate new parser from scratch
    ```ruby
    html = Nokogiri::HTML(content)
    vars = page['vars'] || {}
@@ -100,7 +160,7 @@ Process:
    save_pages(pages) if pages.count > 99
    ```
 
-7) Test Categories Parser:
+9) Test Categories Parser (or re-test if modified):
    **MANDATORY**: Test parser immediately after generation
    
    a) Download HTML for testing:
@@ -139,14 +199,23 @@ Process:
    ```
 
 === STEP 3: Subcategories Parser (if has_subcategories) ===
-8) Check checkpoint: If subcategories_analyzed == true, skip to step 11
+10) Check for existing parser and test:
+   a) Check if `parsers/subcategories.rb` exists
+   b) If exists: Test with parser_tester (similar to categories)
+   c) If doesn't exist OR test failed: Continue with discovery
 
-9) Navigate and discover:
+11) Check checkpoint: If subcategories_analyzed == true AND parser exists AND test passed, skip to step 15
+
+12) Navigate and discover (if parser doesn't exist or test failed):
    - Use sample_urls.subcategory from discovery-state.json
    - Discover subcategory link selectors
    - Understand subcategory navigation pattern
 
-10) Generate parsers/subcategories.rb (USE ABSOLUTE PATH):
+13) Generate or modify parsers/subcategories.rb (USE ABSOLUTE PATH):
+   **CRITICAL**: If parser exists, modify it instead of regenerating
+   
+   a) If parser exists: Read and modify selectors
+   b) If parser doesn't exist: Generate new parser
    ```ruby
    html = Nokogiri::HTML(content)
    vars = page['vars'] || {}
@@ -172,7 +241,7 @@ Process:
    save_pages(pages) if pages.count > 99
    ```
 
-11) Test Subcategories Parser:
+14) Test Subcategories Parser (or re-test if modified):
    **MANDATORY**: Test parser immediately after generation
    
    a) Download HTML for testing (use sample subcategory URL)
@@ -190,12 +259,32 @@ Process:
       ```
    c) Validate: Should generate pages with page_type "listings"
 
-12) Save checkpoint
+15) Save checkpoint
 
 === STEP 4: Listings Parser ===
-13) Check checkpoint: If listings_analyzed == true, skip to step 17
+16) Check for existing parser and test:
+   a) Check if `parsers/listings.rb` exists
+   b) If exists:
+      - Test with parser_tester:
+        ```javascript
+        parser_tester({
+          scraper_dir: "<absolute_path>/generated_scraper/<scraper>",
+          parser_path: "parsers/listings.rb",
+          page_type: "listings",
+          html_file: "<absolute_path>/cache/listings-page.html",
+          // OR: auto_download: true
+          vars: '{"category_name":"Electronics","breadcrumb":"Electronics","page":1}',
+          quiet: false
+        })
+        ```
+      - Analyze results:
+        * If passes: Parser working, can skip or enhance
+        * If fails: Need to discover new selectors and modify parser
+   c) If doesn't exist OR test failed: Continue with discovery
 
-14) Navigate and discover:
+17) Check checkpoint: If listings_analyzed == true AND parser exists AND test passed, skip to step 21
+
+18) Navigate and discover (if parser doesn't exist or test failed):
    - Use sample_urls.listings from discovery-state.json
    - browser_navigate(sample_listings_url)
    - Discover product link selectors
@@ -206,7 +295,18 @@ Process:
      * Next button: .next-page, a[aria-label="Next"]
    - Extract 3-5 sample detail URLs for detail parser
 
-14) Generate parsers/listings.rb (USE ABSOLUTE PATH):
+19) Generate or modify parsers/listings.rb (USE ABSOLUTE PATH):
+   **CRITICAL**: If parser exists, modify it instead of regenerating
+   
+   a) If parser exists:
+      - Read existing parser code
+      - Identify selector locations (product links, pagination)
+      - Update selectors with newly discovered ones
+      - Preserve existing logic (pagination handling, vars passing)
+      - Keep working parts, fix broken selectors
+   
+   b) If parser doesn't exist:
+      - Generate new parser from scratch
    ```ruby
    html = Nokogiri::HTML(content)
    vars = page['vars'] || {}
@@ -244,7 +344,7 @@ Process:
    save_pages(pages) if pages.count > 99
    ```
 
-15) Test Listings Parser:
+20) Test Listings Parser (or re-test if modified):
    **MANDATORY**: Test parser immediately after generation
    
    a) Download HTML for testing (use sample listings URL)
@@ -268,12 +368,12 @@ Process:
       - If test fails: Analyze errors, refine selectors, re-test
       - If test passes: Continue
 
-16) Extract sample detail URLs and save checkpoint
+21) Extract sample detail URLs and save checkpoint
 
 === STEP 5: Write Navigation Selectors (JSON) ===
 **CRITICAL**: Use ABSOLUTE PATH for WriteFile operation
 
-17) Save navigation-selectors.json (USE ABSOLUTE PATH):
+22) Save navigation-selectors.json (USE ABSOLUTE PATH):
    ```json
    {
      "categories": {
@@ -307,7 +407,7 @@ Process:
 === STEP 6: Update Config.yaml ===
 **CRITICAL**: Use ABSOLUTE PATH for WriteFile operation
 
-17) Update config.yaml to add navigation parsers (USE ABSOLUTE PATH):
+23) Update config.yaml to add navigation parsers (USE ABSOLUTE PATH):
    a) Read existing config.yaml (from generated_scraper/<scraper>/config.yaml)
    b) Parse YAML structure
    c) Add navigation parsers to parsers array:
@@ -331,7 +431,7 @@ Process:
 === STEP 7: Write Navigation Knowledge (Markdown) ===
 **CRITICAL**: Use ABSOLUTE PATH for WriteFile operation
 
-18) Save navigation-knowledge.md (USE ABSOLUTE PATH):
+24) Save navigation-knowledge.md (USE ABSOLUTE PATH):
    ```markdown
    # Navigation Parser Knowledge - <scraper_name>
    
@@ -413,7 +513,7 @@ Process:
    ```
 
 === STEP 8: Update Phase Status ===
-19) Update phase-status.json (USE ABSOLUTE PATH):
+25) Update phase-status.json (USE ABSOLUTE PATH):
    ```json
    "navigation_discovery": {
      "status": "completed",
@@ -429,10 +529,10 @@ Process:
    }
    ```
 
-20) Update browser-context.json (USE ABSOLUTE PATH)
+26) Update browser-context.json (USE ABSOLUTE PATH)
 
 === STEP 9: Completion Report ===
-21) Display completion summary:
+27) Display completion summary:
    ```
    ✅ Navigation Parsers Complete
    
