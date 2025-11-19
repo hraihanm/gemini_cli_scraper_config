@@ -125,8 +125,15 @@ Process:
 8) Generate or modify parsers/categories.rb (USE ABSOLUTE PATH):
    **CRITICAL**: If parser exists, modify it instead of regenerating
    
+   🚨 **FORBIDDEN: Reserved Variables**:
+   - **NEVER** declare `pages = []` or `outputs = []` - these are pre-defined by DataHen
+   - **NEVER** declare `page` or `content` - these are pre-defined
+   - **ALWAYS** use reserved variables directly: `pages << {...}` and `outputs << {...}`
+   - **VALIDATION**: Before writing code, scan for reserved variable declarations and remove them
+   
    a) If parser exists:
       - Read existing parser code
+      - **Check for reserved variable declarations** (pages = [], outputs = []) and remove them
       - Identify selector locations
       - Update selectors with newly discovered ones
       - Preserve existing logic and structure
@@ -134,19 +141,22 @@ Process:
    
    b) If parser doesn't exist:
       - Generate new parser from scratch
+      - **CRITICAL**: Never declare reserved variables
+   
    ```ruby
    html = Nokogiri::HTML(content)
    vars = page['vars'] || {}
    base_url = vars['base_url'] || page['url'].split('/')[0..2].join('/')
    
    # Category link selector (discovered via browser tools)
+   # NOTE: pages is pre-defined by DataHen - DO NOT declare it (pages = [] is FORBIDDEN)
    categories = html.css('.category-link-selector')  # Use discovered selector
    categories.each do |category|
      cat_name = category.text.strip
      cat_url = category['href']
      cat_url = base_url + cat_url unless cat_url.start_with?('http')
      
-     pages << {
+     pages << {  # pages is pre-defined, use directly
        url: cat_url,
        page_type: vars['has_subcategories'] ? "subcategories" : "listings",
        vars: vars.merge({
@@ -157,7 +167,7 @@ Process:
      }
    end
    
-   save_pages(pages) if pages.count > 99
+   save_pages if pages.count > 99
    ```
 
 9) Test Categories Parser (or re-test if modified):
@@ -214,20 +224,28 @@ Process:
 13) Generate or modify parsers/subcategories.rb (USE ABSOLUTE PATH):
    **CRITICAL**: If parser exists, modify it instead of regenerating
    
-   a) If parser exists: Read and modify selectors
-   b) If parser doesn't exist: Generate new parser
+   🚨 **FORBIDDEN: Reserved Variables**:
+   - **NEVER** declare `pages = []` or `outputs = []` - these are pre-defined by DataHen
+   - **VALIDATION**: Before writing code, scan for reserved variable declarations and remove them
+   
+   a) If parser exists: 
+      - Read and modify selectors
+      - **Check for reserved variable declarations** and remove them
+   b) If parser doesn't exist: Generate new parser (never declare reserved variables)
+   
    ```ruby
    html = Nokogiri::HTML(content)
    vars = page['vars'] || {}
    base_url = vars['base_url'] || page['url'].split('/')[0..2].join('/')
    
+   # NOTE: pages is pre-defined by DataHen - DO NOT declare it (pages = [] is FORBIDDEN)
    subcategories = html.css('.subcategory-link-selector')  # Discovered selector
    subcategories.each do |subcat|
      subcat_name = subcat.text.strip
      subcat_url = subcat['href']
      subcat_url = base_url + subcat_url unless subcat_url.start_with?('http')
      
-     pages << {
+     pages << {  # pages is pre-defined, use directly
        url: subcat_url,
        page_type: "listings",
        vars: vars.merge({
@@ -238,7 +256,7 @@ Process:
      }
    end
    
-   save_pages(pages) if pages.count > 99
+   save_pages if pages.count > 99
    ```
 
 14) Test Subcategories Parser (or re-test if modified):
@@ -298,8 +316,13 @@ Process:
 19) Generate or modify parsers/listings.rb (USE ABSOLUTE PATH):
    **CRITICAL**: If parser exists, modify it instead of regenerating
    
+   🚨 **FORBIDDEN: Reserved Variables**:
+   - **NEVER** declare `pages = []` or `outputs = []` - these are pre-defined by DataHen
+   - **VALIDATION**: Before writing code, scan for reserved variable declarations and remove them
+   
    a) If parser exists:
       - Read existing parser code
+      - **Check for reserved variable declarations** (pages = [], outputs = []) and remove them
       - Identify selector locations (product links, pagination)
       - Update selectors with newly discovered ones
       - Preserve existing logic (pagination handling, vars passing)
@@ -307,18 +330,21 @@ Process:
    
    b) If parser doesn't exist:
       - Generate new parser from scratch
+      - **CRITICAL**: Never declare reserved variables
+   
    ```ruby
    html = Nokogiri::HTML(content)
    vars = page['vars'] || {}
    base_url = vars['base_url'] || page['url'].split('/')[0..2].join('/')
    
    # Extract product links
+   # NOTE: pages is pre-defined by DataHen - DO NOT declare it (pages = [] is FORBIDDEN)
    products = html.css('.product-link-selector')  # Discovered selector
    products.each_with_index do |product, idx|
      product_url = product['href'] || product.at_css('a')['href']
      product_url = base_url + product_url unless product_url.start_with?('http')
      
-     pages << {
+     pages << {  # pages is pre-defined, use directly
        url: product_url,
        page_type: "details",
        vars: vars.merge({
@@ -334,14 +360,14 @@ Process:
    if next_button && next_button['href']
      next_url = next_button['href']
      next_url = base_url + next_url unless next_url.start_with?('http')
-     pages << {
+     pages << {  # pages is pre-defined, use directly
        url: next_url,
        page_type: "listings",
        vars: vars.merge({ page: (vars['page'] || 1).to_i + 1 })
      }
    end
    
-   save_pages(pages) if pages.count > 99
+   save_pages if pages.count > 99
    ```
 
 20) Test Listings Parser (or re-test if modified):
@@ -529,7 +555,16 @@ Process:
    }
    ```
 
-26) Update browser-context.json (USE ABSOLUTE PATH)
+26) Update browser-context.json (USE ABSOLUTE PATH):
+   **CRITICAL**: Save to scraper-specific location: `generated_scraper/<scraper>/.scraper-state/browser-context.json`
+   ```json
+   {
+     "last_url_visited": "<last_url_analyzed>",
+     "last_phase": "navigation_discovery",
+     "last_activity": "<timestamp>",
+     "scraper_name": "<scraper_slug>"
+   }
+   ```
 
 === STEP 9: Completion Report ===
 27) Display completion summary:

@@ -207,8 +207,15 @@ Process:
 10) Generate or modify parsers/details.rb (USE ABSOLUTE PATH):
    **CRITICAL**: If parser exists, modify it instead of regenerating
    
+   🚨 **FORBIDDEN: Reserved Variables**:
+   - **NEVER** declare `pages = []` or `outputs = []` - these are pre-defined by DataHen
+   - **NEVER** declare `page` or `content` - these are pre-defined
+   - **ALWAYS** use reserved variables directly: `pages << {...}` and `outputs << {...}`
+   - **VALIDATION**: Before writing code, scan for reserved variable declarations and remove them
+   
    a) If parser exists:
       - Read existing parser code
+      - **Check for reserved variable declarations** (pages = [], outputs = []) and remove them
       - Identify selector locations in code
       - Update broken selectors with newly discovered ones
       - Add missing fields from field-spec.json (if any)
@@ -221,9 +228,13 @@ Process:
       - For each FIND field: Use discovered selectors from field-spec.json
       - For each PROCESS field: Implement computation logic from field-spec.json
       - Generate outputs array matching field-spec.json structure
+      - **CRITICAL**: Never declare reserved variables
    ```ruby
    html = Nokogiri::HTML(content)
    vars = page['vars'] || {}
+   
+   # NOTE: pages and outputs are pre-defined by DataHen - DO NOT declare them (pages = [] or outputs = [] is FORBIDDEN)
+   # NOTE: page and content are also pre-defined - use them directly
    
    # Navigation context integration:
    # This parser receives vars from listings parser:
@@ -311,7 +322,8 @@ Process:
    output_hash['rank_in_listing'] = vars['rank']
    output_hash['page_number'] = vars['page_number']
    
-   outputs << output_hash
+   outputs << output_hash  # outputs is pre-defined, use directly (outputs = [] is FORBIDDEN)
+   save_outputs if outputs.count > 99
    ```
    
    **Note**: The actual implementation should iterate through field-spec.json fields and extract/compute each one. This is a simplified example showing the pattern.
@@ -525,7 +537,16 @@ Process:
    }
    ```
 
-16) Update browser-context.json (USE ABSOLUTE PATH)
+16) Update browser-context.json (USE ABSOLUTE PATH):
+   **CRITICAL**: Save to scraper-specific location: `generated_scraper/<scraper>/.scraper-state/browser-context.json`
+   ```json
+   {
+     "last_url_visited": "<last_url_analyzed>",
+     "last_phase": "detail_discovery",
+     "last_activity": "<timestamp>",
+     "scraper_name": "<scraper_slug>"
+   }
+   ```
 
 === STEP 10: Completion Report ===
 17) Display completion summary:
