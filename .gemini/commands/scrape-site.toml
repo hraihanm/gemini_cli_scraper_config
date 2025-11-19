@@ -18,6 +18,7 @@ You are performing Phase 1: Site Discovery for scraper generation. This command 
   * To absolute: `<workspace_root>/generated_scraper/<scraper>/.scraper-state/file.json`
   * Example: `D:\\DataHen\\projects\\gemini_cli_testbed\\generated_scraper\\naivas_online\\.scraper-state\\phase-status.json`
 - Use absolute paths for: phase-status.json, discovery-state.json, discovery-knowledge.md, browser-context.json
+- **browser-context.json location**: `generated_scraper/<scraper>/.scraper-state/browser-context.json` (scraper-specific, NOT global)
 
 Inputs (order-agnostic via {{args}}):
   - url=<site_url> (REQUIRED - target website URL) - USE THIS EXACT URL ONLY
@@ -313,11 +314,13 @@ Before writing ANY file, convert relative path to absolute:
    ```
 
 13) Save browser-context.json (USE ABSOLUTE PATH):
+   **CRITICAL**: Save to scraper-specific location: `generated_scraper/<scraper>/.scraper-state/browser-context.json`
    ```json
    {
      "last_url_visited": "<last_url_analyzed>",
      "last_phase": "site_discovery",
-     "last_activity": "<timestamp>"
+     "last_activity": "<timestamp>",
+     "scraper_name": "<scraper_slug>"
    }
    ```
 

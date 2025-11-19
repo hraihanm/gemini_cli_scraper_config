@@ -373,8 +373,10 @@ The following Ruby libraries are preloaded in the system and do NOT need to be e
 ```ruby
 # Standard parser template
 # NOTE: nokogiri, json, and cgi are preloaded - no require statements needed
-html = Nokogiri::HTML(content)
-vars = page['vars']
+# NOTE: pages, outputs, page, and content are pre-defined by DataHen - DO NOT declare them
+
+html = Nokogiri::HTML(content)  # content is pre-defined
+vars = page['vars']              # page is pre-defined
 
 # Extract data with error handling
 begin
@@ -384,20 +386,24 @@ rescue => e
   extracted_data = nil
 end
 
-# Queue next pages
+# Queue next pages (pages is pre-defined - use directly)
 pages << {
   url: next_url,
   page_type: "next_page",
   vars: vars.merge({ extracted_field: extracted_data })
 }
 
-# Generate outputs
+# Generate outputs (outputs is pre-defined - use directly)
 outputs << {
   '_collection' => 'data',
   '_id' => unique_id,
   'field' => extracted_data,
   'context' => vars['context']
 }
+
+# Memory management (if needed)
+save_pages if pages.count > 99
+save_outputs if outputs.count > 99
 ```
 
 **Variable Access Pattern**:
@@ -460,14 +466,45 @@ save_outputs if outputs.count > 99
 
 ### Reserved Variables & Predefined Functions
 
+**🚨 CRITICAL - FORBIDDEN DECLARATIONS**:
+- **NEVER** declare `pages = []` or `outputs = []` in parser code
+- **NEVER** declare `page = {}` or `content = ""` in parser code
+- These variables are **pre-defined by DataHen** and already exist
+- Declaring them will **BREAK THE PARSER**
+
 **CRITICAL**: These are reserved variables in the DataHen scraping system:
 
-| Variable | Type | Purpose | Usage |
-|----------|------|---------|-------|
-| `pages` | Array | Queue pages for processing | `pages << {url: "...", page_type: "...", vars: {...}}` |
-| `outputs` | Array | Store extracted data | `outputs << {'_collection' => '...', '_id' => '...', ...}` |
-| `page` | Hash | Current page data | `page['url']`, `page['vars']`, `page['fetched_at']` |
-| `content` | String | HTML content of current page | `html = Nokogiri::HTML(content)` |
+| Variable | Type | Purpose | Usage | Declaration Status |
+|----------|------|---------|-------|-------------------|
+| `pages` | Array | Queue pages for processing | `pages << {url: "...", page_type: "...", vars: {...}}` | ✅ Pre-defined - **DO NOT DECLARE** |
+| `outputs` | Array | Store extracted data | `outputs << {'_collection' => '...', '_id' => '...', ...}` | ✅ Pre-defined - **DO NOT DECLARE** |
+| `page` | Hash | Current page data | `page['url']`, `page['vars']`, `page['fetched_at']` | ✅ Pre-defined - **DO NOT DECLARE** |
+| `content` | String | HTML content of current page | `html = Nokogiri::HTML(content)` | ✅ Pre-defined - **DO NOT DECLARE** |
+
+**❌ FORBIDDEN CODE PATTERNS**:
+```ruby
+# WRONG - These will break the parser:
+pages = []           # ❌ FORBIDDEN - pages is pre-defined
+outputs = []         # ❌ FORBIDDEN - outputs is pre-defined
+page = {}           # ❌ FORBIDDEN - page is pre-defined
+content = ""        # ❌ FORBIDDEN - content is pre-defined
+```
+
+**✅ CORRECT CODE PATTERNS**:
+```ruby
+# CORRECT - Use reserved variables directly:
+pages << {url: "...", page_type: "..."}  # ✅ pages is pre-defined
+outputs << {'_collection' => '...'}     # ✅ outputs is pre-defined
+vars = page['vars']                      # ✅ page is pre-defined
+html = Nokogiri::HTML(content)          # ✅ content is pre-defined
+```
+
+**Validation Checklist** (Before writing parser code):
+- ✅ Scan code for `pages = []` or `pages =` declarations - REMOVE if found
+- ✅ Scan code for `outputs = []` or `outputs =` declarations - REMOVE if found
+- ✅ Scan code for `page =` declarations - REMOVE if found
+- ✅ Scan code for `content =` declarations - REMOVE if found
+- ✅ Ensure all usage is direct: `pages << {...}` and `outputs << {...}`
 
 **Predefined Functions**:
 
@@ -479,6 +516,7 @@ save_outputs if outputs.count > 99
 **Memory Management Pattern**:
 ```ruby
 # Standard pattern for memory management
+# NOTE: pages and outputs are pre-defined - DO NOT declare them
 save_pages if pages.count > 99
 save_outputs if outputs.count > 99
 ```
@@ -486,8 +524,13 @@ save_outputs if outputs.count > 99
 **Variable Access Pattern**:
 ```ruby
 # Always access variables using this pattern
-vars = page['vars']
-html = Nokogiri::HTML(content)
+# NOTE: page and content are pre-defined - DO NOT declare them
+vars = page['vars']              # page is pre-defined
+html = Nokogiri::HTML(content)  # content is pre-defined
+
+# NOTE: pages and outputs are pre-defined - use directly
+pages << {...}   # ✅ CORRECT - pages is pre-defined
+outputs << {...} # ✅ CORRECT - outputs is pre-defined
 ```
 
 ### Enhanced Variable Passing & Context Management
