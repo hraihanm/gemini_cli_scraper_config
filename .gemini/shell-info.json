@@ -2,5 +2,5 @@
   "shell_type": "PowerShell",
   "detected_at": "2025-11-20T04:08:00Z",
   "detection_method": "PSVersionTable",
-  "spawn_command_template": "start powershell -NoExit -Command \"cd '$PWD'; `$env:PATH='$env:PATH'; {command}\""
+  "spawn_command_template": "cmd /c start powershell -NoExit -Command \"cd '{working_dir}'; {command}\""
 }
