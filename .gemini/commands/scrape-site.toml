@@ -394,7 +394,7 @@ Before writing ANY file, convert relative path to absolute:
         "shell_type": "PowerShell",
         "detected_at": "<timestamp>",
         "detection_method": "PSVersionTable",
-        "spawn_command_template": "start powershell -NoExit -Command \"cd '$PWD'; `$env:PATH='$env:PATH'; {command}\""
+        "spawn_command_template": "cmd /c start powershell -NoExit -Command \"cd '{working_dir}'; {command}\""
       }
       ```
       **CRITICAL**: The template MUST include `start` command to spawn new window. Template uses `{command}` placeholder.
@@ -408,38 +408,52 @@ Before writing ANY file, convert relative path to absolute:
    - **CRITICAL**: You MUST execute the shell command below (do not just describe it, EXECUTE it)
    - **Read shell type** from `.gemini/shell-info.json` (from step 17)
    - **Read spawn_command_template** from shell-info.json if available
+   - **Get current working directory** (absolute path): Use `$PWD` or current working directory
+   - **Construct next command** with `auto_next=true`: `gemini -y -i '/create-navigation-parser scraper=<scraper_slug> auto_next=true'`
+   - **CRITICAL**: Pass `auto_next=true` to the next command so it continues the chain
    - **Construct spawn command** based on shell type:
      
      **If spawn_command_template exists in shell-info.json**:
-     - Replace `{command}` placeholder with: `gemini -y -i '/create-navigation-parser scraper=<scraper_slug>'`
-     - Use the template directly (it already has proper `start` command)
+     - Replace `{working_dir}` placeholder with current working directory (absolute path)
+     - Replace `{command}` placeholder with: `gemini -y -i '/create-navigation-parser scraper=<scraper_slug> auto_next=true'`
+     - Use the template directly (it already has proper `cmd /c start` command)
      
      **If spawn_command_template doesn't exist, construct manually**:
      
      **PowerShell** (if shell_type == "PowerShell"):
      ```bash
-     start powershell -NoExit -Command "cd '$PWD'; `$env:PATH='$env:PATH'; gemini -y -i '/create-navigation-parser scraper=<scraper_slug>'"
+     cmd /c start powershell -NoExit -Command "cd '$PWD'; gemini -y -i '/create-navigation-parser scraper=<scraper_slug> auto_next=true'"
      ```
+     **CRITICAL**: 
+     - Use `cmd /c start` to spawn a completely independent PowerShell window (not inside current session)
+     - Use `$PWD` for current working directory (same as initial Gemini CLI PWD)
+     - Do NOT set PATH explicitly - PowerShell inherits PATH from parent process
+     - Pass `auto_next=true` to continue the chain
      
      **CMD** (if shell_type == "CMD"):
      ```bash
-     start cmd /k "cd /d %CD% && set PATH=%PATH% && gemini -y -i \"/create-navigation-parser scraper=<scraper_slug>\""
+     cmd /c start cmd /k "cd /d %CD% && gemini -y -i \"/create-navigation-parser scraper=<scraper_slug> auto_next=true\""
      ```
+     **CRITICAL**: Use `cmd /c start` to spawn a completely independent CMD window (not inside current session)
      
      **WSL** (if shell_type == "WSL"):
      ```bash
-     start powershell -NoExit -Command "wsl -e bash -c \"cd '$PWD' && export PATH='$PATH' && gemini -y -i '/create-navigation-parser scraper=<scraper_slug>'\""
+     cmd /c start powershell -NoExit -Command "wsl -e bash -c \"cd '$PWD' && gemini -y -i '/create-navigation-parser scraper=<scraper_slug> auto_next=true'\""
      ```
+     **CRITICAL**: Use `cmd /c start` to spawn a completely independent PowerShell window (not inside current session)
      
      **Linux/Mac** (if shell_type == "Linux" or "Mac"):
      ```bash
-     xterm -e "cd '$PWD' && export PATH='$PATH' && gemini -y -i '/create-navigation-parser scraper=<scraper_slug>'" &
+     xterm -e "cd '$PWD' && gemini -y -i '/create-navigation-parser scraper=<scraper_slug> auto_next=true'" &
      ```
    
    - **EXECUTE** the shell command using `run_terminal_cmd` tool
    - **DO NOT** just display the command - you MUST execute it
-   - **VERIFY** execution: The command should spawn a new console window
-   - This will spawn a new console window and run the next command automatically
+   - **VERIFY** execution: The command should spawn a completely independent new PowerShell window (separate from Gemini CLI, like opening PowerShell from Windows Start menu)
+   - **AFTER EXECUTION**: This command is now COMPLETE. The spawned window will run independently.
+   - **END SESSION**: After successfully spawning the new window, this agent's work is done. The new window will handle the next phase.
+   - **AFTER EXECUTION**: This command is now COMPLETE. The spawned window will run independently.
+   - **END SESSION**: After spawning, this agent's work is done. The new window will handle the next phase.
 
 **CRITICAL COMPLETION REQUIREMENTS:**
 - ✅ **MANDATORY**: discovery-state.json written (machine-readable) - REQUIRED for next phase

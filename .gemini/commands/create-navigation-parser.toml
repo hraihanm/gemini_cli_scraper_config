@@ -661,32 +661,42 @@ Process:
         
         **PowerShell** (if shell_type == "PowerShell"):
         ```powershell
-        start powershell -NoExit -Command "cd '$PWD'; `$env:PATH='$env:PATH'; gemini -y -i '/create-details-parser scraper=<scraper_slug>'"
+        cmd /c start powershell -NoExit -Command "cd '$PWD'; gemini -y -i '/create-details-parser scraper=<scraper_slug> auto_next=true'"
         ```
+        **CRITICAL**: 
+        - Use `cmd /c start` to spawn a completely independent PowerShell window (not inside current session)
+        - Use absolute path for `cd` command (replace with actual workspace root)
+        - Do NOT set PATH explicitly - PowerShell inherits PATH from parent process
+        - Pass `auto_next=true` to continue the chain (if applicable)
+        
         **CMD** (if shell_type == "CMD"):
         ```cmd
-        start cmd /k "cd /d %CD% && set PATH=%PATH% && gemini -y -i \"/create-details-parser scraper=<scraper_slug>\""
+        cmd /c start cmd /k "cd /d %CD% && gemini -y -i \"/create-details-parser scraper=<scraper_slug> auto_next=true\""
         ```
+        **CRITICAL**: 
+        - Use `cmd /c start` to spawn a completely independent CMD window (not inside current session)
+        - Use absolute path for `cd` command (replace with actual workspace root)
+        - Pass `auto_next=true` to continue the chain (if applicable)
+        
         **WSL/Ubuntu** (if shell_type == "WSL"):
         ```bash
-        start powershell -NoExit -Command "wsl -e bash -c \"cd '$PWD' && export PATH='$PATH' && gemini -y -i '/create-details-parser scraper=<scraper_slug>'\""
+        cmd /c start powershell -NoExit -Command "wsl -e bash -c \"cd '$PWD' && gemini -y -i '/create-details-parser scraper=<scraper_slug> auto_next=true'\""
         ```
+        **CRITICAL**: 
+        - Use `cmd /c start` to spawn a completely independent PowerShell window (not inside current session)
+        - Pass `auto_next=true` to continue the chain (if applicable)
         **Linux/Mac** (if shell_type == "Linux" or "Mac"):
         ```bash
-        xterm -e "cd '$PWD' && export PATH='$PATH' && gemini -y -i '/create-details-parser scraper=<scraper_slug>'" &
+        xterm -e "cd '$PWD' && gemini -y -i '/create-details-parser scraper=<scraper_slug> auto_next=true'" &
         ```
         **Key points**:
         - Use shell type from `.gemini/shell-info.json` (no need to detect again)
         - Use SAME shell type for spawned console (PowerShell → PowerShell, CMD → CMD, WSL → WSL)
         - DO NOT use `wt -d .` directly as it may use wrong default profile (Ubuntu instead of PowerShell)
-        - Preserve current PATH environment variable
+        - Do NOT set PATH explicitly - shells inherit PATH from parent process automatically
         - Use current working directory
+        - Pass `auto_next=true` to continue the chain
         - This ensures colors and behavior match manual execution
-        **Linux/Mac**: Use terminal emulator to spawn new window:
-        ```bash
-        xterm -e "cd '$PWD' && export PATH='$PATH' && gemini -y -i '/create-details-parser scraper=<scraper_slug>'" &
-        # OR: gnome-terminal -- bash -c "cd '$PWD' && export PATH='$PATH' && gemini -y -i '/create-details-parser scraper=<scraper_slug>'; exec bash"
-        ```
         **Key points**:
         - Preserve current PATH environment variable
         - Use current working directory
@@ -733,7 +743,7 @@ Process:
            "shell_type": "PowerShell",
            "detected_at": "<timestamp>",
            "detection_method": "PSVersionTable",
-           "spawn_command_template": "start powershell -NoExit -Command \"cd '$PWD'; `$env:PATH='$env:PATH'; {command}\""
+           "spawn_command_template": "cmd /c start powershell -NoExit -Command \"cd '{working_dir}'; {command}\""
          }
          ```
        - **CRITICAL**: Use the SAME shell type as current session for consistency
@@ -747,30 +757,52 @@ Process:
        
        **PowerShell** (if shell_type == "PowerShell"):
        ```powershell
-       start powershell -NoExit -Command "cd '$PWD'; `$env:PATH='$env:PATH'; gemini -y -i '/create-details-parser scraper=<scraper_slug>'"
+       cmd /c start powershell -NoExit -Command "cd '$PWD'; gemini -y -i '/create-details-parser scraper=<scraper_slug> auto_next=true'"
        ```
+       **CRITICAL**: 
+       - Use `cmd /c start` to spawn a completely independent PowerShell window (not inside current session)
+       - Use `$PWD` for current working directory (same as initial Gemini CLI PWD)
+       - Do NOT set PATH explicitly - PowerShell inherits PATH from parent process automatically
+       - Pass `auto_next=true` to continue the chain (if applicable)
+       
        **CMD** (if shell_type == "CMD"):
        ```cmd
-       start cmd /k "cd /d %CD% && set PATH=%PATH% && gemini -y -i \"/create-details-parser scraper=<scraper_slug>\""
+       cmd /c start cmd /k "cd /d %CD% && gemini -y -i \"/create-details-parser scraper=<scraper_slug> auto_next=true\""
        ```
+       **CRITICAL**: 
+       - Use `cmd /c start` to spawn a completely independent CMD window (not inside current session)
+       - Use `%CD%` for current working directory (same as initial Gemini CLI PWD)
+       - Do NOT set PATH explicitly - CMD inherits PATH from parent process automatically
+       - Pass `auto_next=true` to continue the chain (if applicable)
+       
        **WSL/Ubuntu** (if shell_type == "WSL"):
        ```bash
-       start powershell -NoExit -Command "wsl -e bash -c \"cd '$PWD' && export PATH='$PATH' && gemini -y -i '/create-details-parser scraper=<scraper_slug>'\""
+       cmd /c start powershell -NoExit -Command "wsl -e bash -c \"cd '$PWD' && gemini -y -i '/create-details-parser scraper=<scraper_slug> auto_next=true'\""
        ```
+       **CRITICAL**: 
+       - Use `cmd /c start` to spawn a completely independent PowerShell window (not inside current session)
+       - Use `$PWD` for current working directory (same as initial Gemini CLI PWD)
+       - Do NOT set PATH explicitly - WSL inherits PATH from parent process automatically
+       - Pass `auto_next=true` to continue the chain (if applicable)
+       
        **Linux/Mac** (if shell_type == "Linux" or "Mac"):
        ```bash
-       xterm -e "cd '$PWD' && export PATH='$PATH' && gemini -y -i '/create-details-parser scraper=<scraper_slug>'" &
+       xterm -e "cd '$PWD' && gemini -y -i '/create-details-parser scraper=<scraper_slug> auto_next=true'" &
        ```
+       **CRITICAL**: 
+       - Do NOT set PATH explicitly - Linux/Mac shells inherit PATH from parent process automatically
+       - Pass `auto_next=true` to continue the chain (if applicable)
        **Critical**: 
        - Preserve `PATH` environment variable (so `gemini` command is found)
        - Use same shell type (PowerShell) as manual execution for color consistency
        - Use current working directory
        This will:
        - Close browser session (prevents about:blank tabs)
-       - Spawn a NEW console/terminal window with same environment
+       - Spawn a COMPLETELY INDEPENDENT new console/terminal window (separate from Gemini CLI, like opening PowerShell from Windows Start menu)
        - Run next command in that new window with proper colors (like manual execution)
        - Keep new console open after completion
-       - Current console completes naturally and stays open
+       - **AFTER EXECUTION**: This command is now COMPLETE. The spawned window will run independently.
+       - **END SESSION**: After successfully spawning the new window, this agent's work is done. The new window will handle the next phase.
   - If `auto_next=false` or not provided: Display the "Next Command" message and stop (wait for user)
 - **Note**: Auto-chaining spawns a new console window, so each phase runs in its own window. Browser must be closed first. PATH must be preserved so `gemini` command is found.
 
