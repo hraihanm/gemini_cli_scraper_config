@@ -3,6 +3,14 @@ description = "Phase 1: Site discovery and scraper directory setup. Analyzes sit
 prompt = """
 You are performing Phase 1: Site Discovery for scraper generation. This command is COMPLETELY INDEPENDENT - it reads no conversation history, only state files. It writes ALL findings to files before completion.
 
+🚨 **CRITICAL AUTO-CHAINING EXECUTION RULE**:
+- **MANDATORY**: If `auto_next=true` parameter is provided in `{{args}}`, you MUST execute the next command automatically
+- After displaying completion summary (step 14), you MUST check for `auto_next=true` in `{{args}}`
+- If `auto_next=true`, you MUST execute steps 15-19 (close browser, detect shell, spawn console, execute command)
+- **DO NOT** just display the command - you MUST execute it using `run_terminal_cmd` tool
+- **DO NOT** skip execution - the execution is MANDATORY, not optional
+- Failure to execute when `auto_next=true` is a completion failure
+
 🚨 MODULAR DESIGN PRINCIPLES:
 1. **Read State Files First** - Check for existing discovery-state.json
 2. **Write ALL Findings** - Before completion, write everything discovered
@@ -25,6 +33,7 @@ Inputs (order-agnostic via {{args}}):
   - name=<scraper_name> | --scraper <scraper_name> (REQUIRED)
   - spec=<path-to-CSV-or-JSON> (OPTIONAL - field specification file, e.g., spec_general_sample.csv)
   - out=<base_dir> (OPTIONAL, default: "./generated_scraper")
+  - auto_next=true|false (OPTIONAL, default: false) - If true, automatically execute next command (/create-navigation-parser)
 
 CRITICAL: Parse {{args}} immediately and extract the `url` parameter. Use ONLY that URL - ignore any other URLs in context.
 
@@ -160,7 +169,10 @@ Before writing ANY file, convert relative path to absolute:
 === STEP 5: Write Discovery State (JSON) ===
 **CRITICAL**: Use ABSOLUTE PATH for WriteFile operation
 
-8) Save discovery-state.json (USE ABSOLUTE PATH):
+8) **MANDATORY**: Save discovery-state.json (USE ABSOLUTE PATH):
+   - **CRITICAL**: This file MUST be written - it's REQUIRED by create-navigation-parser
+   - **Path**: `generated_scraper/<scraper>/.scraper-state/discovery-state.json`
+   - **Convert to absolute path** before writing
    ```json
    {
      "site_url": "<input_url>",
@@ -190,8 +202,12 @@ Before writing ANY file, convert relative path to absolute:
 
 === STEP 6: Write Discovery Knowledge (Markdown) ===
 **CRITICAL**: Use ABSOLUTE PATH for WriteFile operation
+**MANDATORY**: You MUST write discovery-knowledge.md before proceeding. This file is REQUIRED for next phase.
 
-9) Save discovery-knowledge.md (USE ABSOLUTE PATH):
+9) **MANDATORY**: Save discovery-knowledge.md (USE ABSOLUTE PATH):
+   - **CRITICAL**: This file MUST be written - it's required by create-navigation-parser
+   - **Path**: `generated_scraper/<scraper>/.scraper-state/discovery-knowledge.md`
+   - **Convert to absolute path** before writing
    ```markdown
    # Site Discovery Knowledge - <scraper_name>
    
@@ -324,7 +340,7 @@ Before writing ANY file, convert relative path to absolute:
    }
    ```
 
-=== STEP 10: Completion Report ===
+=== STEP 10: Completion Report & Auto-Chaining ===
 14) Display completion summary:
    ```
    ✅ Site Discovery Complete
@@ -352,18 +368,98 @@ Before writing ANY file, convert relative path to absolute:
    to generate navigation parsers.
    ```
 
+15) **MANDATORY AUTO-CHAINING CHECK**: Parse `{{args}}` and check if `auto_next=true`:
+   - Extract `auto_next` parameter from `{{args}}`
+   - If `auto_next=true`: **MUST EXECUTE** steps 16-19 below
+   - If `auto_next=false` or not provided: Stop here (command complete, wait for user)
+   
+16) **IF auto_next=true**: Close browser session:
+   - **MANDATORY**: Call `browser_close()` MCP tool to close browser
+   - This is REQUIRED before spawning new console
+   
+17) **IF auto_next=true**: Load or detect shell type:
+   a) **First**: Check if `.gemini/shell-info.json` exists (USE ABSOLUTE PATH):
+      - If exists: Read shell type from JSON file
+      - If not exists: Detect shell type (see step 17b)
+   
+   b) **If shell-info.json doesn't exist**: Detect shell type:
+      - **PowerShell**: Execute `if ($PSVersionTable) { "PowerShell" }` or check `$PSVersionTable`
+      - **CMD**: Check if `%COMSPEC%` contains `cmd.exe`
+      - **WSL/Ubuntu**: Check if `$WSL_DISTRO_NAME` exists
+      - **Linux/Mac**: Check `$SHELL` variable
+   
+   c) **Store shell type** to `.gemini/shell-info.json` (USE ABSOLUTE PATH) if detected:
+      ```json
+      {
+        "shell_type": "PowerShell",
+        "detected_at": "<timestamp>",
+        "detection_method": "PSVersionTable",
+        "spawn_command_template": "start powershell -NoExit -Command \"cd '$PWD'; `$env:PATH='$env:PATH'; {command}\""
+      }
+      ```
+      **CRITICAL**: The template MUST include `start` command to spawn new window. Template uses `{command}` placeholder.
+
+18) **IF auto_next=true**: Find Gemini CLI path:
+   - Execute: `where.exe gemini` (Windows) or `which gemini` (Linux/Mac)
+   - If not found, try: `npx @google/generative-ai-cli` (if installed via npm)
+   - Store the path for use in spawn command
+
+19) **IF auto_next=true**: **MANDATORY EXECUTION** - Spawn new console and execute next command:
+   - **CRITICAL**: You MUST execute the shell command below (do not just describe it, EXECUTE it)
+   - **Read shell type** from `.gemini/shell-info.json` (from step 17)
+   - **Read spawn_command_template** from shell-info.json if available
+   - **Construct spawn command** based on shell type:
+     
+     **If spawn_command_template exists in shell-info.json**:
+     - Replace `{command}` placeholder with: `gemini -y -i '/create-navigation-parser scraper=<scraper_slug>'`
+     - Use the template directly (it already has proper `start` command)
+     
+     **If spawn_command_template doesn't exist, construct manually**:
+     
+     **PowerShell** (if shell_type == "PowerShell"):
+     ```bash
+     start powershell -NoExit -Command "cd '$PWD'; `$env:PATH='$env:PATH'; gemini -y -i '/create-navigation-parser scraper=<scraper_slug>'"
+     ```
+     
+     **CMD** (if shell_type == "CMD"):
+     ```bash
+     start cmd /k "cd /d %CD% && set PATH=%PATH% && gemini -y -i \"/create-navigation-parser scraper=<scraper_slug>\""
+     ```
+     
+     **WSL** (if shell_type == "WSL"):
+     ```bash
+     start powershell -NoExit -Command "wsl -e bash -c \"cd '$PWD' && export PATH='$PATH' && gemini -y -i '/create-navigation-parser scraper=<scraper_slug>'\""
+     ```
+     
+     **Linux/Mac** (if shell_type == "Linux" or "Mac"):
+     ```bash
+     xterm -e "cd '$PWD' && export PATH='$PATH' && gemini -y -i '/create-navigation-parser scraper=<scraper_slug>'" &
+     ```
+   
+   - **EXECUTE** the shell command using `run_terminal_cmd` tool
+   - **DO NOT** just display the command - you MUST execute it
+   - **VERIFY** execution: The command should spawn a new console window
+   - This will spawn a new console window and run the next command automatically
+
 **CRITICAL COMPLETION REQUIREMENTS:**
+- ✅ **MANDATORY**: discovery-state.json written (machine-readable) - REQUIRED for next phase
+- ✅ **MANDATORY**: discovery-knowledge.md written (human + AI readable) - REQUIRED for next phase
 - ✅ seeder/seeder.rb generated (initial scraper entry point)
 - ✅ config.yaml generated (initial config, parsers will be added later)
 - ✅ field-spec.json written (if spec provided) - guides detail parser field discovery
-- ✅ discovery-state.json written (machine-readable)
-- ✅ discovery-knowledge.md written (human + AI readable)
 - ✅ phase-status.json updated
 - ✅ browser-context.json saved
 - ✅ Completion report displayed with next steps
+- ✅ **IF auto_next=true**: Browser closed, shell type detected/stored, next command **EXECUTED** (not just displayed)
+  - **MANDATORY**: You MUST execute the shell command in step 19 if auto_next=true
+  - **DO NOT** just display the command - you MUST use `run_terminal_cmd` to execute it
+  - **VERIFY**: Check that new console window opened and command is running
+  - The command execution is REQUIRED, not optional
 
 **This command is now COMPLETE and INDEPENDENT.**
 **Next session can run /create-navigation-parser without any conversation history.**
+
+**Note**: Auto-chaining logic is handled in steps 15-19 above. This section is for reference only.
 
 Examples:
   # Basic usage (no field spec - will use common fields)
