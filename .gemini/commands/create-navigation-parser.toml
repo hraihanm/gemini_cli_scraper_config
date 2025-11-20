@@ -22,6 +22,7 @@ Inputs (order-agnostic via {{args}}):
   - scraper=<scraper_name> (REQUIRED - scraper must exist with discovery-state.json)
   - resume-url=<url> (OPTIONAL - resume browser from this URL)
   - out=<base_dir> (OPTIONAL - defaults to ./generated_scraper)
+  - auto_next=true|false (OPTIONAL, default: false) - If true, automatically execute next command (/create-details-parser)
 
 Process:
 
@@ -307,11 +308,42 @@ Process:
    - browser_navigate(sample_listings_url)
    - Discover product link selectors
    - Analyze pagination pattern (critical):
-     * Query parameter: ?page=2
-     * Path: /page/2
-     * Infinite scroll detection
-     * Next button: .next-page, a[aria-label="Next"]
-   - Extract 3-5 sample detail URLs for detail parser
+     * **Standard Pagination** (check first):
+       - Query parameter: ?page=2
+       - Path: /page/2
+       - Next button: .next-page, a[aria-label="Next"]
+       - Load More button: .load-more, .show-more
+     
+     * **Infinite Scroll Detection** (if no standard pagination found):
+       - Use `browser_evaluate()` to scroll page and detect loading:
+         ```javascript
+         // Step 1: Get initial product count
+         browser_evaluate(() => {
+           const products = document.querySelectorAll('.product-item, .product-card, [class*="product"]');
+           return products.length;
+         })
+         
+         // Step 2: Scroll to bottom to trigger infinite scroll
+         browser_evaluate(() => {
+           window.scrollTo(0, document.body.scrollHeight);
+           return new Promise(resolve => setTimeout(resolve, 2000)); // Wait for load
+         })
+         
+         // Step 3: Check if more products loaded
+         browser_evaluate(() => {
+           const products = document.querySelectorAll('.product-item, .product-card, [class*="product"]');
+           return products.length;
+         })
+         
+         // Step 4: Monitor network requests during scroll
+         browser_network_requests()  // Check for API calls triggered by scroll
+       ```
+       - Analyze network requests for pagination API patterns:
+         * Look for API endpoints with pagination params (page, offset, limit)
+         * Identify request payload structure
+         * Extract pagination parameters
+       - If infinite scroll detected: Document API endpoint and parameters
+       - Generate parser code that uses browser automation for infinite scroll
 
 19) Generate or modify parsers/listings.rb (USE ABSOLUTE PATH):
    **CRITICAL**: If parser exists, modify it instead of regenerating
@@ -356,7 +388,8 @@ Process:
    end
    
    # Pagination handling
-   next_button = html.at_css('.next-page, a[aria-label="Next"]')
+   # Standard pagination (query param, path, or next button)
+   next_button = html.at_css('.next-page, a[aria-label="Next"], .load-more, .show-more')
    if next_button && next_button['href']
      next_url = next_button['href']
      next_url = base_url + next_url unless next_url.start_with?('http')
@@ -366,6 +399,11 @@ Process:
        vars: vars.merge({ page: (vars['page'] || 1).to_i + 1 })
      }
    end
+   
+   # Infinite scroll pagination (if detected during discovery)
+   # Note: Infinite scroll requires browser automation - handled by DataHen's browser capabilities
+   # If infinite scroll was detected, document API endpoint in navigation-selectors.json
+   # The parser should extract all visible products, and DataHen will handle scrolling
    
    save_pages if pages.count > 99
    ```
@@ -417,9 +455,12 @@ Process:
      },
      "listings": {
        "product_link_selector": [".product-item a", ".product-card a"],
+       "pagination_pattern": "query_param|path|infinite_scroll|load_more",
        "pagination_next": [".next-page", "a[aria-label='Next']"],
-       "pagination_pattern": "query_param",
        "pagination_param": "page",
+       "load_more_button": [".load-more", ".show-more"],
+       "infinite_scroll_api": null,
+       "infinite_scroll_notes": "If infinite scroll detected, document API endpoint and params here",
        "verified": true,
        "confidence": 0.95,
        "sample_detail_urls": [
@@ -566,7 +607,7 @@ Process:
    }
    ```
 
-=== STEP 9: Completion Report ===
+=== STEP 9: Completion Report & Auto-Chaining ===
 27) Display completion summary:
    ```
    ✅ Navigation Parsers Complete
@@ -590,6 +631,74 @@ Process:
    This command will read navigation-selectors.json and navigation-knowledge.md
    to generate detail parser with proper vars flow.
    ```
+   
+   **Auto-Chaining** (if auto_next=true):
+   **CRITICAL**: After displaying completion summary, check if `auto_next=true` parameter was provided:
+   - **If `auto_next=true`**: 
+     1. **CLOSE BROWSER FIRST**: Call `browser_close()` to close the browser session
+        - This is REQUIRED because the browser session is tied to the current console
+        - New console cannot access the existing browser session (will spawn about:blank tabs)
+        - Close browser before spawning new console
+     
+     2. **Detect current shell type**: Determine what shell is currently being used:
+        - **PowerShell**: Check if `$PSVersionTable` exists (PowerShell variable)
+          - Execute: `if ($PSVersionTable) { "PowerShell" }` or check for PowerShell-specific variables
+        - **CMD**: Check if `%COMSPEC%` contains `cmd.exe` or check for CMD-specific variables
+        - **WSL/Ubuntu**: Check if `$WSL_DISTRO_NAME` exists or running in WSL environment
+        - **Linux/Mac**: Check `$SHELL` variable
+        - **CRITICAL**: Use the SAME shell type as current session for consistency
+        - Store shell type detection result
+     
+     3. **Find Gemini CLI path**: Detect where `gemini` command is located:
+        - Try: `where.exe gemini` (Windows) or `which gemini` (Linux/Mac)
+        - Or use: `npx @google/generative-ai-cli` if gemini is via npm
+        - Or use: Full path if known (e.g., `C:\\Users\\YourUsername\\AppData\\Roaming\\npm\\gemini.cmd`)
+        - Store the path for use in spawned console
+     
+     4. **Spawn NEW console window** using stored shell type:
+        - **Read shell type** from `.gemini/shell-info.json` (loaded in step 2)
+        - **Use spawn command** based on stored shell type:
+        
+        **PowerShell** (if shell_type == "PowerShell"):
+        ```powershell
+        start powershell -NoExit -Command "cd '$PWD'; `$env:PATH='$env:PATH'; gemini -y -i '/create-details-parser scraper=<scraper_slug>'"
+        ```
+        **CMD** (if shell_type == "CMD"):
+        ```cmd
+        start cmd /k "cd /d %CD% && set PATH=%PATH% && gemini -y -i \"/create-details-parser scraper=<scraper_slug>\""
+        ```
+        **WSL/Ubuntu** (if shell_type == "WSL"):
+        ```bash
+        start powershell -NoExit -Command "wsl -e bash -c \"cd '$PWD' && export PATH='$PATH' && gemini -y -i '/create-details-parser scraper=<scraper_slug>'\""
+        ```
+        **Linux/Mac** (if shell_type == "Linux" or "Mac"):
+        ```bash
+        xterm -e "cd '$PWD' && export PATH='$PATH' && gemini -y -i '/create-details-parser scraper=<scraper_slug>'" &
+        ```
+        **Key points**:
+        - Use shell type from `.gemini/shell-info.json` (no need to detect again)
+        - Use SAME shell type for spawned console (PowerShell → PowerShell, CMD → CMD, WSL → WSL)
+        - DO NOT use `wt -d .` directly as it may use wrong default profile (Ubuntu instead of PowerShell)
+        - Preserve current PATH environment variable
+        - Use current working directory
+        - This ensures colors and behavior match manual execution
+        **Linux/Mac**: Use terminal emulator to spawn new window:
+        ```bash
+        xterm -e "cd '$PWD' && export PATH='$PATH' && gemini -y -i '/create-details-parser scraper=<scraper_slug>'" &
+        # OR: gnome-terminal -- bash -c "cd '$PWD' && export PATH='$PATH' && gemini -y -i '/create-details-parser scraper=<scraper_slug>'; exec bash"
+        ```
+        **Key points**:
+        - Preserve current PATH environment variable
+        - Use current working directory
+        - PowerShell preserves colors better than CMD
+        - Use same shell type (PowerShell) as manual execution for consistency
+        This will:
+        - Close browser session (prevents about:blank tabs in new console)
+        - Spawn a NEW console/terminal window with same environment
+        - Run the next command in that new window with proper colors
+        - Keep the new console open after completion
+        - Current console stays open (completes naturally)
+   - **If `auto_next=false` or not provided**: Stop here and wait for user to manually run next command.
 
 **CRITICAL COMPLETION REQUIREMENTS:**
 - ✅ All parsers generated (categories, subcategories if needed, listings)
@@ -603,6 +712,67 @@ Process:
 
 **This command is now COMPLETE and INDEPENDENT.**
 **Next session can run /create-details-parser without any conversation history.**
+
+**Auto-Chaining Support**:
+- **Check `auto_next` parameter** from {{args}}:
+  - If `auto_next=true`: 
+    1. **MANDATORY**: Close browser session first using `browser_close()` MCP tool
+       - Browser session is tied to current console
+       - New console cannot access existing browser (will spawn about:blank tabs)
+    2. **Load or detect shell type**: 
+       - **First**: Check if `.gemini/shell-info.json` exists (USE ABSOLUTE PATH)
+       - **If exists**: Read shell type from JSON file (no need to detect again)
+       - **If not exists**: Detect shell type:
+         - **PowerShell**: Check if `$PSVersionTable` exists (PowerShell variable)
+         - **CMD**: Check if `%COMSPEC%` contains `cmd.exe`
+         - **WSL/Ubuntu**: Check if `$WSL_DISTRO_NAME` exists or running in WSL environment
+         - **Linux/Mac**: Check `$SHELL` variable
+       - **Store shell type** to `.gemini/shell-info.json` (USE ABSOLUTE PATH) if detected:
+         ```json
+         {
+           "shell_type": "PowerShell",
+           "detected_at": "<timestamp>",
+           "detection_method": "PSVersionTable",
+           "spawn_command_template": "start powershell -NoExit -Command \"cd '$PWD'; `$env:PATH='$env:PATH'; {command}\""
+         }
+         ```
+       - **CRITICAL**: Use the SAME shell type as current session for consistency
+    3. **Find Gemini CLI path**: Find where `gemini` command is located:
+       - Execute: `where.exe gemini` (Windows) or `which gemini` (Linux/Mac)
+       - If not found, try: `npx @google/generative-ai-cli` (if installed via npm)
+       - Store the full path or command for use in spawned console
+    4. After browser closed, spawn NEW console window using **stored shell type**:
+       - **Read shell type** from `.gemini/shell-info.json` (loaded in step 2)
+       - **Use spawn command** based on stored shell type:
+       
+       **PowerShell** (if shell_type == "PowerShell"):
+       ```powershell
+       start powershell -NoExit -Command "cd '$PWD'; `$env:PATH='$env:PATH'; gemini -y -i '/create-details-parser scraper=<scraper_slug>'"
+       ```
+       **CMD** (if shell_type == "CMD"):
+       ```cmd
+       start cmd /k "cd /d %CD% && set PATH=%PATH% && gemini -y -i \"/create-details-parser scraper=<scraper_slug>\""
+       ```
+       **WSL/Ubuntu** (if shell_type == "WSL"):
+       ```bash
+       start powershell -NoExit -Command "wsl -e bash -c \"cd '$PWD' && export PATH='$PATH' && gemini -y -i '/create-details-parser scraper=<scraper_slug>'\""
+       ```
+       **Linux/Mac** (if shell_type == "Linux" or "Mac"):
+       ```bash
+       xterm -e "cd '$PWD' && export PATH='$PATH' && gemini -y -i '/create-details-parser scraper=<scraper_slug>'" &
+       ```
+       **Critical**: 
+       - Preserve `PATH` environment variable (so `gemini` command is found)
+       - Use same shell type (PowerShell) as manual execution for color consistency
+       - Use current working directory
+       This will:
+       - Close browser session (prevents about:blank tabs)
+       - Spawn a NEW console/terminal window with same environment
+       - Run next command in that new window with proper colors (like manual execution)
+       - Keep new console open after completion
+       - Current console completes naturally and stays open
+  - If `auto_next=false` or not provided: Display the "Next Command" message and stop (wait for user)
+- **Note**: Auto-chaining spawns a new console window, so each phase runs in its own window. Browser must be closed first. PATH must be preserved so `gemini` command is found.
 
 Examples:
   /create-navigation-parser scraper=naivas_online

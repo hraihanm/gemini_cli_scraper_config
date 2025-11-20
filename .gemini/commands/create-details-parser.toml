@@ -28,6 +28,7 @@ Inputs (order-agnostic via {{args}}):
   - collection=<collection_name> (OPTIONAL, default: "products")
   - resume-url=<url> (OPTIONAL - resume browser from this URL)
   - out=<base_dir> (OPTIONAL - defaults to ./generated_scraper)
+  - auto_next=true|false (OPTIONAL, default: false) - No next command (this is the final phase)
 
 Process:
 
@@ -576,6 +577,8 @@ Process:
    
    All knowledge files available in .scraper-state/ directory.
    ```
+   
+   **Note**: This is the final phase. Scraper generation is complete.
 
 **CRITICAL COMPLETION REQUIREMENTS:**
 - ✅ parsers/details.rb generated or modified with navigation context
