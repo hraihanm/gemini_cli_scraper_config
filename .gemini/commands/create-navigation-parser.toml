@@ -3,6 +3,25 @@ description = "Phase 2: Generate navigation parsers (categories, subcategories, 
 prompt = """
 You are performing Phase 2: Navigation Parser Generation. This command is COMPLETELY INDEPENDENT - it reads discovery state files, generates parsers, writes ALL findings, and completes. No conversation history needed.
 
+🚨🚨🚨 **CRITICAL: YOU ARE IN GEMINI CLI - USE TOOLS DIRECTLY, NEVER GENERATE CODE** 🚨🚨🚨
+- **STOP**: If you are about to write `import os`, `import json`, `print()`, `def `, or any Python/JavaScript code, STOP IMMEDIATELY
+- **YOU ARE AN AI ASSISTANT IN GEMINI CLI** - You have direct access to MCP tools via tool calling
+- **USE TOOLS DIRECTLY** - Call tools like `ReadManyFiles`, `browser_navigate`, `parser_tester`, `WriteFile` using the tool interface
+- **FORBIDDEN**: Never write Python scripts, JavaScript code, or any programming code
+- **FORBIDDEN**: Never use `import`, `print()`, `def `, `class `, or any code syntax
+- **CODE EXAMPLES IN THIS PROMPT ARE FOR REFERENCE ONLY** - They show tool call patterns, NOT code to write
+- **YOU ARE THE EXECUTOR** - Execute actions directly using tools, don't write code that executes actions
+- **EXAMPLE**: When you see `ReadManyFiles({patterns: [...]})` in this prompt, you should CALL the ReadManyFiles tool directly, NOT write Python code
+- **IF YOU START WRITING CODE**: Stop immediately and use tools instead
+
+🚨 **CRITICAL AUTO-CHAINING EXECUTION RULE**:
+- **MANDATORY**: If `auto_next=true` parameter is provided in `{{args}}`, you MUST execute the next command automatically
+- After displaying completion summary (step 27), you MUST check for `auto_next=true` in `{{args}}`
+- If `auto_next=true`, you MUST execute steps 28-31 (close browser, detect shell, spawn console, execute command)
+- **DO NOT** just display the command - you MUST execute it using `run_terminal_cmd` tool
+- **DO NOT** skip execution - the execution is MANDATORY, not optional
+- Failure to execute when `auto_next=true` is a completion failure
+
 🚨 MODULAR DESIGN PRINCIPLES:
 1. **Read State Files First** - Load discovery-state.json and discovery-knowledge.md
 2. **Write ALL Findings** - Before completion, write everything discovered
@@ -18,6 +37,14 @@ You are performing Phase 2: Navigation Parser Generation. This command is COMPLE
   * To absolute: `<workspace_root>/generated_scraper/<scraper>/.scraper-state/file.json`
 - Use absolute paths for: navigation-selectors.json, navigation-knowledge.md, phase-status.json, parser files
 
+🚨 BROWSER TOOLS FOR NAVIGATION AND POPUP HANDLING:
+- **browser_screenshot()**: Use to visually inspect pages for popups, modals, cookie banners
+- **browser_click()**: Use to interact with elements (navigation, popups, cookies, notifications)
+- **browser_snapshot()**: Use to check for overlays and get accessibility tree
+- **MANDATORY**: After every `browser_navigate()`, check for and handle popups before proceeding
+- Common popup patterns: cookie banners, notification overlays, modal dialogs, age verification
+- Always use `browser_snapshot()` after handling popups to verify page is ready
+
 Inputs (order-agnostic via {{args}}):
   - scraper=<scraper_name> (REQUIRED - scraper must exist with discovery-state.json)
   - resume-url=<url> (OPTIONAL - resume browser from this URL)
@@ -26,10 +53,13 @@ Inputs (order-agnostic via {{args}}):
 
 Process:
 
+🚨 **BEFORE YOU START**: Remember - USE TOOLS DIRECTLY, DO NOT WRITE CODE. Call ReadManyFiles tool, don't write Python code.
+
 === STEP 1: Load State Files ===
 **CRITICAL**: Use ReadManyFiles to load state files (ReadFile fails due to ignore patterns)
+**CRITICAL**: CALL the ReadManyFiles tool directly - DO NOT write Python code to call it
 
-1) Load all required state files using ReadManyFiles:
+1) Load all required state files using ReadManyFiles tool (CALL THE TOOL DIRECTLY):
    ```javascript
    ReadManyFiles({
      patterns: [
@@ -70,9 +100,9 @@ Process:
       - `parsers/listings.rb`
    
    b) For each existing parser:
-      - If parser file exists: Test it using parser_tester MCP tool
-      - Download sample HTML if needed
-      - Run parser_tester with appropriate vars
+      - If parser file exists: Test it using parser_tester MCP tool with `auto_download: true`
+      - Navigate to sample URL first, then use `auto_download: true` (NO manual HTML download needed)
+      - Run parser_tester with appropriate vars and `auto_download: true`
       - Analyze test results:
         * If test passes: Parser is working, can skip or enhance
         * If test fails: Parser needs modification, continue with discovery
@@ -96,14 +126,14 @@ Process:
 5) Check for existing parser and test:
    a) Check if `parsers/categories.rb` exists
    b) If exists:
-      - Test with parser_tester:
+      - Navigate to sample category URL (if not already there)
+      - Test with parser_tester (RECOMMENDED - uses auto_download):
         ```javascript
         parser_tester({
           scraper_dir: "<absolute_path>/generated_scraper/<scraper>",
           parser_path: "parsers/categories.rb",
           page_type: "categories",
-          html_file: "<absolute_path>/cache/category-page.html",
-          // OR: auto_download: true
+          auto_download: true,  // RECOMMENDED: Automatically downloads HTML from active browser tab
           vars: '{"base_url":"<site_url>"}',
           quiet: false
         })
@@ -118,7 +148,19 @@ Process:
 7) Navigate and discover (if parser doesn't exist or test failed):
    - Use sample_urls.category from discovery-state.json
    - browser_navigate(sample_category_url)
+   
+   **CRITICAL**: Handle cookies, notifications, and popups after navigation:
+   - Use browser_screenshot() to visually inspect the page for popups/modals
+   - Use browser_snapshot() to check for cookie banners, notification overlays, or popups
+   - If popup detected: Use browser_click() to interact:
+     * Cookie banners: Click "Accept", "Accept All", or "I Agree" buttons
+     * Notifications: Click "Later", "Not Now", or "Skip" buttons
+     * Popups/modals: Click close button (X), "Close", or overlay to dismiss
+   - Common selectors to check: `[id*="cookie"]`, `[class*="cookie"]`, `[id*="popup"]`, `[class*="modal"]`, `button:contains("Accept")`, `button:contains("Later")`
+   - After handling popups: browser_snapshot() again to verify page is ready
+   
    - browser_snapshot()
+   - **TRACK URL**: Record this URL in navigation-selectors.json under `urls_accessed.categories_discovery`
    - browser_inspect_element() to find category link selectors
    - browser_verify_selector() for category names
    - Discover category link pattern, URL structure
@@ -166,35 +208,42 @@ Process:
          breadcrumb: vars['breadcrumb'] ? "#{vars['breadcrumb']} > #{cat_name}" : cat_name
        })
      }
+     
+     # Save pages periodically inside loop to avoid memory issues
+     save_pages if pages.count > 99
    end
-   
-   save_pages if pages.count > 99
    ```
 
 9) Test Categories Parser (or re-test if modified):
    **MANDATORY**: Test parser immediately after generation
    
-   a) Download HTML for testing:
-      - Use browser_navigate() to visit sample category URL
-      - Use browser_view_html() to get HTML content
-      - Save HTML to cache/ directory (or use auto_download in parser_tester)
+   **CRITICAL**: Use `auto_download: true` in parser_tester - NO manual HTML download needed
    
-   b) Test with parser_tester MCP tool:
+   a) Navigate to sample category URL (if not already there):
+      - Use browser_navigate() to visit sample category URL from discovery-state.json
+      - **Handle popups**: Use browser_screenshot() and browser_snapshot() to check for cookies/notifications, then browser_click() to dismiss them
+   
+   b) Test with parser_tester MCP tool (RECOMMENDED - uses auto_download):
       ```javascript
       parser_tester({
         scraper_dir: "<absolute_path>/generated_scraper/<scraper>",
         parser_path: "parsers/categories.rb",
         page_type: "categories",
-        html_file: "<absolute_path>/cache/category-page.html",  // OR use auto_download: true
-        // OR: auto_download: true  // Downloads from active browser tab
+        auto_download: true,  // RECOMMENDED: Automatically downloads HTML from active browser tab
         vars: '{"base_url":"<site_url>"}',
         quiet: false  // Show verbose output for testing
       })
       ```
+      
+      **Alternative** (if you need offline testing with saved HTML):
+      - Use browser_view_html() to get HTML content (optional, for inspection only)
+      - Save HTML to cache/ directory manually (optional)
+      - Use html_file parameter instead: `html_file: "<absolute_path>/cache/category-page.html"`
    
    c) Validate test results:
       - Parser should generate pages with page_type "subcategories" or "listings"
       - Check that category_name and breadcrumb vars are set correctly
+      - **TRACK URL**: Record tested URL in navigation-selectors.json under `categories.test_urls` and update `urls_accessed.last_tested_url` and `urls_accessed.last_tested_at`
       - If test fails: Analyze errors, refine selectors, re-test
       - If test passes: Continue to next parser
 
@@ -219,6 +268,18 @@ Process:
 
 12) Navigate and discover (if parser doesn't exist or test failed):
    - Use sample_urls.subcategory from discovery-state.json
+   - browser_navigate(sample_subcategory_url)
+   
+   **CRITICAL**: Handle cookies, notifications, and popups after navigation:
+   - Use browser_screenshot() to visually inspect the page for popups/modals
+   - Use browser_snapshot() to check for cookie banners, notification overlays, or popups
+   - If popup detected: Use browser_click() to interact:
+     * Cookie banners: Click "Accept", "Accept All", or "I Agree" buttons
+     * Notifications: Click "Later", "Not Now", or "Skip" buttons
+     * Popups/modals: Click close button (X), "Close", or overlay to dismiss
+   - After handling popups: browser_snapshot() again to verify page is ready
+   
+   - **TRACK URL**: Record this URL in navigation-selectors.json under `urls_accessed.subcategories_discovery`
    - Discover subcategory link selectors
    - Understand subcategory navigation pattern
 
@@ -255,28 +316,37 @@ Process:
          breadcrumb: "#{vars['breadcrumb']} > #{subcat_name}"
        })
      }
+     
+     # Save pages periodically inside loop to avoid memory issues
+     save_pages if pages.count > 99
    end
-   
-   save_pages if pages.count > 99
    ```
 
 14) Test Subcategories Parser (or re-test if modified):
    **MANDATORY**: Test parser immediately after generation
    
-   a) Download HTML for testing (use sample subcategory URL)
-   b) Test with parser_tester:
+   **CRITICAL**: Use `auto_download: true` in parser_tester - NO manual HTML download needed
+   
+   a) Navigate to sample subcategory URL (if not already there):
+      - Use browser_navigate() to visit sample subcategory URL from discovery-state.json
+      - **Handle popups**: Use browser_screenshot() and browser_snapshot() to check for cookies/notifications, then browser_click() to dismiss them
+   
+   b) Test with parser_tester MCP tool (RECOMMENDED - uses auto_download):
       ```javascript
       parser_tester({
         scraper_dir: "<absolute_path>/generated_scraper/<scraper>",
         parser_path: "parsers/subcategories.rb",
         page_type: "subcategories",
-        html_file: "<absolute_path>/cache/subcategory-page.html",
-        // OR: auto_download: true
+        auto_download: true,  // RECOMMENDED: Automatically downloads HTML from active browser tab
         vars: '{"category_name":"Electronics","breadcrumb":"Electronics"}',
         quiet: false
       })
       ```
+      
+      **Alternative** (if you need offline testing with saved HTML):
+      - Use html_file parameter instead: `html_file: "<absolute_path>/cache/subcategory-page.html"`
    c) Validate: Should generate pages with page_type "listings"
+      - **TRACK URL**: Record tested URL in navigation-selectors.json under `subcategories.test_urls` and update `urls_accessed.last_tested_url` and `urls_accessed.last_tested_at`
 
 15) Save checkpoint
 
@@ -284,14 +354,14 @@ Process:
 16) Check for existing parser and test:
    a) Check if `parsers/listings.rb` exists
    b) If exists:
-      - Test with parser_tester:
+      - Navigate to sample listings URL (if not already there)
+      - Test with parser_tester (RECOMMENDED - uses auto_download):
         ```javascript
         parser_tester({
           scraper_dir: "<absolute_path>/generated_scraper/<scraper>",
           parser_path: "parsers/listings.rb",
           page_type: "listings",
-          html_file: "<absolute_path>/cache/listings-page.html",
-          // OR: auto_download: true
+          auto_download: true,  // RECOMMENDED: Automatically downloads HTML from active browser tab
           vars: '{"category_name":"Electronics","breadcrumb":"Electronics","page":1}',
           quiet: false
         })
@@ -306,6 +376,17 @@ Process:
 18) Navigate and discover (if parser doesn't exist or test failed):
    - Use sample_urls.listings from discovery-state.json
    - browser_navigate(sample_listings_url)
+   
+   **CRITICAL**: Handle cookies, notifications, and popups after navigation:
+   - Use browser_screenshot() to visually inspect the page for popups/modals
+   - Use browser_snapshot() to check for cookie banners, notification overlays, or popups
+   - If popup detected: Use browser_click() to interact:
+     * Cookie banners: Click "Accept", "Accept All", or "I Agree" buttons
+     * Notifications: Click "Later", "Not Now", or "Skip" buttons
+     * Popups/modals: Click close button (X), "Close", or overlay to dismiss
+   - After handling popups: browser_snapshot() again to verify page is ready
+   
+   - **TRACK URL**: Record this URL in navigation-selectors.json under `urls_accessed.listings_discovery`
    - Discover product link selectors
    - Analyze pagination pattern (critical):
      * **Standard Pagination** (check first):
@@ -385,6 +466,9 @@ Process:
          listing_position: idx + 1
        })
      }
+     
+     # Save pages periodically inside loop to avoid memory issues
+     save_pages if pages.count > 99
    end
    
    # Pagination handling
@@ -398,37 +482,44 @@ Process:
        page_type: "listings",
        vars: vars.merge({ page: (vars['page'] || 1).to_i + 1 })
      }
+     save_pages if pages.count > 99
    end
    
    # Infinite scroll pagination (if detected during discovery)
    # Note: Infinite scroll requires browser automation - handled by DataHen's browser capabilities
    # If infinite scroll was detected, document API endpoint in navigation-selectors.json
    # The parser should extract all visible products, and DataHen will handle scrolling
-   
-   save_pages if pages.count > 99
    ```
 
 20) Test Listings Parser (or re-test if modified):
    **MANDATORY**: Test parser immediately after generation
    
-   a) Download HTML for testing (use sample listings URL)
-   b) Test with parser_tester:
+   **CRITICAL**: Use `auto_download: true` in parser_tester - NO manual HTML download needed
+   
+   a) Navigate to sample listings URL (if not already there):
+      - Use browser_navigate() to visit sample listings URL from discovery-state.json
+      - **Handle popups**: Use browser_screenshot() and browser_snapshot() to check for cookies/notifications, then browser_click() to dismiss them
+   
+   b) Test with parser_tester MCP tool (RECOMMENDED - uses auto_download):
       ```javascript
       parser_tester({
         scraper_dir: "<absolute_path>/generated_scraper/<scraper>",
         parser_path: "parsers/listings.rb",
         page_type: "listings",
-        html_file: "<absolute_path>/cache/listings-page.html",
-        // OR: auto_download: true
+        auto_download: true,  // RECOMMENDED: Automatically downloads HTML from active browser tab
         vars: '{"category_name":"Electronics","breadcrumb":"Electronics","page":1}',
         quiet: false
       })
       ```
+      
+      **Alternative** (if you need offline testing with saved HTML):
+      - Use html_file parameter instead: `html_file: "<absolute_path>/cache/listings-page.html"`
    c) Validate test results:
       - Parser should generate pages with page_type "details"
       - Check that rank, page_number, listing_position vars are set
       - Check pagination: Should generate next listings page if pagination exists
       - Extract sample detail URLs from generated pages for detail parser
+      - **TRACK URL**: Record tested URL in navigation-selectors.json under `listings.test_urls` and update `urls_accessed.last_tested_url` and `urls_accessed.last_tested_at`
       - If test fails: Analyze errors, refine selectors, re-test
       - If test passes: Continue
 
@@ -445,13 +536,17 @@ Process:
        "category_name_selectors": [".category-title", "a"],
        "verified": true,
        "confidence": 0.95,
-       "notes": "Categories found in main navigation menu"
+       "notes": "Categories found in main navigation menu",
+       "discovery_urls": ["https://example.com/categories"],
+       "test_urls": ["https://example.com/categories"]
      },
      "subcategories": {
        "subcategory_link_selector": [".subcategory-item a"],
        "subcategory_name_selectors": [".subcategory-name"],
        "verified": true,
-       "confidence": 0.90
+       "confidence": 0.90,
+       "discovery_urls": ["https://example.com/categories/electronics"],
+       "test_urls": ["https://example.com/categories/electronics"]
      },
      "listings": {
        "product_link_selector": [".product-item a", ".product-card a"],
@@ -463,10 +558,25 @@ Process:
        "infinite_scroll_notes": "If infinite scroll detected, document API endpoint and params here",
        "verified": true,
        "confidence": 0.95,
+       "discovery_urls": ["https://example.com/categories/electronics/laptops"],
+       "test_urls": [
+         "https://example.com/categories/electronics/laptops",
+         "https://example.com/categories/electronics/laptops?page=2"
+       ],
        "sample_detail_urls": [
          "https://example.com/p/123",
          "https://example.com/p/456"
        ]
+     },
+     "urls_accessed": {
+       "categories_discovery": ["https://example.com/categories"],
+       "subcategories_discovery": ["https://example.com/categories/electronics"],
+       "listings_discovery": [
+         "https://example.com/categories/electronics/laptops",
+         "https://example.com/categories/electronics/laptops?page=2"
+       ],
+       "last_tested_url": "https://example.com/categories/electronics/laptops",
+       "last_tested_at": "<timestamp>"
      }
    }
    ```
@@ -631,84 +741,100 @@ Process:
    This command will read navigation-selectors.json and navigation-knowledge.md
    to generate detail parser with proper vars flow.
    ```
+
+28) **MANDATORY AUTO-CHAINING CHECK**: Parse `{{args}}` and check if `auto_next=true`:
+   - Extract `auto_next` parameter from `{{args}}`
+   - If `auto_next=true`: **MUST EXECUTE** steps 29-32 below
+   - If `auto_next=false` or not provided: Stop here (command complete, wait for user)
    
-   **Auto-Chaining** (if auto_next=true):
-   **CRITICAL**: After displaying completion summary, check if `auto_next=true` parameter was provided:
-   - **If `auto_next=true`**: 
-     1. **CLOSE BROWSER FIRST**: Call `browser_close()` to close the browser session
-        - This is REQUIRED because the browser session is tied to the current console
-        - New console cannot access the existing browser session (will spawn about:blank tabs)
-        - Close browser before spawning new console
+29) **IF auto_next=true**: Close browser session:
+   - **MANDATORY**: Call `browser_close()` MCP tool to close browser
+   - This is REQUIRED before spawning new console
+   
+30) **IF auto_next=true**: Load or detect shell type:
+   a) **First**: Check if `.gemini/shell-info.json` exists (USE ABSOLUTE PATH):
+      - If exists: Read shell type from JSON file
+      - If not exists: Detect shell type (see step 30b)
+   
+   b) **If shell-info.json doesn't exist**: Detect shell type:
+      - **PowerShell**: Execute `if ($PSVersionTable) { "PowerShell" }` or check `$PSVersionTable`
+      - **CMD**: Check if `%COMSPEC%` contains `cmd.exe`
+      - **WSL/Ubuntu**: Check if `$WSL_DISTRO_NAME` exists
+      - **Linux/Mac**: Check `$SHELL` variable
+   
+   c) **Store shell type** to `.gemini/shell-info.json` (USE ABSOLUTE PATH) if detected:
+      ```json
+      {
+        "shell_type": "PowerShell",
+        "detected_at": "<timestamp>",
+        "detection_method": "PSVersionTable",
+        "spawn_command_template": "cmd /c start powershell -NoExit -Command \"cd '{working_dir}'; {command}\""
+      }
+      ```
+      **CRITICAL**: The template MUST include `cmd /c start` command to spawn new window. Template uses `{working_dir}` and `{command}` placeholders.
+
+31) **IF auto_next=true**: **MANDATORY EXECUTION** - Spawn new console and execute next command:
+   - **CRITICAL**: You MUST execute the shell command below (do not just describe it, EXECUTE it)
+   - **Read shell type** from `.gemini/shell-info.json` (from step 30)
+   - **Read spawn_command_template** from shell-info.json if available
+   - **Get current working directory**: Use `$PWD` (PowerShell) or `%CD%` (CMD) - same as initial Gemini CLI PWD
+   - **Construct next command** with `auto_next=true`: Use `gemini` directly (NOT full path, it's in PATH)
+   - **Command format**: `gemini -y -i '/create-details-parser scraper=<scraper_slug> auto_next=true'`
+   - **CRITICAL**: Pass `auto_next=true` to the next command so it continues the chain
+   - **CRITICAL**: Use `gemini` directly (no full path needed - it's available in PATH)
+   - **Construct spawn command** based on shell type:
      
-     2. **Detect current shell type**: Determine what shell is currently being used:
-        - **PowerShell**: Check if `$PSVersionTable` exists (PowerShell variable)
-          - Execute: `if ($PSVersionTable) { "PowerShell" }` or check for PowerShell-specific variables
-        - **CMD**: Check if `%COMSPEC%` contains `cmd.exe` or check for CMD-specific variables
-        - **WSL/Ubuntu**: Check if `$WSL_DISTRO_NAME` exists or running in WSL environment
-        - **Linux/Mac**: Check `$SHELL` variable
-        - **CRITICAL**: Use the SAME shell type as current session for consistency
-        - Store shell type detection result
+     **If spawn_command_template exists in shell-info.json**:
+     - Replace `{working_dir}` placeholder with current working directory (use `$PWD` or `%CD%` dynamically)
+     - Replace `{command}` placeholder with: `gemini -y -i '/create-details-parser scraper=<scraper_slug> auto_next=true'`
+     - **CRITICAL**: Use `gemini` directly (NOT full path - it's available in PATH)
+     - Use the template directly (it already has proper `cmd /c start` command to spawn window)
      
-     3. **Find Gemini CLI path**: Detect where `gemini` command is located:
-        - Try: `where.exe gemini` (Windows) or `which gemini` (Linux/Mac)
-        - Or use: `npx @google/generative-ai-cli` if gemini is via npm
-        - Or use: Full path if known (e.g., `C:\\Users\\YourUsername\\AppData\\Roaming\\npm\\gemini.cmd`)
-        - Store the path for use in spawned console
+     **If spawn_command_template doesn't exist, construct manually**:
      
-     4. **Spawn NEW console window** using stored shell type:
-        - **Read shell type** from `.gemini/shell-info.json` (loaded in step 2)
-        - **Use spawn command** based on stored shell type:
-        
-        **PowerShell** (if shell_type == "PowerShell"):
-        ```powershell
-        cmd /c start powershell -NoExit -Command "cd '$PWD'; gemini -y -i '/create-details-parser scraper=<scraper_slug> auto_next=true'"
-        ```
-        **CRITICAL**: 
-        - Use `cmd /c start` to spawn a completely independent PowerShell window (not inside current session)
-        - Use absolute path for `cd` command (replace with actual workspace root)
-        - Do NOT set PATH explicitly - PowerShell inherits PATH from parent process
-        - Pass `auto_next=true` to continue the chain (if applicable)
-        
-        **CMD** (if shell_type == "CMD"):
-        ```cmd
-        cmd /c start cmd /k "cd /d %CD% && gemini -y -i \"/create-details-parser scraper=<scraper_slug> auto_next=true\""
-        ```
-        **CRITICAL**: 
-        - Use `cmd /c start` to spawn a completely independent CMD window (not inside current session)
-        - Use absolute path for `cd` command (replace with actual workspace root)
-        - Pass `auto_next=true` to continue the chain (if applicable)
-        
-        **WSL/Ubuntu** (if shell_type == "WSL"):
-        ```bash
-        cmd /c start powershell -NoExit -Command "wsl -e bash -c \"cd '$PWD' && gemini -y -i '/create-details-parser scraper=<scraper_slug> auto_next=true'\""
-        ```
-        **CRITICAL**: 
-        - Use `cmd /c start` to spawn a completely independent PowerShell window (not inside current session)
-        - Pass `auto_next=true` to continue the chain (if applicable)
-        **Linux/Mac** (if shell_type == "Linux" or "Mac"):
-        ```bash
-        xterm -e "cd '$PWD' && gemini -y -i '/create-details-parser scraper=<scraper_slug> auto_next=true'" &
-        ```
-        **Key points**:
-        - Use shell type from `.gemini/shell-info.json` (no need to detect again)
-        - Use SAME shell type for spawned console (PowerShell → PowerShell, CMD → CMD, WSL → WSL)
-        - DO NOT use `wt -d .` directly as it may use wrong default profile (Ubuntu instead of PowerShell)
-        - Do NOT set PATH explicitly - shells inherit PATH from parent process automatically
-        - Use current working directory
-        - Pass `auto_next=true` to continue the chain
-        - This ensures colors and behavior match manual execution
-        **Key points**:
-        - Preserve current PATH environment variable
-        - Use current working directory
-        - PowerShell preserves colors better than CMD
-        - Use same shell type (PowerShell) as manual execution for consistency
-        This will:
-        - Close browser session (prevents about:blank tabs in new console)
-        - Spawn a NEW console/terminal window with same environment
-        - Run the next command in that new window with proper colors
-        - Keep the new console open after completion
-        - Current console stays open (completes naturally)
-   - **If `auto_next=false` or not provided**: Stop here and wait for user to manually run next command.
+     **PowerShell** (if shell_type == "PowerShell"):
+     ```bash
+     cmd /c start powershell -NoExit -Command "cd '$PWD'; gemini -y -i '/create-details-parser scraper=<scraper_slug> auto_next=true'"
+     ```
+     **CRITICAL**: 
+     - `cmd /c start` is ONLY used to spawn a new independent PowerShell window (not inside current session)
+     - The command runs in PowerShell and uses `gemini` directly (NOT full path - it's in PATH)
+     - Use `$PWD` for current working directory (same as initial Gemini CLI PWD)
+     - Do NOT set PATH explicitly - PowerShell inherits PATH from parent process automatically
+     - Do NOT use full path to gemini (e.g., `C:\\Users\\...\\gemini.cmd`) - just use `gemini`
+     - Pass `auto_next=true` to continue the chain
+     
+     **CMD** (if shell_type == "CMD"):
+     ```bash
+     cmd /c start cmd /k "cd /d %CD% && gemini -y -i \"/create-details-parser scraper=<scraper_slug> auto_next=true\""
+     ```
+     **CRITICAL**: 
+     - Use `cmd /c start` to spawn a completely independent CMD window (not inside current session)
+     - Use `%CD%` for current working directory (same as initial Gemini CLI PWD)
+     - Do NOT set PATH explicitly - CMD inherits PATH from parent process
+     - Pass `auto_next=true` to continue the chain
+     
+     **WSL** (if shell_type == "WSL"):
+     ```bash
+     cmd /c start powershell -NoExit -Command "wsl -e bash -c \"cd '$PWD' && gemini -y -i '/create-details-parser scraper=<scraper_slug> auto_next=true'\""
+     ```
+     **CRITICAL**: 
+     - Use `cmd /c start` to spawn a completely independent PowerShell window (not inside current session)
+     - Use `$PWD` for current working directory (same as initial Gemini CLI PWD)
+     - Do NOT set PATH explicitly - WSL inherits PATH from parent process
+     - Pass `auto_next=true` to continue the chain
+     
+     **Linux/Mac** (if shell_type == "Linux" or "Mac"):
+     ```bash
+     xterm -e "cd '$PWD' && gemini -y -i '/create-details-parser scraper=<scraper_slug> auto_next=true'" &
+     ```
+     **CRITICAL**: Pass `auto_next=true` to continue the chain
+   
+   - **EXECUTE** the shell command using `run_terminal_cmd` tool
+   - **DO NOT** just display the command - you MUST execute it
+   - **VERIFY** execution: The command should spawn a completely independent new PowerShell window (separate from Gemini CLI, like opening PowerShell from Windows Start menu)
+   - **AFTER EXECUTION**: This command is now COMPLETE. The spawned window will run independently.
+   - **END SESSION**: After successfully spawning the new window, this agent's work is done. The new window will handle the next phase.
 
 **CRITICAL COMPLETION REQUIREMENTS:**
 - ✅ All parsers generated (categories, subcategories if needed, listings)
@@ -719,92 +845,25 @@ Process:
 - ✅ phase-status.json updated
 - ✅ Sample detail URLs extracted
 - ✅ Completion report displayed with next steps
+- ✅ **IF auto_next=true**: Browser closed, shell type detected/stored, next command **EXECUTED** (not just displayed)
+  - **MANDATORY**: You MUST execute the shell command in step 32 if auto_next=true
+  - **DO NOT** just display the command - you MUST use `run_terminal_cmd` to execute it
+  - **VERIFY**: Check that new console window opened and command is running
+  - The command execution is REQUIRED, not optional
 
 **This command is now COMPLETE and INDEPENDENT.**
 **Next session can run /create-details-parser without any conversation history.**
 
-**Auto-Chaining Support**:
-- **Check `auto_next` parameter** from {{args}}:
-  - If `auto_next=true`: 
-    1. **MANDATORY**: Close browser session first using `browser_close()` MCP tool
-       - Browser session is tied to current console
-       - New console cannot access existing browser (will spawn about:blank tabs)
-    2. **Load or detect shell type**: 
-       - **First**: Check if `.gemini/shell-info.json` exists (USE ABSOLUTE PATH)
-       - **If exists**: Read shell type from JSON file (no need to detect again)
-       - **If not exists**: Detect shell type:
-         - **PowerShell**: Check if `$PSVersionTable` exists (PowerShell variable)
-         - **CMD**: Check if `%COMSPEC%` contains `cmd.exe`
-         - **WSL/Ubuntu**: Check if `$WSL_DISTRO_NAME` exists or running in WSL environment
-         - **Linux/Mac**: Check `$SHELL` variable
-       - **Store shell type** to `.gemini/shell-info.json` (USE ABSOLUTE PATH) if detected:
-         ```json
-         {
-           "shell_type": "PowerShell",
-           "detected_at": "<timestamp>",
-           "detection_method": "PSVersionTable",
-           "spawn_command_template": "cmd /c start powershell -NoExit -Command \"cd '{working_dir}'; {command}\""
-         }
-         ```
-       - **CRITICAL**: Use the SAME shell type as current session for consistency
-    3. **Find Gemini CLI path**: Find where `gemini` command is located:
-       - Execute: `where.exe gemini` (Windows) or `which gemini` (Linux/Mac)
-       - If not found, try: `npx @google/generative-ai-cli` (if installed via npm)
-       - Store the full path or command for use in spawned console
-    4. After browser closed, spawn NEW console window using **stored shell type**:
-       - **Read shell type** from `.gemini/shell-info.json` (loaded in step 2)
-       - **Use spawn command** based on stored shell type:
-       
-       **PowerShell** (if shell_type == "PowerShell"):
-       ```powershell
-       cmd /c start powershell -NoExit -Command "cd '$PWD'; gemini -y -i '/create-details-parser scraper=<scraper_slug> auto_next=true'"
-       ```
-       **CRITICAL**: 
-       - Use `cmd /c start` to spawn a completely independent PowerShell window (not inside current session)
-       - Use `$PWD` for current working directory (same as initial Gemini CLI PWD)
-       - Do NOT set PATH explicitly - PowerShell inherits PATH from parent process automatically
-       - Pass `auto_next=true` to continue the chain (if applicable)
-       
-       **CMD** (if shell_type == "CMD"):
-       ```cmd
-       cmd /c start cmd /k "cd /d %CD% && gemini -y -i \"/create-details-parser scraper=<scraper_slug> auto_next=true\""
-       ```
-       **CRITICAL**: 
-       - Use `cmd /c start` to spawn a completely independent CMD window (not inside current session)
-       - Use `%CD%` for current working directory (same as initial Gemini CLI PWD)
-       - Do NOT set PATH explicitly - CMD inherits PATH from parent process automatically
-       - Pass `auto_next=true` to continue the chain (if applicable)
-       
-       **WSL/Ubuntu** (if shell_type == "WSL"):
-       ```bash
-       cmd /c start powershell -NoExit -Command "wsl -e bash -c \"cd '$PWD' && gemini -y -i '/create-details-parser scraper=<scraper_slug> auto_next=true'\""
-       ```
-       **CRITICAL**: 
-       - Use `cmd /c start` to spawn a completely independent PowerShell window (not inside current session)
-       - Use `$PWD` for current working directory (same as initial Gemini CLI PWD)
-       - Do NOT set PATH explicitly - WSL inherits PATH from parent process automatically
-       - Pass `auto_next=true` to continue the chain (if applicable)
-       
-       **Linux/Mac** (if shell_type == "Linux" or "Mac"):
-       ```bash
-       xterm -e "cd '$PWD' && gemini -y -i '/create-details-parser scraper=<scraper_slug> auto_next=true'" &
-       ```
-       **CRITICAL**: 
-       - Do NOT set PATH explicitly - Linux/Mac shells inherit PATH from parent process automatically
-       - Pass `auto_next=true` to continue the chain (if applicable)
-       **Critical**: 
-       - Preserve `PATH` environment variable (so `gemini` command is found)
-       - Use same shell type (PowerShell) as manual execution for color consistency
-       - Use current working directory
-       This will:
-       - Close browser session (prevents about:blank tabs)
-       - Spawn a COMPLETELY INDEPENDENT new console/terminal window (separate from Gemini CLI, like opening PowerShell from Windows Start menu)
-       - Run next command in that new window with proper colors (like manual execution)
-       - Keep new console open after completion
-       - **AFTER EXECUTION**: This command is now COMPLETE. The spawned window will run independently.
-       - **END SESSION**: After successfully spawning the new window, this agent's work is done. The new window will handle the next phase.
-  - If `auto_next=false` or not provided: Display the "Next Command" message and stop (wait for user)
-- **Note**: Auto-chaining spawns a new console window, so each phase runs in its own window. Browser must be closed first. PATH must be preserved so `gemini` command is found.
+**Note**: Auto-chaining logic is handled in steps 28-32 above. This section is for reference only.
+
+🚨🚨🚨 **MANDATORY: STOP AFTER COMPLETION (if auto_next=false)** 🚨🚨🚨
+- **IF auto_next=false or not provided**: After displaying completion summary (step 27), you MUST STOP
+- **DO NOT continue with any other work, tasks, or projects**
+- **DO NOT create new scrapers, directories, or todo lists**
+- **DO NOT start any new work**
+- **This command is COMPLETE - END SESSION NOW**
+- **Wait for user's next command - do not proceed autonomously**
+- **IF auto_next=true**: Follow steps 28-32 to spawn next command, then END
 
 Examples:
   /create-navigation-parser scraper=naivas_online
