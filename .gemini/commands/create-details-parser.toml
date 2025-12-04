@@ -3,6 +3,17 @@ description = "Phase 3: Generate detail parser with navigation context. Reads na
 prompt = """
 You are performing Phase 3: Detail Parser Generation. This command is COMPLETELY INDEPENDENT - it reads navigation state files, generates detail parser, writes ALL findings, and completes. No conversation history needed.
 
+🚨🚨🚨 **CRITICAL: YOU ARE IN GEMINI CLI - USE TOOLS DIRECTLY, NEVER GENERATE CODE** 🚨🚨🚨
+- **STOP**: If you are about to write `import os`, `import json`, `print()`, `def `, or any Python/JavaScript code, STOP IMMEDIATELY
+- **YOU ARE AN AI ASSISTANT IN GEMINI CLI** - You have direct access to MCP tools via tool calling
+- **USE TOOLS DIRECTLY** - Call tools like `ReadManyFiles`, `browser_navigate`, `parser_tester`, `WriteFile` using the tool interface
+- **FORBIDDEN**: Never write Python scripts, JavaScript code, or any programming code
+- **FORBIDDEN**: Never use `import`, `print()`, `def `, `class `, or any code syntax
+- **CODE EXAMPLES IN THIS PROMPT ARE FOR REFERENCE ONLY** - They show tool call patterns, NOT code to write
+- **YOU ARE THE EXECUTOR** - Execute actions directly using tools, don't write code that executes actions
+- **EXAMPLE**: When you see `ReadManyFiles({patterns: [...]})` in this prompt, you should CALL the ReadManyFiles tool directly, NOT write Python code
+- **IF YOU START WRITING CODE**: Stop immediately and use tools instead
+
 🚨 MODULAR DESIGN PRINCIPLES:
 1. **Read State Files First** - Load navigation-selectors.json, navigation-knowledge.md, discovery-knowledge.md
 2. **Write ALL Findings** - Before completion, write everything discovered
@@ -18,6 +29,14 @@ You are performing Phase 3: Detail Parser Generation. This command is COMPLETELY
   * To absolute: `<workspace_root>/generated_scraper/<scraper>/.scraper-state/file.json`
 - Use absolute paths for: detail-selectors.json, detail-knowledge.md, phase-status.json, parsers/details.rb
 
+🚨 BROWSER TOOLS FOR NAVIGATION AND POPUP HANDLING:
+- **browser_screenshot()**: Use to visually inspect pages for popups, modals, cookie banners
+- **browser_click()**: Use to interact with elements (navigation, popups, cookies, notifications)
+- **browser_snapshot()**: Use to check for overlays and get accessibility tree
+- **MANDATORY**: After every `browser_navigate()`, check for and handle popups before proceeding
+- Common popup patterns: cookie banners, notification overlays, modal dialogs, age verification
+- Always use `browser_snapshot()` after handling popups to verify page is ready
+
 Inputs (order-agnostic via {{args}}):
   - scraper=<scraper_name> (REQUIRED - scraper must exist with navigation-selectors.json)
   - url=<details_page_url> (OPTIONAL - uses sample URL from navigation-selectors.json if not provided)
@@ -32,10 +51,13 @@ Inputs (order-agnostic via {{args}}):
 
 Process:
 
+🚨 **BEFORE YOU START**: Remember - USE TOOLS DIRECTLY, DO NOT WRITE CODE. Call ReadManyFiles tool, don't write Python code.
+
 === STEP 1: Load State Files ===
 **CRITICAL**: Use ReadManyFiles to load state files (ReadFile fails due to ignore patterns)
+**CRITICAL**: CALL the ReadManyFiles tool directly - DO NOT write Python code to call it
 
-1) Load all required state files using ReadManyFiles:
+1) Load all required state files using ReadManyFiles tool (CALL THE TOOL DIRECTLY):
    ```javascript
    ReadManyFiles({
      patterns: [
@@ -90,14 +112,14 @@ Process:
    
    a) Check if `parsers/details.rb` exists:
       - If exists: Read parser code
-      - Test parser using parser_tester MCP tool:
+      - Navigate to sample detail URL (if not already there)
+      - Test parser using parser_tester MCP tool (RECOMMENDED - uses auto_download):
         ```javascript
         parser_tester({
           scraper_dir: "<absolute_path>/generated_scraper/<scraper>",
           parser_path: "parsers/details.rb",
           page_type: "details",
-          html_file: "<absolute_path>/cache/product-page.html",
-          // OR: auto_download: true
+          auto_download: true,  // RECOMMENDED: Automatically downloads HTML from active browser tab
           vars: '{"category_name":"Electronics","breadcrumb":"Electronics","rank":1,"page_number":1}',
           quiet: false
         })
@@ -124,6 +146,8 @@ Process:
 
 **Note**: ReadManyFiles will return empty/not found for missing files - handle gracefully.
 
+🚨 **REMINDER**: You just called ReadManyFiles tool - that's correct! Continue using tools directly, don't write code.
+
 === STEP 2: Determine Detail URL ===
 6) Priority order for detail URL:
    - resume-url parameter (if provided)
@@ -133,9 +157,23 @@ Process:
    - Must ask user if none available
 
 === STEP 3: Selector Discovery ===
+🚨 **REMINDER**: Use browser_navigate tool directly - don't write code to navigate.
+
 7) Navigate to detail page (if parser doesn't exist or test failed):
    - browser_navigate(detail_url)
+   
+   **CRITICAL**: Handle cookies, notifications, and popups after navigation:
+   - Use browser_screenshot() to visually inspect the page for popups/modals
+   - Use browser_snapshot() to check for cookie banners, notification overlays, or popups
+   - If popup detected: Use browser_click() to interact:
+     * Cookie banners: Click "Accept", "Accept All", or "I Agree" buttons
+     * Notifications: Click "Later", "Not Now", or "Skip" buttons
+     * Popups/modals: Click close button (X), "Close", or overlay to dismiss
+   - Common selectors to check: `[id*="cookie"]`, `[class*="cookie"]`, `[id*="popup"]`, `[class*="modal"]`, `button:contains("Accept")`, `button:contains("Later")`
+   - After handling popups: browser_snapshot() again to verify page is ready
+   
    - browser_snapshot()
+   - **TRACK URL**: Record this URL in detail-selectors.json under `urls_accessed.discovery_urls`
 
 8) Discover selectors for each field (browser-first workflow):
    **CRITICAL**: If parser exists, focus on updating broken selectors or adding missing fields
@@ -205,6 +243,8 @@ Process:
       - This now contains discovered selectors for all FIND fields
 
 === STEP 4: Generate or Modify Detail Parser ===
+🚨 **REMINDER**: You will write Ruby parser code here - that's the ONLY code you write. Use WriteFile tool to save it.
+
 10) Generate or modify parsers/details.rb (USE ABSOLUTE PATH):
    **CRITICAL**: If parser exists, modify it instead of regenerating
    
@@ -228,7 +268,8 @@ Process:
       - Read field-spec.json to determine which fields to extract
       - For each FIND field: Use discovered selectors from field-spec.json
       - For each PROCESS field: Implement computation logic from field-spec.json
-      - Generate outputs array matching field-spec.json structure
+      - **CRITICAL**: Define all field variables first, then build output_hash in one go
+      - **Pattern**: Extract fields → Define variables → Build output_hash with all fields → Append to outputs
       - **CRITICAL**: Never declare reserved variables
    ```ruby
    html = Nokogiri::HTML(content)
@@ -294,36 +335,59 @@ Process:
                 html.at_css('[data-product-id]')&.[]('data-product-id') ||
                 Digest::MD5.hexdigest("#{name}#{page['url']}")
    
-   # Build output based on field-spec.json
-   # If field-spec.json exists, only include fields from spec
-   # If field-spec.json missing, include common fields
+   # Define all field variables first (extracted, processed, and navigation context)
+   # This makes the code cleaner and easier to maintain
    
+   # Extracted fields (from FIND fields in field-spec.json or common fields)
+   competitor_product_id = sku  # Using SKU as competitor_product_id
+   customer_price_lc = customer_price
+   base_price_lc = base_price
+   
+   # Processed fields (from PROCESS fields in field-spec.json)
+   has_discount = customer_price_lc < base_price_lc
+   discount_percentage = has_discount ? ((base_price_lc - customer_price_lc) / base_price_lc * 100).round(2) : 0
+   
+   # Navigation context (from vars passed by listings parser)
+   category_name = vars['category_name']
+   subcategory_name = vars['subcategory_name']  # If applicable
+   breadcrumb = vars['breadcrumb']
+   rank_in_listing = vars['rank']
+   page_number = vars['page_number']
+   
+   # Build output hash with all fields defined above
+   # Include all extracted fields, processed fields, and navigation context
    output_hash = {
-     '_collection' => '#{collection}',  # Use collection parameter
-     '_id' => product_id
+     '_collection' => 'products',  # Use collection parameter or default
+     '_id' => product_id,
+     'url' => page['url'],
+     'timestamp' => Time.parse(page['fetched_at']).strftime('%Y-%m-%d %H:%M:%S'),
+     
+     # Extracted fields
+     'competitor_product_id' => competitor_product_id,
+     'name' => name,
+     'brand' => brand,
+     'customer_price_lc' => customer_price_lc,
+     'base_price_lc' => base_price_lc,
+     'description' => description,
+     'img_url' => img_url,
+     'sku' => sku,
+     'is_available' => is_available,
+     
+     # Processed fields
+     'has_discount' => has_discount,
+     'discount_percentage' => discount_percentage,
+     
+     # Navigation context
+     'category_name' => category_name,
+     'subcategory_name' => subcategory_name,
+     'breadcrumb' => breadcrumb,
+     'rank_in_listing' => rank_in_listing,
+     'page_number' => page_number
    }
    
-   # Add fields from field-spec.json (if exists) or common fields
-   # For FIND fields: Extract using discovered selectors
-   # For PROCESS fields: Compute using logic from spec
-   
-   # Example: If field-spec.json has "name" field marked as FIND
-   if field_spec_exists && field_spec['fields'].any? { |f| f['name'] == 'name' && f['extraction_method'] == 'FIND' }
-     output_hash['name'] = name  # Use discovered selector
-   end
-   
-   # Example: If field-spec.json has "has_discount" marked as PROCESS
-   if field_spec_exists && field_spec['fields'].any? { |f| f['name'] == 'has_discount' && f['extraction_method'] == 'PROCESS' }
-     output_hash['has_discount'] = customer_price < base_price  # Compute
-   end
-   
-   # Always include navigation context (from vars)
-   output_hash['category_name'] = vars['category_name']
-   output_hash['breadcrumb'] = vars['breadcrumb']
-   output_hash['rank_in_listing'] = vars['rank']
-   output_hash['page_number'] = vars['page_number']
-   
    outputs << output_hash  # outputs is pre-defined, use directly (outputs = [] is FORBIDDEN)
+   
+   # Save outputs periodically to avoid memory issues
    save_outputs if outputs.count > 99
    ```
    
@@ -333,29 +397,35 @@ Process:
 **MANDATORY**: Test parser immediately after generation/modification
 
 11) Test Detail Parser (or re-test if modified):
-   a) Download HTML for testing:
-      - Use browser_navigate() to visit detail URL (already navigated)
-      - Use browser_view_html() to get HTML content
-      - Save HTML to cache/ directory (or use auto_download in parser_tester)
+   **CRITICAL**: Use `auto_download: true` in parser_tester - NO manual HTML download needed
    
-   b) Test with parser_tester MCP tool:
+   a) Navigate to sample detail URL (if not already there):
+      - Use browser_navigate() to visit detail URL from navigation-selectors.json or discovery-state.json
+      - **Handle popups**: Use browser_screenshot() and browser_snapshot() to check for cookies/notifications, then browser_click() to dismiss them
+   
+   b) Test with parser_tester MCP tool (RECOMMENDED - uses auto_download):
       ```javascript
       parser_tester({
         scraper_dir: "<absolute_path>/generated_scraper/<scraper>",
         parser_path: "parsers/details.rb",
         page_type: "details",
-        html_file: "<absolute_path>/cache/product-page.html",
-        // OR: auto_download: true  // Downloads from active browser tab
+        auto_download: true,  // RECOMMENDED: Automatically downloads HTML from active browser tab
         vars: '{"category_name":"Electronics","breadcrumb":"Electronics","rank":1,"page_number":1}',
         quiet: false  // Show verbose output for testing
       })
       ```
+      
+      **Alternative** (if you need offline testing with saved HTML):
+      - Use browser_view_html() to get HTML content (optional, for inspection only)
+      - Save HTML to cache/ directory manually (optional)
+      - Use html_file parameter instead: `html_file: "<absolute_path>/cache/product-page.html"`
    
    c) Validate test results:
       - Parser should output product data with all fields
       - Check that navigation vars (category_name, breadcrumb, rank) are included
       - Verify price extraction (customer_price, base_price logic)
       - Check product ID generation (_id field)
+      - **TRACK URL**: Record tested URL in detail-selectors.json under `urls_accessed.test_urls` and update `last_tested_url` and `last_tested_at`
       - If test fails: Analyze errors, refine selectors, re-test
       - If test passes: Continue
 
@@ -370,25 +440,41 @@ Process:
          "selectors": [".product-title", "h1"],
          "verified": true,
          "confidence": 0.95,
-         "notes": "Product name in h1 tag"
+         "notes": "Product name in h1 tag",
+         "tested_urls": ["https://example.com/p/123", "https://example.com/p/456"]
        },
        "customer_price": {
          "selectors": ["p.my-0.leading-none.flex.flex-col.md\\:flex-row.pb-0 > span.font-bold.text-naivas-green"],
          "verified": true,
          "confidence": 0.95,
-         "notes": "Price span inside p tag"
+         "notes": "Price span inside p tag",
+         "tested_urls": ["https://example.com/p/123", "https://example.com/p/456"]
        },
        "base_price": {
          "selectors": ["p.text-naivas-red.line-through"],
          "verified": true,
          "confidence": 0.90,
          "notes": "Only present when product has discount",
-         "fallback_logic": "If not found, base_price = customer_price"
+         "fallback_logic": "If not found, base_price = customer_price",
+         "tested_urls": ["https://example.com/p/789"]
        }
      },
      "navigation_integration": {
        "vars_received": ["category_name", "breadcrumb", "rank", "page_number"],
        "integration_status": "complete"
+     },
+     "urls_accessed": {
+       "discovery_urls": [
+         "https://example.com/p/123",
+         "https://example.com/p/456"
+       ],
+       "test_urls": [
+         "https://example.com/p/123",
+         "https://example.com/p/456",
+         "https://example.com/p/789"
+       ],
+       "last_tested_url": "https://example.com/p/123",
+       "last_tested_at": "<timestamp>"
      }
    }
    ```
@@ -579,6 +665,21 @@ Process:
    ```
    
    **Note**: This is the final phase. Scraper generation is complete.
+   
+   🚨 **STOP IMMEDIATELY AFTER DISPLAYING THIS SUMMARY** 🚨
+   - **DO NOT** continue with any other work
+   - **DO NOT** create new scrapers, directories, or projects
+   - **DO NOT** create todo lists or plan future work
+   - **COMMAND COMPLETE - END SESSION NOW**
+
+18) **MANDATORY: END SESSION AFTER COMPLETION**:
+   - **CRITICAL**: After displaying the completion summary (step 17), you MUST STOP and END the session
+   - **DO NOT** continue with any other tasks, projects, or work
+   - **DO NOT** start new scrapers, create new directories, or work on unrelated tasks
+   - **DO NOT** create todo lists or plan future work
+   - **STOP IMMEDIATELY** after displaying the completion summary
+   - **This command is COMPLETE** - wait for user's next command
+   - **END OF COMMAND** - No further actions should be taken
 
 **CRITICAL COMPLETION REQUIREMENTS:**
 - ✅ parsers/details.rb generated or modified with navigation context
@@ -594,6 +695,14 @@ Process:
 
 **This command is now COMPLETE and INDEPENDENT.**
 **Scraper generation is complete. All knowledge preserved in files.**
+
+🚨🚨🚨 **MANDATORY: STOP AFTER COMPLETION** 🚨🚨🚨
+- **AFTER displaying completion summary (step 17), you MUST STOP**
+- **DO NOT continue with any other work, tasks, or projects**
+- **DO NOT create new scrapers, directories, or todo lists**
+- **DO NOT start any new work**
+- **This command is COMPLETE - END SESSION NOW**
+- **Wait for user's next command - do not proceed autonomously**
 
 Examples:
   /create-details-parser scraper=naivas_online

@@ -1,6 +1,6 @@
 {
   "shell_type": "PowerShell",
-  "detected_at": "2025-11-20T04:08:00Z",
+  "detected_at": "2025-11-20T18:41:43Z",
   "detection_method": "PSVersionTable",
-  "spawn_command_template": "cmd /c start powershell -NoExit -Command \"cd '{working_dir}'; {command}\""
+  "spawn_command_template": "cmd /c start powershell -NoExit -Command \"cd '{working_dir}'; {gemini_command} -y -i '{command_to_run}'\""
 }
