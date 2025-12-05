@@ -6,12 +6,12 @@ You are performing Phase 2: Navigation Parser Generation. This command is COMPLE
 🚨🚨🚨 **CRITICAL: YOU ARE IN GEMINI CLI - USE TOOLS DIRECTLY, NEVER GENERATE CODE** 🚨🚨🚨
 - **STOP**: If you are about to write `import os`, `import json`, `print()`, `def `, or any Python/JavaScript code, STOP IMMEDIATELY
 - **YOU ARE AN AI ASSISTANT IN GEMINI CLI** - You have direct access to MCP tools via tool calling
-- **USE TOOLS DIRECTLY** - Call tools like `ReadManyFiles`, `browser_navigate`, `parser_tester`, `WriteFile` using the tool interface
+- **USE TOOLS DIRECTLY** - Call tools like `read_file`, `browser_navigate`, `parser_tester`, `write_file` using the tool interface
 - **FORBIDDEN**: Never write Python scripts, JavaScript code, or any programming code
 - **FORBIDDEN**: Never use `import`, `print()`, `def `, `class `, or any code syntax
 - **CODE EXAMPLES IN THIS PROMPT ARE FOR REFERENCE ONLY** - They show tool call patterns, NOT code to write
 - **YOU ARE THE EXECUTOR** - Execute actions directly using tools, don't write code that executes actions
-- **EXAMPLE**: When you see `ReadManyFiles({patterns: [...]})` in this prompt, you should CALL the ReadManyFiles tool directly, NOT write Python code
+- **EXAMPLE**: When you see instructions to read files, you should CALL the read_file tool directly for each file, NOT write Python code
 - **IF YOU START WRITING CODE**: Stop immediately and use tools instead
 
 🚨 **CRITICAL AUTO-CHAINING EXECUTION RULE**:
@@ -21,6 +21,14 @@ You are performing Phase 2: Navigation Parser Generation. This command is COMPLE
 - **DO NOT** just display the command - you MUST execute it using `run_terminal_cmd` tool
 - **DO NOT** skip execution - the execution is MANDATORY, not optional
 - Failure to execute when `auto_next=true` is a completion failure
+
+🚨 **CRITICAL: DataHen v3 Parser Structure**:
+- **DataHen parsers are TOP-LEVEL SCRIPTS, NOT FUNCTIONS**
+- **NEVER** use `def parse(...)` or any function definition in parser files
+- **NEVER** wrap parser code in functions - DataHen executes parser files directly as scripts
+- **ALWAYS** start parser code directly with `html = Nokogiri::HTML(content)` - no function wrapper
+- **Pre-defined variables** available at script level: `content`, `page`, `pages`, `outputs`
+- **Why**: DataHen loads and executes parser files as Ruby scripts, not as function calls
 
 🚨 MODULAR DESIGN PRINCIPLES:
 1. **Read State Files First** - Load discovery-state.json and discovery-knowledge.md
@@ -53,25 +61,20 @@ Inputs (order-agnostic via {{args}}):
 
 Process:
 
-🚨 **BEFORE YOU START**: Remember - USE TOOLS DIRECTLY, DO NOT WRITE CODE. Call ReadManyFiles tool, don't write Python code.
+🚨 **BEFORE YOU START**: Remember - USE TOOLS DIRECTLY, DO NOT WRITE CODE. Call read_file tool for each file individually.
 
 === STEP 1: Load State Files ===
-**CRITICAL**: Use ReadManyFiles to load state files (ReadFile fails due to ignore patterns)
-**CRITICAL**: CALL the ReadManyFiles tool directly - DO NOT write Python code to call it
+**CRITICAL**: Read files one by one using read_file tool
+**CRITICAL**: CALL the read_file tool directly for each file - DO NOT write Python code
 
-1) Load all required state files using ReadManyFiles tool (CALL THE TOOL DIRECTLY):
-   ```javascript
-   ReadManyFiles({
-     patterns: [
-       "generated_scraper/<scraper>/.scraper-state/phase-status.json",
-       "generated_scraper/<scraper>/.scraper-state/discovery-state.json",
-       "generated_scraper/<scraper>/.scraper-state/discovery-knowledge.md",
-       "generated_scraper/<scraper>/.scraper-state/navigation-selectors.json",
-       "generated_scraper/<scraper>/.scraper-state/navigation-knowledge.md"
-     ],
-     target_directory: "<workspace_root>"
-   })
-   ```
+1) Load all required state files one by one using read_file tool (CALL THE TOOL DIRECTLY for each file):
+   - Read `generated_scraper/<scraper>/.scraper-state/phase-status.json` (if exists)
+   - Read `generated_scraper/<scraper>/.scraper-state/discovery-state.json` (if exists)
+   - Read `generated_scraper/<scraper>/.scraper-state/discovery-knowledge.md` (if exists)
+   - Read `generated_scraper/<scraper>/.scraper-state/navigation-selectors.json` (if exists)
+   - Read `generated_scraper/<scraper>/.scraper-state/navigation-knowledge.md` (if exists)
+   
+   **Note**: If a file doesn't exist, read_file will return an error - handle gracefully and continue with other files.
 
 2) Parse loaded files:
    - **phase-status.json**: Check navigation_discovery.status
@@ -82,6 +85,7 @@ Process:
      * has_categories, has_subcategories, has_listings
      * navigation_depth
      * sample_urls (category, subcategory, listings)
+     * **popup_handling**: Read successful popup handling strategy (selectors or coordinates) for reuse
    - **discovery-knowledge.md**: Read for additional context
    - **navigation-selectors.json**: If exists, check what's already discovered
    - **navigation-knowledge.md**: If exists, read previous discoveries
@@ -120,7 +124,7 @@ Process:
       - **If parser doesn't exist**:
         * Continue with normal discovery and generation workflow
 
-**Note**: ReadManyFiles will return empty/not found for missing files - handle gracefully.
+**Note**: If a file doesn't exist, read_file will return an error - handle gracefully and continue with other files.
 
 === STEP 2: Categories Parser (if has_categories) ===
 5) Check for existing parser and test:
@@ -149,15 +153,57 @@ Process:
    - Use sample_urls.category from discovery-state.json
    - browser_navigate(sample_category_url)
    
-   **CRITICAL**: Handle cookies, notifications, and popups after navigation:
-   - Use browser_screenshot() to visually inspect the page for popups/modals
-   - Use browser_snapshot() to check for cookie banners, notification overlays, or popups
-   - If popup detected: Use browser_click() to interact:
-     * Cookie banners: Click "Accept", "Accept All", or "I Agree" buttons
-     * Notifications: Click "Later", "Not Now", or "Skip" buttons
-     * Popups/modals: Click close button (X), "Close", or overlay to dismiss
-   - Common selectors to check: `[id*="cookie"]`, `[class*="cookie"]`, `[id*="popup"]`, `[class*="modal"]`, `button:contains("Accept")`, `button:contains("Later")`
-   - After handling popups: browser_snapshot() again to verify page is ready
+   **🚨 CRITICAL PRIORITY: Handle popups/overlays FIRST before any other operations**
+   
+   **Popup Handling Workflow** (execute immediately after navigation):
+   
+   a) **Step 1 - Check for existing strategy**:
+      - Check discovery-state.json for existing popup_handling strategy (if available from site discovery)
+      - **If popup_handling exists**: Try using documented selectors/coordinates first
+   
+   b) **Step 2 - Check for popups**:
+      - browser_snapshot() to check accessibility tree for popup elements
+      - browser_screenshot() to visually inspect for popups/modals/cookie banners
+   
+   c) **Step 3 - First strategy: ESC key press**:
+      - If popup detected (in snapshot or screenshot):
+        * Try pressing ESC key using browser_press_key("Escape") to dismiss modal/overlay
+        * **Note**: ESC key often closes modals, popups, and overlays without needing to find buttons
+        * browser_snapshot() to verify popup dismissed
+        * **If failed (popup still present)**: Proceed to Step 4
+   
+   d) **Step 4 - Second strategy: Click upper left corner**:
+      - If popup still present after Step 3:
+        * Click in the upper left corner of the viewport (e.g., coordinates 10, 10) using browser_mouse_click_xy("Upper left corner", 10, 10)
+        * **Note**: This often dismisses overlays/modals that can be closed by clicking outside the content area
+        * **Note**: browser_mouse_click_xy requires --caps=vision capability flag
+        * browser_snapshot() to verify popup dismissed
+        * **If failed (popup still present)**: Proceed to Step 5
+   
+   e) **Step 5 - Third strategy: Selector-based attempt (1 attempt only)**:
+      - If popup detected in snapshot:
+        * Use browser_click() with element ref or selector to interact:
+          - Cookie banners: Click "Accept", "Accept All", or "I Agree" buttons
+          - Notifications: Click "Later", "Not Now", or "Skip" buttons
+          - Popups/modals: Click close button (X), "Close", or overlay to dismiss
+        * Common selectors to check: `[id*="cookie"]`, `[class*="cookie"]`, `[id*="popup"]`, `[class*="modal"]`, `button:contains("Accept")`, `button:contains("Later")`
+        * browser_snapshot() to verify popup dismissed
+        * **If failed (popup still present)**: Proceed to Step 6
+   
+   f) **Step 6 - Final fallback: Coordinate-based on specific button (if Step 5 failed)**:
+      - If popup visible in screenshot BUT NOT dismissed by Step 5 (or not in snapshot):
+        * Analyze screenshot (AI vision) to identify button location
+        * Extract coordinates (x, y) from button center region
+        * Use browser_mouse_click_xy("Accept button", x, y) to click by coordinates
+        * **Note**: browser_mouse_click_xy requires --caps=vision capability flag
+        * **Important**: Coordinate clicks are viewport-relative; click center of button region, not edge
+        * browser_snapshot() to verify popup dismissed
+   
+   g) **Step 7 - Final verification**:
+      - browser_snapshot() to confirm page is ready (no popups blocking interaction)
+      - **Only proceed to page analysis after popups are confirmed dismissed**
+   
+   - **Logging**: If coordinate-based click was used, document in navigation-knowledge.md for future reference
    
    - browser_snapshot()
    - **TRACK URL**: Record this URL in navigation-selectors.json under `urls_accessed.categories_discovery`
@@ -168,14 +214,20 @@ Process:
 8) Generate or modify parsers/categories.rb (USE ABSOLUTE PATH):
    **CRITICAL**: If parser exists, modify it instead of regenerating
    
-   🚨 **FORBIDDEN: Reserved Variables**:
+   🚨 **CRITICAL: DataHen v3 Parser Structure**:
+   - **DataHen parsers are TOP-LEVEL SCRIPTS, NOT FUNCTIONS**
+   - **NEVER** use `def parse(...)` or any function definition
    - **NEVER** declare `pages = []` or `outputs = []` - these are pre-defined by DataHen
-   - **NEVER** declare `page` or `content` - these are pre-defined
+   - **NEVER** declare `page` or `content` - these are pre-defined and available at script level
+   - **ALWAYS** start directly with `html = Nokogiri::HTML(content)` - no function wrapper
    - **ALWAYS** use reserved variables directly: `pages << {...}` and `outputs << {...}`
-   - **VALIDATION**: Before writing code, scan for reserved variable declarations and remove them
+   - **VALIDATION**: Before writing code, scan for function definitions and reserved variable declarations and remove them
+   
+   **Why**: DataHen executes parser files as scripts directly. It does NOT call functions. The parser script has access to pre-defined variables (`content`, `page`, `pages`, `outputs`) at the top level.
    
    a) If parser exists:
       - Read existing parser code
+      - **Check for function definitions** (`def parse(...)`) and remove them - keep only the script body
       - **Check for reserved variable declarations** (pages = [], outputs = []) and remove them
       - Identify selector locations
       - Update selectors with newly discovered ones
@@ -184,9 +236,13 @@ Process:
    
    b) If parser doesn't exist:
       - Generate new parser from scratch
+      - **CRITICAL**: Start directly with script code, NO function definition
       - **CRITICAL**: Never declare reserved variables
    
+   **Correct Structure** (DataHen v3 - top-level script):
    ```ruby
+   # frozen_string_literal: true
+   
    html = Nokogiri::HTML(content)
    vars = page['vars'] || {}
    base_url = vars['base_url'] || page['url'].split('/')[0..2].join('/')
@@ -194,6 +250,7 @@ Process:
    # Category link selector (discovered via browser tools)
    # NOTE: pages is pre-defined by DataHen - DO NOT declare it (pages = [] is FORBIDDEN)
    categories = html.css('.category-link-selector')  # Use discovered selector
+   
    categories.each do |category|
      cat_name = category.text.strip
      cat_url = category['href']
@@ -213,6 +270,13 @@ Process:
      save_pages if pages.count > 99
    end
    ```
+   
+   **WRONG Structure** (DO NOT USE):
+   ```ruby
+   def parse(page, html, vars)  # ❌ FORBIDDEN - DataHen doesn't call functions
+     # ... code ...
+   end
+   ```
 
 9) Test Categories Parser (or re-test if modified):
    **MANDATORY**: Test parser immediately after generation
@@ -221,7 +285,7 @@ Process:
    
    a) Navigate to sample category URL (if not already there):
       - Use browser_navigate() to visit sample category URL from discovery-state.json
-      - **Handle popups**: Use browser_screenshot() and browser_snapshot() to check for cookies/notifications, then browser_click() to dismiss them
+      - **Handle popups**: Use browser_screenshot() and browser_snapshot() to check for cookies/notifications, then browser_click() to dismiss them (or browser_mouse_click_xy() if popup invisible to accessibility tree)
    
    b) Test with parser_tester MCP tool (RECOMMENDED - uses auto_download):
       ```javascript
@@ -270,14 +334,55 @@ Process:
    - Use sample_urls.subcategory from discovery-state.json
    - browser_navigate(sample_subcategory_url)
    
-   **CRITICAL**: Handle cookies, notifications, and popups after navigation:
-   - Use browser_screenshot() to visually inspect the page for popups/modals
-   - Use browser_snapshot() to check for cookie banners, notification overlays, or popups
-   - If popup detected: Use browser_click() to interact:
-     * Cookie banners: Click "Accept", "Accept All", or "I Agree" buttons
-     * Notifications: Click "Later", "Not Now", or "Skip" buttons
-     * Popups/modals: Click close button (X), "Close", or overlay to dismiss
-   - After handling popups: browser_snapshot() again to verify page is ready
+   **🚨 CRITICAL PRIORITY: Handle popups/overlays FIRST before any other operations**
+   
+   **Popup Handling Workflow** (execute immediately after navigation):
+   
+   a) **Step 1 - Check for existing strategy**:
+      - Check discovery-state.json for existing popup_handling strategy (if available from site discovery)
+      - **If popup_handling exists**: Try using documented selectors/coordinates first
+   
+   b) **Step 2 - Check for popups**:
+      - browser_snapshot() to check accessibility tree for popup elements
+      - browser_screenshot() to visually inspect for popups/modals/cookie banners
+   
+   c) **Step 3 - First strategy: ESC key press**:
+      - If popup detected (in snapshot or screenshot):
+        * Try pressing ESC key using browser_press_key("Escape") to dismiss modal/overlay
+        * **Note**: ESC key often closes modals, popups, and overlays without needing to find buttons
+        * browser_snapshot() to verify popup dismissed
+        * **If failed (popup still present)**: Proceed to Step 4
+   
+   d) **Step 4 - Second strategy: Click upper left corner**:
+      - If popup still present after Step 3:
+        * Click in the upper left corner of the viewport (e.g., coordinates 10, 10) using browser_mouse_click_xy("Upper left corner", 10, 10)
+        * **Note**: This often dismisses overlays/modals that can be closed by clicking outside the content area
+        * **Note**: browser_mouse_click_xy requires --caps=vision capability flag
+        * browser_snapshot() to verify popup dismissed
+        * **If failed (popup still present)**: Proceed to Step 5
+   
+   e) **Step 5 - Third strategy: Selector-based attempt (1 attempt only)**:
+      - If popup detected in snapshot:
+        * Use browser_click() with element ref or selector to interact:
+          - Cookie banners: Click "Accept", "Accept All", or "I Agree" buttons
+          - Notifications: Click "Later", "Not Now", or "Skip" buttons
+          - Popups/modals: Click close button (X), "Close", or overlay to dismiss
+        * Common selectors to check: `[id*="cookie"]`, `[class*="cookie"]`, `[id*="popup"]`, `[class*="modal"]`, `button:contains("Accept")`, `button:contains("Later")`
+        * browser_snapshot() to verify popup dismissed
+        * **If failed (popup still present)**: Proceed to Step 6
+   
+   f) **Step 6 - Final fallback: Coordinate-based on specific button (if Step 5 failed)**:
+      - If popup visible in screenshot BUT NOT dismissed by Step 5 (or not in snapshot):
+        * Analyze screenshot (AI vision) to identify button location
+        * Extract coordinates (x, y) from button center region
+        * Use browser_mouse_click_xy("Accept button", x, y) to click by coordinates
+        * **Note**: browser_mouse_click_xy requires --caps=vision capability flag
+        * **Important**: Coordinate clicks are viewport-relative; click center of button region, not edge
+        * browser_snapshot() to verify popup dismissed
+   
+   g) **Step 7 - Final verification**:
+      - browser_snapshot() to confirm page is ready (no popups blocking interaction)
+      - **Only proceed to page analysis after popups are confirmed dismissed**
    
    - **TRACK URL**: Record this URL in navigation-selectors.json under `urls_accessed.subcategories_discovery`
    - Discover subcategory link selectors
@@ -286,9 +391,16 @@ Process:
 13) Generate or modify parsers/subcategories.rb (USE ABSOLUTE PATH):
    **CRITICAL**: If parser exists, modify it instead of regenerating
    
-   🚨 **FORBIDDEN: Reserved Variables**:
+   🚨 **CRITICAL: DataHen v3 Parser Structure**:
+   - **DataHen parsers are TOP-LEVEL SCRIPTS, NOT FUNCTIONS**
+   - **NEVER** use `def parse(...)` or any function definition
    - **NEVER** declare `pages = []` or `outputs = []` - these are pre-defined by DataHen
-   - **VALIDATION**: Before writing code, scan for reserved variable declarations and remove them
+   - **NEVER** declare `page` or `content` - these are pre-defined and available at script level
+   - **ALWAYS** start directly with `html = Nokogiri::HTML(content)` - no function wrapper
+   - **ALWAYS** use reserved variables directly: `pages << {...}` and `outputs << {...}`
+   - **VALIDATION**: Before writing code, scan for function definitions and reserved variable declarations and remove them
+   
+   **Why**: DataHen executes parser files as scripts directly. It does NOT call functions. The parser script has access to pre-defined variables (`content`, `page`, `pages`, `outputs`) at the top level.
    
    a) If parser exists: 
       - Read and modify selectors
@@ -329,7 +441,7 @@ Process:
    
    a) Navigate to sample subcategory URL (if not already there):
       - Use browser_navigate() to visit sample subcategory URL from discovery-state.json
-      - **Handle popups**: Use browser_screenshot() and browser_snapshot() to check for cookies/notifications, then browser_click() to dismiss them
+      - **Handle popups**: Use browser_screenshot() and browser_snapshot() to check for cookies/notifications, then browser_click() to dismiss them (or browser_mouse_click_xy() if popup invisible to accessibility tree)
    
    b) Test with parser_tester MCP tool (RECOMMENDED - uses auto_download):
       ```javascript
@@ -377,14 +489,55 @@ Process:
    - Use sample_urls.listings from discovery-state.json
    - browser_navigate(sample_listings_url)
    
-   **CRITICAL**: Handle cookies, notifications, and popups after navigation:
-   - Use browser_screenshot() to visually inspect the page for popups/modals
-   - Use browser_snapshot() to check for cookie banners, notification overlays, or popups
-   - If popup detected: Use browser_click() to interact:
-     * Cookie banners: Click "Accept", "Accept All", or "I Agree" buttons
-     * Notifications: Click "Later", "Not Now", or "Skip" buttons
-     * Popups/modals: Click close button (X), "Close", or overlay to dismiss
-   - After handling popups: browser_snapshot() again to verify page is ready
+   **🚨 CRITICAL PRIORITY: Handle popups/overlays FIRST before any other operations**
+   
+   **Popup Handling Workflow** (execute immediately after navigation):
+   
+   a) **Step 1 - Check for existing strategy**:
+      - Check discovery-state.json for existing popup_handling strategy (if available from site discovery)
+      - **If popup_handling exists**: Try using documented selectors/coordinates first
+   
+   b) **Step 2 - Check for popups**:
+      - browser_snapshot() to check accessibility tree for popup elements
+      - browser_screenshot() to visually inspect for popups/modals/cookie banners
+   
+   c) **Step 3 - First strategy: ESC key press**:
+      - If popup detected (in snapshot or screenshot):
+        * Try pressing ESC key using browser_press_key("Escape") to dismiss modal/overlay
+        * **Note**: ESC key often closes modals, popups, and overlays without needing to find buttons
+        * browser_snapshot() to verify popup dismissed
+        * **If failed (popup still present)**: Proceed to Step 4
+   
+   d) **Step 4 - Second strategy: Click upper left corner**:
+      - If popup still present after Step 3:
+        * Click in the upper left corner of the viewport (e.g., coordinates 10, 10) using browser_mouse_click_xy("Upper left corner", 10, 10)
+        * **Note**: This often dismisses overlays/modals that can be closed by clicking outside the content area
+        * **Note**: browser_mouse_click_xy requires --caps=vision capability flag
+        * browser_snapshot() to verify popup dismissed
+        * **If failed (popup still present)**: Proceed to Step 5
+   
+   e) **Step 5 - Third strategy: Selector-based attempt (1 attempt only)**:
+      - If popup detected in snapshot:
+        * Use browser_click() with element ref or selector to interact:
+          - Cookie banners: Click "Accept", "Accept All", or "I Agree" buttons
+          - Notifications: Click "Later", "Not Now", or "Skip" buttons
+          - Popups/modals: Click close button (X), "Close", or overlay to dismiss
+        * Common selectors to check: `[id*="cookie"]`, `[class*="cookie"]`, `[id*="popup"]`, `[class*="modal"]`, `button:contains("Accept")`, `button:contains("Later")`
+        * browser_snapshot() to verify popup dismissed
+        * **If failed (popup still present)**: Proceed to Step 6
+   
+   f) **Step 6 - Final fallback: Coordinate-based on specific button (if Step 5 failed)**:
+      - If popup visible in screenshot BUT NOT dismissed by Step 5 (or not in snapshot):
+        * Analyze screenshot (AI vision) to identify button location
+        * Extract coordinates (x, y) from button center region
+        * Use browser_mouse_click_xy("Accept button", x, y) to click by coordinates
+        * **Note**: browser_mouse_click_xy requires --caps=vision capability flag
+        * **Important**: Coordinate clicks are viewport-relative; click center of button region, not edge
+        * browser_snapshot() to verify popup dismissed
+   
+   g) **Step 7 - Final verification**:
+      - browser_snapshot() to confirm page is ready (no popups blocking interaction)
+      - **Only proceed to page analysis after popups are confirmed dismissed**
    
    - **TRACK URL**: Record this URL in navigation-selectors.json under `urls_accessed.listings_discovery`
    - Discover product link selectors
@@ -429,9 +582,16 @@ Process:
 19) Generate or modify parsers/listings.rb (USE ABSOLUTE PATH):
    **CRITICAL**: If parser exists, modify it instead of regenerating
    
-   🚨 **FORBIDDEN: Reserved Variables**:
+   🚨 **CRITICAL: DataHen v3 Parser Structure**:
+   - **DataHen parsers are TOP-LEVEL SCRIPTS, NOT FUNCTIONS**
+   - **NEVER** use `def parse(...)` or any function definition
    - **NEVER** declare `pages = []` or `outputs = []` - these are pre-defined by DataHen
-   - **VALIDATION**: Before writing code, scan for reserved variable declarations and remove them
+   - **NEVER** declare `page` or `content` - these are pre-defined and available at script level
+   - **ALWAYS** start directly with `html = Nokogiri::HTML(content)` - no function wrapper
+   - **ALWAYS** use reserved variables directly: `pages << {...}` and `outputs << {...}`
+   - **VALIDATION**: Before writing code, scan for function definitions and reserved variable declarations and remove them
+   
+   **Why**: DataHen executes parser files as scripts directly. It does NOT call functions. The parser script has access to pre-defined variables (`content`, `page`, `pages`, `outputs`) at the top level.
    
    a) If parser exists:
       - Read existing parser code
@@ -498,7 +658,7 @@ Process:
    
    a) Navigate to sample listings URL (if not already there):
       - Use browser_navigate() to visit sample listings URL from discovery-state.json
-      - **Handle popups**: Use browser_screenshot() and browser_snapshot() to check for cookies/notifications, then browser_click() to dismiss them
+      - **Handle popups**: Use browser_screenshot() and browser_snapshot() to check for cookies/notifications, then browser_click() to dismiss them (or browser_mouse_click_xy() if popup invisible to accessibility tree)
    
    b) Test with parser_tester MCP tool (RECOMMENDED - uses auto_download):
       ```javascript
