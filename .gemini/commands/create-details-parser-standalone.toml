@@ -18,7 +18,26 @@ Spec parsing:
 
 Pipeline:
   1) Explore (browser-first):
-     - browser_navigate(url) → browser_snapshot
+     - browser_navigate(url)
+     
+     **CRITICAL**: Handle cookies, notifications, and popups after navigation:
+     - Use browser_screenshot() to visually inspect the page for popups/modals
+     - Use browser_snapshot() to check for cookie banners, notification overlays, or popups
+     - **Primary approach** (if popup detected in snapshot):
+       * Use browser_click() with element ref or selector to interact:
+         - Cookie banners: Click "Accept", "Accept All", or "I Agree" buttons
+         - Notifications: Click "Later", "Not Now", or "Skip" buttons
+         - Popups/modals: Click close button (X), "Close", or overlay to dismiss
+       * Common selectors to check: `[id*="cookie"]`, `[class*="cookie"]`, `[id*="popup"]`, `[class*="modal"]`, `button:contains("Accept")`, `button:contains("Later")`
+     - **Fallback approach** (if popup NOT in snapshot BUT visible in screenshot - invisible to accessibility tree):
+       * Analyze screenshot to identify button location (AI vision analysis)
+       * Extract coordinates (x, y) from button center region
+       * Use browser_mouse_click_xy("Accept button", x, y) to click by coordinates
+       * **Note**: browser_mouse_click_xy requires --caps=vision capability flag
+       * **Important**: Coordinate clicks are viewport-relative; click center of button region, not edge
+     - **Verification**: After handling popups (selector-based OR coordinate-based), browser_snapshot() again to verify page is ready
+     
+     - browser_snapshot() → Get accessibility tree
      - Use browser_inspect_element to reveal real CSS selectors for key fields
      - Use browser_verify_selector for text fields only (names, prices, labels)
      - Use browser_evaluate for non-text attributes (img src, data-*). Do NOT use verify_selector for images

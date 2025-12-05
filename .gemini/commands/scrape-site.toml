@@ -6,12 +6,12 @@ You are performing Phase 1: Site Discovery for scraper generation. This command 
 🚨🚨🚨 **CRITICAL: YOU ARE IN GEMINI CLI - USE TOOLS DIRECTLY, NEVER GENERATE CODE** 🚨🚨🚨
 - **STOP**: If you are about to write `import os`, `import json`, `print()`, `def `, or any Python/JavaScript code, STOP IMMEDIATELY
 - **YOU ARE AN AI ASSISTANT IN GEMINI CLI** - You have direct access to MCP tools via tool calling
-- **USE TOOLS DIRECTLY** - Call tools like `ReadManyFiles`, `browser_navigate`, `parser_tester`, `WriteFile` using the tool interface
+- **USE TOOLS DIRECTLY** - Call tools like `read_file`, `browser_navigate`, `parser_tester`, `write_file` using the tool interface
 - **FORBIDDEN**: Never write Python scripts, JavaScript code, or any programming code
 - **FORBIDDEN**: Never use `import`, `print()`, `def `, `class `, or any code syntax
 - **CODE EXAMPLES IN THIS PROMPT ARE FOR REFERENCE ONLY** - They show tool call patterns, NOT code to write
 - **YOU ARE THE EXECUTOR** - Execute actions directly using tools, don't write code that executes actions
-- **EXAMPLE**: When you see `ReadManyFiles({patterns: [...]})` in this prompt, you should CALL the ReadManyFiles tool directly, NOT write Python code
+- **EXAMPLE**: When you see instructions to read files, you should CALL the read_file tool directly for each file, NOT write Python code
 - **IF YOU START WRITING CODE**: Stop immediately and use tools instead
 
 🚨 **CRITICAL AUTO-CHAINING EXECUTION RULE**:
@@ -58,23 +58,18 @@ CRITICAL: Parse {{args}} immediately and extract the `url` parameter. Use ONLY t
 
 Process:
 
-🚨 **BEFORE YOU START**: Remember - USE TOOLS DIRECTLY, DO NOT WRITE CODE. Call ReadManyFiles tool, don't write Python code.
+🚨 **BEFORE YOU START**: Remember - USE TOOLS DIRECTLY, DO NOT WRITE CODE. Call read_file tool for each file individually.
 
 === STEP 1: Load State Files (if exist) ===
-**CRITICAL**: Use ReadManyFiles to load state files (ReadFile fails due to ignore patterns)
-**CRITICAL**: CALL the ReadManyFiles tool directly - DO NOT write Python code to call it
+**CRITICAL**: Read files one by one using read_file tool
+**CRITICAL**: CALL the read_file tool directly for each file - DO NOT write Python code
 
-1) Load existing state files using ReadManyFiles tool (CALL THE TOOL DIRECTLY):
-   ```javascript
-   ReadManyFiles({
-     patterns: [
-       "generated_scraper/<scraper_slug>/.scraper-state/phase-status.json",
-       "generated_scraper/<scraper_slug>/.scraper-state/discovery-state.json",
-       "generated_scraper/<scraper_slug>/.scraper-state/discovery-knowledge.md"
-     ],
-     target_directory: "<workspace_root>"
-   })
-   ```
+1) Load existing state files one by one using read_file tool (CALL THE TOOL DIRECTLY for each file):
+   - Read `generated_scraper/<scraper_slug>/.scraper-state/phase-status.json` (if exists)
+   - Read `generated_scraper/<scraper_slug>/.scraper-state/discovery-state.json` (if exists)
+   - Read `generated_scraper/<scraper_slug>/.scraper-state/discovery-knowledge.md` (if exists)
+   
+   **Note**: If a file doesn't exist, read_file will return an error - handle gracefully and continue with other files.
 
 2) Handle results:
    - **If phase-status.json exists**: Parse and check site_discovery.status
@@ -84,8 +79,6 @@ Process:
    - **If discovery-state.json exists**: Parse site structure, use for context
    - **If discovery-knowledge.md exists**: Read for additional context
    - **If no files exist**: Start fresh discovery (expected for first run)
-
-**Note**: ReadManyFiles will return empty/not found for missing files - handle gracefully.
 
 === STEP 2: Parse Field Specification (if provided) ===
 2) If `spec` parameter provided:
@@ -162,15 +155,58 @@ Before writing ANY file, convert relative path to absolute:
    - Extract URL from {{args}}: `url="https://example.com"` → use `https://example.com`
    - browser_navigate(extracted_url)
    
-   **CRITICAL**: Handle cookies, notifications, and popups after navigation:
-   - Use browser_screenshot() to visually inspect the page for popups/modals
-   - Use browser_snapshot() to check for cookie banners, notification overlays, or popups
-   - If popup detected: Use browser_click() to interact:
-     * Cookie banners: Click "Accept", "Accept All", or "I Agree" buttons
-     * Notifications: Click "Later", "Not Now", or "Skip" buttons
-     * Popups/modals: Click close button (X), "Close", or overlay to dismiss
-   - Common selectors to check: `[id*="cookie"]`, `[class*="cookie"]`, `[id*="popup"]`, `[class*="modal"]`, `button:contains("Accept")`, `button:contains("Later")`
-   - After handling popups: browser_snapshot() again to verify page is ready
+   **🚨 CRITICAL PRIORITY: Handle popups/overlays FIRST before any other operations**
+   **IMPORTANT**: Document successful popup handling in discovery-state.json for reuse in later phases
+   
+   **Popup Handling Workflow** (execute immediately after navigation):
+   
+   a) **Step 1 - Check for popups**:
+      - browser_snapshot() to check accessibility tree for popup elements
+      - browser_screenshot() to visually inspect for popups/modals/cookie banners
+   
+   b) **Step 2 - First strategy: ESC key press**:
+      - If popup detected (in snapshot or screenshot):
+        * Try pressing ESC key using browser_press_key("Escape") to dismiss modal/overlay
+        * **Note**: ESC key often closes modals, popups, and overlays without needing to find buttons
+        * browser_snapshot() to verify popup dismissed
+        * **If successful**: Document method as "esc_key" in discovery-state.json under `popup_handling.handling_method`
+        * **If failed (popup still present)**: Proceed to Step 3
+   
+   c) **Step 3 - Second strategy: Click upper left corner**:
+      - If popup still present after Step 2:
+        * Click in the upper left corner of the viewport (e.g., coordinates 10, 10) using browser_mouse_click_xy("Upper left corner", 10, 10)
+        * **Note**: This often dismisses overlays/modals that can be closed by clicking outside the content area
+        * **Note**: browser_mouse_click_xy requires --caps=vision capability flag
+        * browser_snapshot() to verify popup dismissed
+        * **If successful**: Document method as "corner_click" in discovery-state.json under `popup_handling.handling_method`
+        * **If failed (popup still present)**: Proceed to Step 4
+   
+   d) **Step 4 - Third strategy: Selector-based attempt (1 attempt only)**:
+      - If popup detected in snapshot:
+        * Use browser_click() with element ref or selector to interact:
+          - Cookie banners: Click "Accept", "Accept All", or "I Agree" buttons
+          - Notifications: Click "Later", "Not Now", or "Skip" buttons
+          - Popups/modals: Click close button (X), "Close", or overlay to dismiss
+        * Common selectors to check: `[id*="cookie"]`, `[class*="cookie"]`, `[id*="popup"]`, `[class*="modal"]`, `button:contains("Accept")`, `button:contains("Later")`
+        * browser_snapshot() to verify popup dismissed
+        * **If successful**: Document selector/ref in discovery-state.json under `popup_handling.successful_selectors`
+        * **If failed (popup still present)**: Proceed to Step 5
+   
+   e) **Step 5 - Final fallback: Coordinate-based on specific button (if Step 4 failed)**:
+      - If popup visible in screenshot BUT NOT dismissed by Step 4 (or not in snapshot):
+        * Analyze screenshot (AI vision) to identify button location
+        * Extract coordinates (x, y) from button center region
+        * Use browser_mouse_click_xy("Accept button", x, y) to click by coordinates
+        * **Note**: browser_mouse_click_xy requires --caps=vision capability flag
+        * **Important**: Coordinate clicks are viewport-relative; click center of button region, not edge
+        * browser_snapshot() to verify popup dismissed
+        * **If successful**: Document coordinates and viewport size in discovery-state.json under `popup_handling.coordinate_clicks`
+   
+   f) **Step 6 - Final verification**:
+      - browser_snapshot() to confirm page is ready (no popups blocking interaction)
+      - **Only proceed to page analysis after popups are confirmed dismissed**
+   
+   **Documentation**: Store successful popup handling strategy in discovery-state.json for reuse in later phases
    
    - browser_snapshot() to understand page structure
 
@@ -242,6 +278,32 @@ Before writing ANY file, convert relative path to absolute:
        ],
        "last_accessed_url": "<last_url_analyzed>",
        "last_accessed_at": "<timestamp>"
+     },
+     "popup_handling": {
+       "popups_encountered": true/false,
+       "handling_method": "selector_based" | "coordinate_based" | "none",
+       "successful_selectors": [
+         {
+           "popup_type": "cookie_banner" | "notification" | "modal",
+           "button_text": "Accept" | "Accept All" | "I Agree" | "Later" | "Not Now" | "Skip" | "Close" | "X",
+           "selector": "[id*=\"cookie\"]" | "[class*=\"cookie\"]" | "button:contains(\"Accept\")" | etc.,
+           "element_ref": "e123" | null,
+           "verified": true,
+           "tested_urls": ["<url_where_popup_was_dismissed>"]
+         }
+       ],
+       "coordinate_clicks": [
+         {
+           "popup_type": "cookie_banner" | "notification" | "modal",
+           "button_text": "Accept" | "Accept All" | etc.,
+           "coordinates": {"x": 960, "y": 850},
+           "viewport_size": {"width": 1920, "height": 1080},
+           "verified": true,
+           "tested_urls": ["<url_where_popup_was_dismissed>"],
+           "notes": "Popup was visible in screenshot but not in accessibility tree"
+         }
+       ],
+       "notes": "Any additional observations about popup behavior"
      }
    }
    ```
@@ -290,6 +352,18 @@ Before writing ANY file, convert relative path to absolute:
    - **Detail**: https://example.com/p/123
      - Purpose: Individual product page
      - Notes: Accessible from listings page
+   
+   ## Popup Handling
+   
+   ### Popups Encountered
+   - **Status**: Popups encountered: Yes/No
+   - **Handling Method**: selector_based / coordinate_based / none
+   - **Details**: See discovery-state.json `popup_handling` section for complete strategy
+   
+   ### Successful Popup Handling Strategy
+   - **Documented in**: discovery-state.json under `popup_handling`
+   - **Reusable**: This strategy will be reused in navigation and detail parser phases
+   - **Notes**: [Any observations about popup behavior, frequency, etc.]
    
    ## Navigation Patterns
    
