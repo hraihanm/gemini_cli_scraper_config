@@ -1,0 +1,52 @@
+﻿column_name,column_type,dev
+competitor_name,str,hardcoded: `Supermercado Real - Paraguay`
+competitor_type,str,hardcoded `local_store`
+store_name,str,FIND
+store_id,str,FIND
+country_iso,str,INFER
+language,str,INFER
+currency_code_lc,str,INFER
+scraped_at_timestamp,timestamp,"hardcoded: Set directly with `Time.parse(page['fetched_at']).strftime('%Y-%m-%d %H:%M:%S'),`"
+competitor_product_id,str,"FIND - can be from internal product id, SKU, barcode, etc. Anything that can be good identifier"
+name,str,FIND
+brand,str,FIND
+category_id,str,FIND or REFER - probably hides inside html
+category,str,FIND - probably exist in bradcrumb or find from product cards (just keep the main categories)
+sub_category,str,"FIND - probably exist in bradcrumb or find from product cards. Format: [cat level 2,3,4...] joined by ` > `"
+customer_price_lc,float,FIND - current price
+base_price_lc,float,FIND - the price before discount
+has_discount,boolean,DETERMINE - if customer_price_lc < base_price_lc then its TRUE and if customer_price_lc >= base_price_lc then its FALSE
+discount_percentage,float,DETERMINE - [(base_price_lc - customer_price_lc ) / base_price_lc]*100 rounded to max 7 decimal places as it is a float number
+rank_in_listing,int,"FIND - from listings, usually referred from vars"
+page_number,int,"FIND - from listings, usually referred from vars"
+product_pieces,int,null
+size_std,float,null
+size_unit_std,str,null
+description,str,FIND
+img_url,str,"FIND - if multiple images persiists, then create img_url_2 to 4 only"
+barcode,int,FIND - if any
+sku,str,FIND - if any
+url,str,page['url']
+is_available,boolean,FIND
+crawled_source,str,hardcoded: `WEB`
+is_promoted,boolean,DETERMINE - true if it has discount
+type_of_promotion,str,"FIND - if any. Can be 'Banner', or 'Badge', etc."
+promo_attributes,struct changed to str,"FIND - if any. Format: `{""promo_detail"":""'Any 2 @ $9.95'"",""free_item"":""""}`"
+is_private_label,boolean,if brand empty then null if not then check if brand include panda if not true else false
+latitude,float,null
+longitude,float,null
+reviews,struct changed to str,null
+store_reviews,struct changed to str,null
+item_attributes,struct changed to str,FIND - if any
+item_identifiers,struct changed to str,"INFER - usually from barcod of ean if exist. Format:
+`{""barcode"":""'8888030066041','8888030300282'""}`
+`{""barcode"":""'20916118286'"",""ean"":""'123'""}`"
+country_of_origin,str,null
+variants,str,null
+allergens,str,null
+nutrition_facts,str,null
+ingredients,str,null
+dimensions,str,null
+img_url_2,str,FIND - if any
+img_url_3,str,FIND - if any
+img_url_4,str,FIND - if any

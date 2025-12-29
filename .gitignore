@@ -5,3 +5,6 @@ cache/*
 original_scraper/*
 example_scraper_project/*
 conversations/*
+.gemini/.env
+.windsurf/*
+z_other/*

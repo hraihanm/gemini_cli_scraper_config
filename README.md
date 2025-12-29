@@ -3,6 +3,10 @@ Gemini Scraper Commands (Usage)
 
 This repository bundles three Gemini CLI commands that scaffold a full scraper: discover the site, build navigation parsers, then build detail parsers.
 
+Run location
+------------
+- Run all commands from a terminal in the repository root (this folder) so relative paths resolve correctly.
+
 Prerequisite
 ------------
 - Playwright MCP Mod (experiment branch): https://github.com/hraihanm/playwright-mcp-mod/tree/experiment
@@ -24,10 +28,12 @@ Add the MCP server to your `.gemini/settings.json` so Gemini CLI can load the Pl
 
 Quick start
 -----------
-Run these commands in order (adjust arguments to your target site):
+Run these commands in order (adjust arguments to your target site). Use `auto_next=true` if you want the next command to run automatically after the current one finishes:
 
 1) `/scrape-site name=<scraper_slug> url=<https://target-site/> [spec=path/to/spec.csv]`
+   - Optional: `auto_next=true` will automatically call `/create-navigation-parser` when done.
 2) `/create-navigation-parser scraper=<scraper_slug>`
+   - Optional: `auto_next=true` will automatically call `/create-details-parser` when done.
 3) `/create-details-parser scraper=<scraper_slug> [url=<sample-detail-url>] [spec=...]`
 
 What each command does
