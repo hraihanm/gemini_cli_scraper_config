@@ -6,7 +6,7 @@ store_id,str,FIND
 country_iso,str,INFER
 language,str,INFER
 currency_code_lc,str,INFER
-scraped_at_timestamp,timestamp,"hardcoded: Set directly with `Time.parse(page['fetched_at']).strftime('%Y-%m-%d %H:%M:%S'),`"
+scraped_at_timestamp,timestamp,"Set directly with `Time.parse(page['fetched_at']).strftime('%Y-%m-%d %H:%M:%S'),`"
 competitor_product_id,str,"FIND - can be from internal product id, SKU, barcode, etc. Anything that can be good identifier"
 name,str,FIND
 brand,str,FIND

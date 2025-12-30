@@ -125,30 +125,58 @@ html.css('.category-item a')   # This will work
 - Console messages are NOT actionable for web scraping purposes
 
 ### Pagination Investigation Protocol
+**Pagination Strategy Priority Order** (check in this order):
+
+1. **Strategy 1: Count-Based Calculation** (check FIRST - if product count is displayed):
+   - Look for product count indicators in page text
+   - Extract total product count using regex
+   - Calculate total pages: total_products ÷ products_per_page
+   - Generate pagination URLs based on discovered pattern
+
+2. **Strategy 2: Next Button** (check SECOND - most common):
+   - Find next button/link in pagination area
+   - Extract next URL from button href
+
+3. **Strategy 3: Infinite Scroll** (check THIRD - requires browser automation):
+   - Scroll page to trigger loading
+   - Monitor network requests for API calls
+   - Document API endpoint and parameters
+
+4. **Strategy 4: Query Parameter Pattern** (check FOURTH):
+   - Check if pagination uses ?page=2, ?page=3 pattern
+
+5. **Strategy 5: Path Pattern** (check FIFTH):
+   - Check if pagination uses /page/2, /page/3 pattern
+
 **When Standard Pagination Detection Fails**:
 If pagination buttons/links are not visible or working, investigate network requests:
 
 1. **Product Count Analysis**: Look for product count indicators in categories/subcategories
-2. **Network Request Investigation**: Use `browser_network_requests()` to find pagination-related API calls
+2. **Network Request Investigation**: Use `browser_network_requests_simplified()` to find pagination-related API calls
+   - **RECOMMENDED**: Use `browser_network_requests_simplified()` instead of `browser_network_requests()`
+   - **Why**: Simplified version filters out analytics, images, fonts - shows only relevant API calls
+   - **Benefits**: Cleaner output, easier to identify pagination endpoints, includes query params and POST bodies
 3. **Count-Based Calculation**: Calculate total pages needed (total_products ÷ products_per_page)
 4. **API Pattern Discovery**: Identify pagination parameters in network requests (page, offset, limit)
 5. **Fallback Pagination**: Generate pagination URLs based on discovered patterns
 
 **Example Pagination Investigation**:
 ```javascript
-// 1. Check for product count indicators
+// 1. Check for product count indicators (Strategy 1)
 browser_evaluate(() => {
-  const countElements = document.querySelectorAll('[class*="count"], [class*="total"], [class*="results"]');
+  const countElements = document.querySelectorAll('[class*="count"], [class*="total"], [class*="results"], [class*="product-count"]');
   return Array.from(countElements).map(el => ({
     text: el.textContent,
-    class: el.className
+    class: el.className,
+    id: el.id
   }));
 });
 
-// 2. Investigate network requests for pagination patterns
-browser_network_requests();
+// 2. Investigate network requests for pagination patterns (Strategy 3 - Infinite Scroll)
+// RECOMMENDED: Use browser_network_requests_simplified for cleaner output
+browser_network_requests_simplified();  // Filters out analytics, images, fonts
 
-// 3. Calculate pagination based on product count
+// 3. Calculate pagination based on product count (Strategy 1)
 // If 120 products found and 20 per page = 6 pages needed
 // Generate URLs: ?page=1, ?page=2, ?page=3, ?page=4, ?page=5, ?page=6
 ```

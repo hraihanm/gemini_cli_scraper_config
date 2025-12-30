@@ -1,0 +1,691 @@
+description = "Phase 1: Site discovery and boilerplate initialization. Copies dmart_dloc_boilerplate template, then analyzes site structure and updates boilerplate files."
+
+prompt = """
+You are performing Phase 1: Site Discovery for scraper generation using the dmart_dloc_boilerplate template. This command is COMPLETELY INDEPENDENT - it reads no conversation history, only state files. It copies the boilerplate template, then updates files with discovered information.
+
+🚨🚨🚨 **CRITICAL: YOU ARE IN GEMINI CLI - USE TOOLS DIRECTLY, NEVER GENERATE CODE** 🚨🚨🚨
+- **STOP**: If you are about to write `import os`, `import json`, `print()`, `def `, or any Python/JavaScript code, STOP IMMEDIATELY
+- **YOU ARE AN AI ASSISTANT IN GEMINI CLI** - You have direct access to MCP tools via tool calling
+- **USE TOOLS DIRECTLY** - Call tools like `read_file`, `browser_navigate`, `parser_tester`, `write_file` using the tool interface
+- **FORBIDDEN**: Never write Python scripts, JavaScript code, or any programming code
+- **FORBIDDEN**: Never use `import`, `print()`, `def `, `class `, or any code syntax
+- **CODE EXAMPLES IN THIS PROMPT ARE FOR REFERENCE ONLY** - They show tool call patterns, NOT code to write
+- **YOU ARE THE EXECUTOR** - Execute actions directly using tools, don't write code that executes actions
+- **EXAMPLE**: When you see instructions to read files, you should CALL the read_file tool directly for each file, NOT write Python code
+- **IF YOU START WRITING CODE**: Stop immediately and use tools instead
+
+🚨 **CRITICAL AUTO-CHAINING EXECUTION RULE**:
+- **MANDATORY**: If `auto_next=true` parameter is provided in `{{args}}`, you MUST execute the next command automatically
+- After displaying completion summary (step 18), you MUST check for `auto_next=true` in `{{args}}`
+- If `auto_next=true`, you MUST execute steps 19-23 (check auto_next, close browser, detect shell, find gemini path, spawn console, execute command)
+- **DO NOT** just display the command - you MUST execute it using `run_terminal_cmd` tool
+- **DO NOT** skip execution - the execution is MANDATORY, not optional
+- Failure to execute when `auto_next=true` is a completion failure
+
+🚨 **BOILERPLATE-BASED APPROACH**:
+- **This command uses the dmart_dloc_boilerplate template** - it does NOT create files from scratch
+- **Step 1**: Copy entire `templates/dmart_dloc_boilerplate/` directory to `generated_scraper/<scraper_name>/`
+- **Step 2**: Edit existing boilerplate files (seeder.rb, lib/headers.rb) with discovered information
+- **Step 3**: Config.yaml already exists in boilerplate - verify structure only
+- **Step 4**: All parser files already exist with PLACEHOLDER selectors - will be updated by subsequent commands
+
+🚨 MODULAR DESIGN PRINCIPLES:
+1. **Copy Boilerplate First** - Copy template directory structure
+2. **Read State Files** - Check for existing discovery-state.json
+3. **Write ALL Findings** - Before completion, write everything discovered
+4. **Write Knowledge Files** - Human-readable + AI-readable summaries
+5. **Self-Contained** - All needed info comes from state files or user input
+6. **Clear Completion** - Report what's done, what's next, how to continue
+
+🚨 CRITICAL - ABSOLUTE PATHS REQUIRED:
+- **ALL WriteFile operations MUST use ABSOLUTE PATHS** - Relative paths will fail
+- Before writing any file, convert relative path to absolute:
+  * Determine workspace root (current working directory)
+  * Convert: `generated_scraper/<scraper>/.scraper-state/file.json`
+  * To absolute: `<workspace_root>/generated_scraper/<scraper>/.scraper-state/file.json`
+  * Example: `D:\\DataHen\\projects\\gemini_cli_testbed\\generated_scraper\\naivas_online\\.scraper-state\\phase-status.json`
+- Use absolute paths for: phase-status.json, discovery-state.json, discovery-knowledge.md, browser-context.json
+- **browser-context.json location**: `generated_scraper/<scraper>/.scraper-state/browser-context.json` (scraper-specific, NOT global)
+
+🚨 BROWSER TOOLS FOR NAVIGATION AND POPUP HANDLING:
+- **browser_screenshot()**: Use to visually inspect pages for popups, modals, cookie banners
+- **browser_click()**: Use to interact with elements (navigation, popups, cookies, notifications)
+- **browser_snapshot()**: Use to check for overlays and get accessibility tree
+- **MANDATORY**: After every `browser_navigate()`, check for and handle popups before proceeding
+- Common popup patterns: cookie banners, notification overlays, modal dialogs, age verification
+- Always use `browser_snapshot()` after handling popups to verify page is ready
+
+Inputs (order-agnostic via {{args}}):
+  - url=<site_url> (REQUIRED - target website URL) - USE THIS EXACT URL ONLY
+  - name=<scraper_name> | --scraper <scraper_name> (REQUIRED)
+  - spec=<path-to-CSV-or-JSON> (OPTIONAL - field specification file, e.g., spec_general_sample.csv)
+  - out=<base_dir> (OPTIONAL, default: "./generated_scraper")
+  - auto_next=true|false (OPTIONAL, default: false) - If true, automatically execute next command (/dmart-navigation-parser)
+
+CRITICAL: Parse {{args}} immediately and extract the `url` parameter. Use ONLY that URL - ignore any other URLs in context.
+
+Process:
+
+🚨 **BEFORE YOU START**: Remember - USE TOOLS DIRECTLY, DO NOT WRITE CODE. Call read_file tool for each file individually.
+
+=== STEP 1: Load State Files (if exist) ===
+**CRITICAL**: Read files one by one using read_file tool
+**CRITICAL**: CALL the read_file tool directly for each file - DO NOT write Python code
+
+1) Load existing state files one by one using read_file tool (CALL THE TOOL DIRECTLY for each file):
+   - Read `generated_scraper/<scraper_slug>/.scraper-state/phase-status.json` (if exists)
+   - Read `generated_scraper/<scraper_slug>/.scraper-state/discovery-state.json` (if exists)
+   - Read `generated_scraper/<scraper_slug>/.scraper-state/discovery-knowledge.md` (if exists)
+   
+   **Note**: If a file doesn't exist, read_file will return an error - handle gracefully and continue with other files.
+
+2) Handle results:
+   - **If phase-status.json exists**: Parse and check site_discovery.status
+     * If "completed": Display summary, suggest next phase (`/dmart-navigation-parser`)
+     * If "in_progress": Resume from checkpoint
+     * Else: Start fresh discovery
+   - **If discovery-state.json exists**: Parse site structure, use for context
+   - **If discovery-knowledge.md exists**: Read for additional context
+   - **If no files exist**: Start fresh discovery (expected for first run)
+
+=== STEP 2: Copy Boilerplate Template ===
+**CRITICAL**: Copy the entire boilerplate directory structure before making any edits
+
+3) Check if scraper directory exists:
+   - If `generated_scraper/<scraper_slug>/` exists:
+     * Read existing files to preserve customizations
+     * Only update files that need changes (URLs, selectors)
+     * Preserve any manual edits to lib/regex.rb, lib/helpers.rb, etc.
+   - If scraper directory does NOT exist:
+     * Copy entire `templates/dmart_dloc_boilerplate/` directory to `generated_scraper/<scraper_slug>/`
+     * Use `run_terminal_cmd` to copy directory structure:
+       - Windows: `xcopy /E /I /Y templates\\dmart_dloc_boilerplate generated_scraper\\<scraper_slug>`
+       - Linux/Mac: `cp -r templates/dmart_dloc_boilerplate generated_scraper/<scraper_slug>`
+     * Verify copy was successful by reading a few key files
+
+4) Verify boilerplate structure copied:
+   - Read `generated_scraper/<scraper_slug>/config.yaml` (should exist)
+   - Read `generated_scraper/<scraper_slug>/seeder/seeder.rb` (should exist)
+   - Read `generated_scraper/<scraper_slug>/lib/headers.rb` (should exist)
+   - Read `generated_scraper/<scraper_slug>/parsers/categories.rb` (should exist)
+   - Read `generated_scraper/<scraper_slug>/parsers/details.rb` (should exist)
+   - If any files are missing, report error and stop
+
+=== STEP 3: Parse Field Specification (if provided) ===
+5) If `spec` parameter provided:
+   a) Read spec file (JSON preferred, CSV fallback):
+      - **JSON format** (preferred): Read JSON file directly
+        * Check if file has `version`, `fields` array structure
+        * Validate JSON structure matches expected format
+        * If valid JSON: Use directly, add discovery tracking fields if missing
+      - **CSV format** (fallback): `column_name,column_type,dev_notes`
+        * Parse each row to extract: field name, type, extraction method, notes
+        * Normalize field names to snake_case
+        * Convert to JSON structure with priorities
+   
+   b) Parse extraction method from notes:
+      - **FIND**: Notes contain "FIND" or field needs selector discovery
+      - **PROCESS**: Notes contain "PROCESS" or computation logic
+      - **DETERMINE**: Notes contain "DETERMINE" or conditional logic
+      - **INFER**: Notes contain "INFER" or derived from other fields
+      - **HARDCODED**: Notes contain "hardcoded" or fixed value
+      - **null**: Notes contain "null" or field is optional/not available
+   
+   c) Determine priority for each field:
+      - **Priority 1** (Critical): name, competitor_product_id, customer_price_lc, base_price_lc, is_available
+      - **Priority 2** (Important): brand, category, sub_category, description, img_url, sku, barcode, rank_in_listing, page_number, has_discount, discount_percentage, is_promoted
+      - **Priority 3** (Standard): All other FIND/PROCESS/DETERMINE/INFER fields (default)
+      - **Priority 4** (Optional): Fields with null extraction_method or optional fields (allergens, nutrition_facts, ingredients, dimensions, latitude, longitude, reviews, store_reviews)
+      - **If JSON has priority field**: Use it directly
+      - **If CSV or priority missing**: Apply priority mapping above, default to 3
+   
+   d) Create field-spec.json structure:
+      ```json
+      {
+        "version": "1.0",
+        "source_file": "<spec_file_path>",
+        "parsed_at": "<timestamp>",
+        "fields": [
+          {
+            "name": "competitor_product_id",
+            "type": "str",
+            "extraction_method": "FIND",
+            "priority": 1,
+            "notes": "Find the product-id if possible or else use sku or barcode",
+            "selectors": [],
+            "verified": false,
+            "discovered": false
+          },
+          {
+            "name": "has_discount",
+            "type": "boolean",
+            "extraction_method": "DETERMINE",
+            "priority": 2,
+            "notes": "true if it has discount",
+            "computation": "customer_price_lc < base_price_lc",
+            "selectors": [],
+            "verified": false,
+            "discovered": false
+          }
+        ],
+        "discovery_status": {
+          "total_fields": 0,
+          "find_fields": 0,
+          "discovered_fields": 0,
+          "verified_fields": 0,
+          "pending_fields": 0,
+          "last_discovery_at": null
+        }
+      }
+      ```
+   
+   e) Calculate discovery_status:
+      - Count total_fields: length of fields array
+      - Count find_fields: fields where extraction_method == "FIND"
+      - Count discovered_fields: fields where discovered == true
+      - Count verified_fields: fields where verified == true
+      - Count pending_fields: find_fields - discovered_fields
+      - Set last_discovery_at: null (will be updated by dmart-details-parser)
+   
+   f) Sort fields by priority:
+      - Sort fields array by priority (1→2→3→4)
+      - Within same priority, maintain original order
+      - This ensures Priority 1 fields are discovered first
+   
+   g) Save field-spec.json (USE ABSOLUTE PATH):
+      - Path: `generated_scraper/<scraper>/.scraper-state/field-spec.json`
+      - **CRITICAL**: Include all fields with priorities, discovery tracking, and discovery_status
+      - This will be used by dmart-details-parser to systematically discover ALL FIND fields
+
+=== STEP 4: Initialize State Directory ===
+6) Create `.scraper-state/` directory if it doesn't exist:
+   - Use `run_terminal_cmd` to create directory:
+     - Windows: `mkdir generated_scraper\\<scraper_slug>\\.scraper-state`
+     - Linux/Mac: `mkdir -p generated_scraper/<scraper_slug>/.scraper-state`
+
+7) Initialize phase-status.json (USE ABSOLUTE PATH):
+   ```json
+   {
+     "scraper_name": "<scraper_slug>",
+     "version": "1.0.0",
+     "created_at": "<timestamp>",
+     "current_phase": "site_discovery",
+     "completed_phases": [],
+     "phase_status": {
+       "site_discovery": {"status": "in_progress"},
+       "navigation_discovery": {"status": "pending"},
+       "detail_discovery": {"status": "pending"}
+     }
+   }
+   ```
+
+=== STEP 5: Site Discovery ===
+8) Navigate to site URL (from {{args}} parameter):
+   - Extract URL from {{args}}: `url="https://example.com"` → use `https://example.com`
+   - browser_navigate(extracted_url)
+   
+   **🚨 CRITICAL PRIORITY: Handle popups/overlays FIRST before any other operations**
+   **IMPORTANT**: Document successful popup handling in discovery-state.json for reuse in later phases
+   
+   **Popup Handling Workflow** (execute immediately after navigation):
+   
+   a) **Step 1 - Check for popups**:
+      - browser_snapshot() to check accessibility tree for popup elements
+      - browser_screenshot() to visually inspect for popups/modals/cookie banners
+   
+   b) **Step 2 - First strategy: ESC key press**:
+      - If popup detected (in snapshot or screenshot):
+        * Try pressing ESC key using browser_press_key("Escape") to dismiss modal/overlay
+        * **Note**: ESC key often closes modals, popups, and overlays without needing to find buttons
+        * browser_snapshot() to verify popup dismissed
+        * **If successful**: Document method as "esc_key" in discovery-state.json under `popup_handling.handling_method`
+        * **If failed (popup still present)**: Proceed to Step 3
+   
+   c) **Step 3 - Second strategy: Click upper left corner**:
+      - If popup still present after Step 2:
+        * Click in the upper left corner of the viewport (e.g., coordinates 10, 10) using browser_mouse_click_xy("Upper left corner", 10, 10)
+        * **Note**: This often dismisses overlays/modals that can be closed by clicking outside the content area
+        * **Note**: browser_mouse_click_xy requires --caps=vision capability flag
+        * browser_snapshot() to verify popup dismissed
+        * **If successful**: Document method as "corner_click" in discovery-state.json under `popup_handling.handling_method`
+        * **If failed (popup still present)**: Proceed to Step 4
+   
+   d) **Step 4 - Third strategy: Selector-based attempt (1 attempt only)**:
+      - If popup detected in snapshot:
+        * Use browser_click() with element ref or selector to interact:
+          - Cookie banners: Click "Accept", "Accept All", or "I Agree" buttons
+          - Notifications: Click "Later", "Not Now", or "Skip" buttons
+          - Popups/modals: Click close button (X), "Close", or overlay to dismiss
+        * Common selectors to check: `[id*="cookie"]`, `[class*="cookie"]`, `[id*="popup"]`, `[class*="modal"]`, `button:contains("Accept")`, `button:contains("Later")`
+        * browser_snapshot() to verify popup dismissed
+        * **If successful**: Document selector/ref in discovery-state.json under `popup_handling.successful_selectors`
+        * **If failed (popup still present)**: Proceed to Step 5
+   
+   e) **Step 5 - Final fallback: Coordinate-based on specific button (if Step 4 failed)**:
+      - If popup visible in screenshot BUT NOT dismissed by Step 4 (or not in snapshot):
+        * Analyze screenshot (AI vision) to identify button location
+        * Extract coordinates (x, y) from button center region
+        * Use browser_mouse_click_xy("Accept button", x, y) to click by coordinates
+        * **Note**: browser_mouse_click_xy requires --caps=vision capability flag
+        * **Important**: Coordinate clicks are viewport-relative; click center of button region, not edge
+        * browser_snapshot() to verify popup dismissed
+        * **If successful**: Document coordinates and viewport size in discovery-state.json under `popup_handling.coordinate_clicks`
+   
+   f) **Step 6 - Final verification**:
+      - browser_snapshot() to confirm page is ready (no popups blocking interaction)
+      - **Only proceed to page analysis after popups are confirmed dismissed**
+   
+   **Documentation**: Store successful popup handling strategy in discovery-state.json for reuse in later phases
+   
+   - browser_snapshot() to understand page structure
+
+9) Analyze site structure:
+   - Detect navigation patterns:
+     * Main menu/category links
+     * Breadcrumb structure
+     * Product listing patterns
+     * Pagination indicators
+   - Identify page types:
+     * Categories page (main navigation)
+     * Subcategories page (nested navigation) - optional
+     * Listings page (product grid/list)
+     * Details page (individual product)
+   - Determine navigation depth:
+     * Flat: listings directly from home
+     * One level: categories → listings
+     * Two levels: categories → subcategories → listings
+     * Three+ levels: handle hierarchy
+
+10) Discover sample URLs:
+   - Navigate through site to find:
+     * Sample category URL
+     * Sample subcategory URL (if applicable)
+     * Sample listings URL
+     * Sample detail URL (if accessible from home/listings)
+   - Document each URL with its purpose
+   - **TRACK ALL URLs**: Record all URLs accessed during discovery in discovery-state.json under `urls_accessed.discovery_urls` array
+   - Update `urls_accessed.last_accessed_url` and `urls_accessed.last_accessed_at` after each navigation
+
+=== STEP 6: Write Discovery State (JSON) ===
+**CRITICAL**: Use ABSOLUTE PATH for WriteFile operation
+
+11) **MANDATORY**: Save discovery-state.json (USE ABSOLUTE PATH):
+   - **CRITICAL**: This file MUST be written - it's REQUIRED by dmart-navigation-parser
+   - **Path**: `generated_scraper/<scraper>/.scraper-state/discovery-state.json`
+   - **Convert to absolute path** before writing
+   ```json
+   {
+     "site_url": "<input_url>",
+     "scraper_name": "<scraper_slug>",
+     "discovered_at": "<timestamp>",
+     "site_structure": {
+       "has_categories": true/false,
+       "has_subcategories": true/false,
+       "has_listings": true/false,
+       "navigation_depth": 1/2/3,
+       "listing_pattern": "pagination"/"infinite_scroll"/"load_more"
+     },
+     "page_types_found": ["categories", "subcategories", "listings", "details"],
+     "sample_urls": {
+       "category": "https://example.com/categories",
+       "subcategory": "https://example.com/categories/electronics",
+       "listings": "https://example.com/categories/electronics/laptops",
+       "detail": "https://example.com/p/123"
+     },
+     "navigation_notes": {
+       "category_pattern": "Main menu uses dropdown",
+       "pagination_pattern": "Query parameter ?page=2",
+       "special_notes": "Site has search functionality"
+     },
+     "urls_accessed": {
+       "discovery_urls": [
+         "<input_url>",
+         "https://example.com/categories",
+         "https://example.com/categories/electronics",
+         "https://example.com/categories/electronics/laptops",
+         "https://example.com/p/123"
+       ],
+       "last_accessed_url": "<last_url_analyzed>",
+       "last_accessed_at": "<timestamp>"
+     },
+     "popup_handling": {
+       "popups_encountered": true/false,
+       "handling_method": "selector_based" | "coordinate_based" | "none",
+       "successful_selectors": [
+         {
+           "popup_type": "cookie_banner" | "notification" | "modal",
+           "button_text": "Accept" | "Accept All" | "I Agree" | "Later" | "Not Now" | "Skip" | "Close" | "X",
+           "selector": "[id*=\"cookie\"]" | "[class*=\"cookie\"]" | "button:contains(\"Accept\")" | etc.,
+           "element_ref": "e123" | null,
+           "verified": true,
+           "tested_urls": ["<url_where_popup_was_dismissed>"]
+         }
+       ],
+       "coordinate_clicks": [
+         {
+           "popup_type": "cookie_banner" | "notification" | "modal",
+           "button_text": "Accept" | "Accept All" | etc.,
+           "coordinates": {"x": 960, "y": 850},
+           "viewport_size": {"width": 1920, "height": 1080},
+           "verified": true,
+           "tested_urls": ["<url_where_popup_was_dismissed>"],
+           "notes": "Popup was visible in screenshot but not in accessibility tree"
+         }
+       ],
+       "notes": "Any additional observations about popup behavior"
+     }
+   }
+   ```
+
+=== STEP 7: Write Discovery Knowledge (Markdown) ===
+**CRITICAL**: Use ABSOLUTE PATH for WriteFile operation
+**MANDATORY**: You MUST write discovery-knowledge.md before proceeding. This file is REQUIRED for next phase.
+
+12) **MANDATORY**: Save discovery-knowledge.md (USE ABSOLUTE PATH):
+   - **CRITICAL**: This file MUST be written - it's required by dmart-navigation-parser
+   - **Path**: `generated_scraper/<scraper>/.scraper-state/discovery-knowledge.md`
+   - **Convert to absolute path** before writing
+   ```markdown
+   # Site Discovery Knowledge - <scraper_name>
+   
+   **Completed**: <timestamp>
+   **Site URL**: <site_url>
+   
+   ## Site Structure Analysis
+   
+   ### Navigation Pattern
+   - **Type**: Hierarchical (categories → subcategories → listings)
+   - **Depth**: 2 levels
+   - **Category Discovery**: Main menu dropdown
+   - **Subcategory Discovery**: Sidebar on category pages
+   
+   ### Page Types Found
+   1. **Categories**: Main navigation page
+   2. **Subcategories**: Category detail pages
+   3. **Listings**: Product listing pages
+   4. **Details**: Individual product pages
+   
+   ### Sample URLs Discovered
+   - **Category**: https://example.com/categories
+     - Purpose: Entry point for category navigation
+     - Notes: Contains 12 main categories
+   
+   - **Subcategory**: https://example.com/categories/electronics
+     - Purpose: Shows subcategories within Electronics
+     - Notes: 8 subcategories found
+   
+   - **Listings**: https://example.com/categories/electronics/laptops
+     - Purpose: Product listing page
+     - Notes: 24 products per page, pagination via ?page=2
+   
+   - **Detail**: https://example.com/p/123
+     - Purpose: Individual product page
+     - Notes: Accessible from listings page
+   
+   ## Popup Handling
+   
+   ### Popups Encountered
+   - **Status**: Popups encountered: Yes/No
+   - **Handling Method**: selector_based / coordinate_based / none
+   - **Details**: See discovery-state.json `popup_handling` section for complete strategy
+   
+   ### Successful Popup Handling Strategy
+   - **Documented in**: discovery-state.json under `popup_handling`
+   - **Reusable**: This strategy will be reused in navigation and detail parser phases
+   - **Notes**: [Any observations about popup behavior, frequency, etc.]
+   
+   ## Navigation Patterns
+   
+   ### Category Navigation
+   - **Selector Pattern**: Main menu dropdown
+   - **URL Pattern**: /categories/<category-slug>
+   - **Notes**: Categories are in main navigation, no separate categories page
+   
+   ### Pagination
+   - **Type**: Query parameter
+   - **Pattern**: ?page=2, ?page=3, etc.
+   - **Products Per Page**: 24
+   - **Notes**: Next button present, also supports direct page access
+   
+   ## Next Steps
+   
+   **For Navigation Parser Generation:**
+   1. Use sample category URL to discover category link selectors
+   2. Use sample subcategory URL to discover subcategory patterns
+   3. Use sample listings URL to discover product link selectors and pagination
+   
+   **For Detail Parser Generation:**
+   1. Use sample detail URL from listings discovery
+   2. Extract product fields using discovered selectors
+   
+   ## Commands to Run Next
+   
+   ```bash
+   /dmart-navigation-parser scraper=<scraper_slug>
+   ```
+   
+   This will use discovery-state.json and discovery-knowledge.md to understand site structure and update navigation parsers in the boilerplate.
+   ```
+
+=== STEP 8: Update Boilerplate Files ===
+**CRITICAL**: Edit existing boilerplate files instead of creating new ones
+
+13) Update `lib/headers.rb` (USE ABSOLUTE PATH):
+   - Read existing file: `generated_scraper/<scraper_slug>/lib/headers.rb`
+   - Update `URLs::BASE_URL` constant with discovered site URL
+   - Extract base URL from input URL (e.g., "https://example.com" from "https://example.com/products")
+   - Preserve all other code (ReqHeaders module, etc.)
+   - Write updated file (USE ABSOLUTE PATH)
+
+14) Update `seeder/seeder.rb` (USE ABSOLUTE PATH):
+   - Read existing file: `generated_scraper/<scraper_slug>/seeder/seeder.rb`
+   - Update `url:` field with discovered site URL
+   - Update `page_type:` based on discovery-state.json:
+     * If has_categories == true: page_type = "categories"
+     * Else if has_listings == true: page_type = "listings"
+     * Else: page_type = "categories" (default)
+   - Preserve all other code (require statements, headers reference, etc.)
+   - Write updated file (USE ABSOLUTE PATH)
+
+15) Verify `config.yaml` (USE ABSOLUTE PATH):
+   - Read existing file: `generated_scraper/<scraper_slug>/config.yaml`
+   - Verify structure is correct (should already be complete from boilerplate)
+   - Check that parsers array includes all needed parsers (categories, subcategories, listings, details)
+   - Check that exporters array is configured correctly
+   - **Usually no changes needed** - boilerplate config.yaml is already complete
+
+=== STEP 9: Update Phase Status ===
+16) Update phase-status.json (USE ABSOLUTE PATH):
+   ```json
+   "site_discovery": {
+     "status": "completed",
+     "completed_at": "<timestamp>",
+     "discovered_patterns": ["hierarchical", "categories->listings->details"],
+     "navigation_depth": 2
+   }
+   ```
+
+17) Save browser-context.json (USE ABSOLUTE PATH):
+   **CRITICAL**: Save to scraper-specific location: `generated_scraper/<scraper>/.scraper-state/browser-context.json`
+   ```json
+   {
+     "last_url_visited": "<last_url_analyzed>",
+     "last_phase": "site_discovery",
+     "last_activity": "<timestamp>",
+     "scraper_name": "<scraper_slug>"
+   }
+   ```
+
+=== STEP 10: Completion Report & Auto-Chaining ===
+18) Display completion summary:
+   ```
+   ✅ Site Discovery Complete (Boilerplate-Based)
+   
+   Scraper: <scraper_slug>
+   Site: <site_url>
+   
+   Boilerplate Copied:
+   - templates/dmart_dloc_boilerplate/ → generated_scraper/<scraper>/ ✅
+   
+   Files Updated:
+   - generated_scraper/<scraper>/lib/headers.rb ✅ (BASE_URL updated)
+   - generated_scraper/<scraper>/seeder/seeder.rb ✅ (URL and page_type updated)
+   - generated_scraper/<scraper>/config.yaml ✅ (verified, already complete)
+   
+   Discovered:
+   - Navigation depth: <depth> levels
+   - Page types: <list>
+   - Sample URLs: <count> URLs documented
+   
+   State Files Created:
+   - generated_scraper/<scraper>/.scraper-state/discovery-state.json ✅
+   - generated_scraper/<scraper>/.scraper-state/discovery-knowledge.md ✅
+   - generated_scraper/<scraper>/.scraper-state/field-spec.json ✅ (if spec provided)
+   - generated_scraper/<scraper>/.scraper-state/phase-status.json ✅
+   
+   Next Command:
+   /dmart-navigation-parser scraper=<scraper_slug>
+   
+   This command will read discovery-state.json and discovery-knowledge.md
+   to update navigation parsers in the boilerplate (replace PLACEHOLDER selectors).
+   ```
+
+🚨🚨🚨 **CRITICAL: AUTO-CHAINING EXECUTION REQUIRED** 🚨🚨🚨
+**YOU MUST NOW CHECK FOR auto_next PARAMETER AND EXECUTE NEXT COMMAND IF PRESENT**
+**DO NOT SKIP THIS STEP - IT IS MANDATORY**
+
+19) **MANDATORY AUTO-CHAINING CHECK**: Parse `{{args}}` and check if `auto_next=true`:
+   - **CRITICAL**: You MUST parse the `{{args}}` string to extract the `auto_next` parameter
+   - **CRITICAL**: Look for `auto_next=true` or `auto_next=false` in the arguments string
+   - **EXAMPLE**: If `{{args}}` contains `url=... name=... auto_next=true`, then `auto_next=true` is present
+   - **EXAMPLE**: If `{{args}}` contains `url=... name=...` (no auto_next), then `auto_next` is not provided
+   - **CRITICAL**: If `auto_next=true` is found: **YOU MUST EXECUTE** steps 20-23 below (close browser, detect shell, find gemini path, spawn console and execute command)
+   - **CRITICAL**: If `auto_next=false` or not provided: Stop here (command complete, wait for user)
+   - **DO NOT** assume auto_next is false - you MUST check the actual `{{args}}` value
+   - **DO NOT** skip this check - it is MANDATORY even if you think auto_next is not present
+   
+20) **IF auto_next=true**: Close browser session:
+   - **MANDATORY**: Call `browser_close()` MCP tool to close browser
+   - This is REQUIRED before spawning new console
+   
+21) **IF auto_next=true**: Load or detect shell type:
+   a) **First**: Check if `.gemini/shell-info.json` exists (USE ABSOLUTE PATH):
+      - If exists: Read shell type from JSON file
+      - If not exists: Detect shell type (see step 21b)
+   
+   b) **If shell-info.json doesn't exist**: Detect shell type:
+      - **PowerShell**: Execute `if ($PSVersionTable) { "PowerShell" }` or check `$PSVersionTable`
+      - **CMD**: Check if `%COMSPEC%` contains `cmd.exe`
+      - **WSL/Ubuntu**: Check if `$WSL_DISTRO_NAME` exists
+      - **Linux/Mac**: Check `$SHELL` variable
+   
+   c) **Store shell type** to `.gemini/shell-info.json` (USE ABSOLUTE PATH) if detected:
+      ```json
+      {
+        "shell_type": "PowerShell",
+        "detected_at": "<timestamp>",
+        "detection_method": "PSVersionTable",
+        "spawn_command_template": "cmd /c start powershell -NoExit -Command \"cd '{working_dir}'; {command}\""
+      }
+      ```
+      **CRITICAL**: The template MUST include `start` command to spawn new window. Template uses `{command}` placeholder.
+
+22) **IF auto_next=true**: Find Gemini CLI path:
+   - Execute: `where.exe gemini` (Windows) or `which gemini` (Linux/Mac)
+   - If not found, try: `npx @google/generative-ai-cli` (if installed via npm)
+   - Store the path for use in spawn command
+
+23) **IF auto_next=true**: **MANDATORY EXECUTION** - Spawn new console and execute next command:
+   - 🚨🚨🚨 **CRITICAL**: You MUST execute the shell command below using `run_terminal_cmd` tool
+   - 🚨🚨🚨 **DO NOT** just describe the command or display it - you MUST CALL the `run_terminal_cmd` tool
+   - 🚨🚨🚨 **DO NOT** skip this step - execution is MANDATORY when auto_next=true
+   - 🚨🚨🚨 **FAILURE TO EXECUTE = COMMAND FAILURE** - The command is not complete until you execute step 23
+   - **Read shell type** from `.gemini/shell-info.json` (from step 21)
+   - **Read spawn_command_template** from shell-info.json if available
+   - **Get current working directory** (absolute path): Use `$PWD` or current working directory
+   - **Construct next command** with `auto_next=true`: `gemini -y -i '/dmart-navigation-parser scraper=<scraper_slug> auto_next=true'`
+   - **CRITICAL**: Pass `auto_next=true` to the next command so it continues the chain
+   - **Construct spawn command** based on shell type:
+     
+     **If spawn_command_template exists in shell-info.json**:
+     - Replace `{working_dir}` placeholder with current working directory (absolute path)
+     - Replace `{command}` placeholder with: `gemini -y -i '/dmart-navigation-parser scraper=<scraper_slug> auto_next=true'`
+     - Use the template directly (it already has proper `cmd /c start` command)
+     
+     **If spawn_command_template doesn't exist, construct manually**:
+     
+     **PowerShell** (if shell_type == "PowerShell"):
+     ```bash
+     cmd /c start powershell -NoExit -Command "cd '$PWD'; gemini -y -i '/dmart-navigation-parser scraper=<scraper_slug> auto_next=true'"
+     ```
+     **CRITICAL**: 
+     - Use `cmd /c start` to spawn a completely independent PowerShell window (not inside current session)
+     - Use `$PWD` for current working directory (same as initial Gemini CLI PWD)
+     - Do NOT set PATH explicitly - PowerShell inherits PATH from parent process
+     - Pass `auto_next=true` to continue the chain
+     
+     **CMD** (if shell_type == "CMD"):
+     ```bash
+     cmd /c start cmd /k "cd /d %CD% && gemini -y -i \"/dmart-navigation-parser scraper=<scraper_slug> auto_next=true\""
+     ```
+     **CRITICAL**: Use `cmd /c start` to spawn a completely independent CMD window (not inside current session)
+     
+     **WSL** (if shell_type == "WSL"):
+     ```bash
+     cmd /c start powershell -NoExit -Command "wsl -e bash -c \"cd '$PWD' && gemini -y -i '/dmart-navigation-parser scraper=<scraper_slug> auto_next=true'\""
+     ```
+     **CRITICAL**: Use `cmd /c start` to spawn a completely independent PowerShell window (not inside current session)
+     
+     **Linux/Mac** (if shell_type == "Linux" or "Mac"):
+     ```bash
+     xterm -e "cd '$PWD' && gemini -y -i '/dmart-navigation-parser scraper=<scraper_slug> auto_next=true'" &
+     ```
+   
+   - **EXECUTE** the shell command using `run_terminal_cmd` tool
+   - **DO NOT** just display the command - you MUST execute it
+   - **VERIFY** execution: The command should spawn a completely independent new PowerShell window (separate from Gemini CLI, like opening PowerShell from Windows Start menu)
+   - **AFTER EXECUTION**: This command is now COMPLETE. The spawned window will run independently.
+   - **END SESSION**: After successfully spawning the new window, this agent's work is done. The new window will handle the next phase.
+
+**CRITICAL COMPLETION REQUIREMENTS:**
+- ✅ **MANDATORY**: Boilerplate template copied to `generated_scraper/<scraper>/`
+- ✅ **MANDATORY**: `lib/headers.rb` updated with site URL
+- ✅ **MANDATORY**: `seeder/seeder.rb` updated with site URL and page_type
+- ✅ **MANDATORY**: `config.yaml` verified (usually no changes needed)
+- ✅ **MANDATORY**: discovery-state.json written (machine-readable) - REQUIRED for next phase
+- ✅ **MANDATORY**: discovery-knowledge.md written (human + AI readable) - REQUIRED for next phase
+- ✅ field-spec.json written (if spec provided) - guides detail parser field discovery
+- ✅ phase-status.json updated
+- ✅ browser-context.json saved
+- ✅ Completion report displayed with next steps
+- ✅ **IF auto_next=true**: Browser closed, shell type detected/stored, next command **EXECUTED** (not just displayed)
+  - **MANDATORY**: You MUST execute the shell command in step 23 if auto_next=true
+  - **DO NOT** just display the command - you MUST use `run_terminal_cmd` to execute it
+  - **VERIFY**: Check that new console window opened and command is running
+  - The command execution is REQUIRED, not optional
+
+**This command is now COMPLETE and INDEPENDENT.**
+**Next session can run /dmart-navigation-parser without any conversation history.**
+
+**Note**: Auto-chaining logic is handled in steps 19-23 above. This section is for reference only.
+
+🚨🚨🚨 **MANDATORY: STOP AFTER COMPLETION (if auto_next=false)** 🚨🚨🚨
+- **IF auto_next=false or not provided**: After displaying completion summary (step 18), you MUST STOP
+- **DO NOT continue with any other work, tasks, or projects**
+- **DO NOT create new scrapers, directories, or todo lists**
+- **DO NOT start any new work**
+- **This command is COMPLETE - END SESSION NOW**
+- **Wait for user's next command - do not proceed autonomously**
+- **IF auto_next=true**: Follow steps 19-23 to spawn next command, then END
+
+Examples:
+  # Basic usage (no field spec - will use common fields)
+  /dmart-scrape url="https://naivas.online" name=naivas_online
+  
+  # With field specification (recommended)
+  /dmart-scrape url="https://example.com" name=my_store spec="spec_general_sample.csv"
+  
+  # Custom output directory
+  /dmart-scrape url="https://shop.com" --scraper shop spec="fields.csv" out="./custom_scrapers"
+"""
+
