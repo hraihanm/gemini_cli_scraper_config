@@ -767,9 +767,60 @@ puts outputs.to_json
 - Leverage `browser_verify_selector` for selector validation workflows
 - Use `browser_inspect_element` for detailed DOM analysis before parser creation
 - Use `browser_evaluate` for quick selector testing and JavaScript-based validation
+- **Use `browser_network_requests_simplified` for pagination and API endpoint discovery** (RECOMMENDED over `browser_network_requests`)
 - Utilize batch operations when inspecting multiple elements simultaneously
 - Always provide human-readable element descriptions for tool permissions
 - Combine browser analysis with DataHen CLI testing for optimal results
+
+#### Network Request Analysis with browser_network_requests_simplified
+
+**CRITICAL**: Use `browser_network_requests_simplified()` instead of `browser_network_requests()` for pagination and API discovery:
+
+**Why Use Simplified Version**:
+- **Filters out noise**: Automatically excludes analytics, tracking, images, fonts
+- **Cleaner output**: Shows only relevant API calls and pagination requests
+- **Better for scraping**: Optimized for web scraping workflows
+- **Includes query params**: Shows all query parameters (essential for pagination)
+- **Includes POST bodies**: Shows POST request bodies (truncated if >500 chars)
+
+**When to Use**:
+- **Pagination Detection**: Identify pagination API endpoints and parameters
+- **Infinite Scroll**: Monitor network requests during scroll to find API calls
+- **API Discovery**: Find data fetching endpoints for dynamic content
+- **Query Parameter Analysis**: Extract pagination params (page, offset, limit)
+
+**Usage Pattern**:
+```javascript
+// For infinite scroll detection (Strategy 3)
+// Step 1: Scroll to trigger loading
+browser_evaluate(() => {
+  window.scrollTo(0, document.body.scrollHeight);
+  return new Promise(resolve => setTimeout(resolve, 2000));
+})
+
+// Step 2: Check network requests (RECOMMENDED: Use simplified version)
+browser_network_requests_simplified()  // ✅ RECOMMENDED - filtered output
+// NOT: browser_network_requests()  // ❌ Too much noise from analytics/images
+
+// Step 3: Analyze results for pagination patterns
+// Look for:
+// - API endpoints with pagination params (page, offset, limit)
+// - Query parameters in URLs
+// - POST body data with pagination parameters
+```
+
+**Example Output**:
+```
+[GET] https://www.example.com/api/products?page=2 => [200] OK
+  Query Params: page=2
+[POST] https://www.example.com/ajax?service=info => [200] OK
+  Query Params: service=info
+  Body: {"action":"get_data","id":123,"page":2}
+```
+
+**Parameters**:
+- `includeImages` (boolean, optional, default: false): Include image requests if needed
+- `includeFonts` (boolean, optional, default: false): Include font requests if needed
 
 #### Quick Selector Testing with browser_evaluate
 

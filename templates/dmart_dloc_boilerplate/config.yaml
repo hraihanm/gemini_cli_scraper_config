@@ -1,0 +1,175 @@
+seeder:
+  file: ./seeder/seeder.rb
+  disabled: false
+
+parsers:
+  - page_type: categories
+    file: ./parsers/categories.rb
+    disabled: false
+  - page_type: subcategories
+    file: ./parsers/subcategories.rb
+    disabled: false
+  - page_type: listings
+    file: ./parsers/listings.rb
+    disabled: false
+  - page_type: details
+    file: ./parsers/details.rb
+    disabled: false
+
+exporters:
+  - exporter_name: products_csv
+    export_filename: <d:yyyyMMdd>_<name>
+    no_subfolder: true
+    exporter_type: csv
+    collection: products
+    start_on_job_done: true
+    offset: 0
+    order: desc
+    fields:
+      - header: "competitor_name"
+        path: "competitor_name"
+        disable_scientific_notation: true
+      - header: "competitor_type"
+        path: "competitor_type"
+        disable_scientific_notation: true
+      - header: "store_name"
+        path: "store_name"
+        disable_scientific_notation: true
+      - header: "store_id"
+        path: "store_id"
+        disable_scientific_notation: true
+      - header: "country_iso"
+        path: "country_iso"
+        disable_scientific_notation: true
+      - header: "language"
+        path: "language"
+        disable_scientific_notation: true
+      - header: "currency_code_lc"
+        path: "currency_code_lc"
+        disable_scientific_notation: true
+      - header: "scraped_at_timestamp"
+        path: "scraped_at_timestamp"
+        disable_scientific_notation: true
+      - header: "competitor_product_id"
+        path: "competitor_product_id"
+        disable_scientific_notation: true
+      - header: "name"
+        path: "name"
+        disable_scientific_notation: true
+      - header: "brand"
+        path: "brand"
+        disable_scientific_notation: true
+      - header: "category_id"
+        path: "category_id"
+        disable_scientific_notation: true
+      - header: "category"
+        path: "category"
+        disable_scientific_notation: true
+      - header: "sub_category"
+        path: "sub_category"
+        disable_scientific_notation: true
+      - header: "customer_price_lc"
+        path: "customer_price_lc"
+        disable_scientific_notation: true
+      - header: "base_price_lc"
+        path: "base_price_lc"
+        disable_scientific_notation: true
+      - header: "has_discount"
+        path: "has_discount"
+        disable_scientific_notation: true
+      - header: "discount_percentage"
+        path: "discount_percentage"
+        disable_scientific_notation: true
+      - header: "rank_in_listing"
+        path: "rank_in_listing"
+        disable_scientific_notation: true
+      - header: "page_number"
+        path: "page_number"
+        disable_scientific_notation: true
+      - header: "product_pieces"
+        path: "product_pieces"
+        disable_scientific_notation: true
+      - header: "size_std"
+        path: "size_std"
+        disable_scientific_notation: true
+      - header: "size_unit_std"
+        path: "size_unit_std"
+        disable_scientific_notation: true
+      - header: "description"
+        path: "description"
+        disable_scientific_notation: true
+      - header: "img_url"
+        path: "img_url"
+        disable_scientific_notation: true
+      - header: "barcode"
+        path: "barcode"
+        disable_scientific_notation: true
+      - header: "sku"
+        path: "sku"
+        disable_scientific_notation: true
+      - header: "url"
+        path: "url"
+        disable_scientific_notation: true
+      - header: "is_available"
+        path: "is_available"
+        disable_scientific_notation: true
+      - header: "crawled_source"
+        path: "crawled_source"
+        disable_scientific_notation: true
+      - header: "is_promoted"
+        path: "is_promoted"
+        disable_scientific_notation: true
+      - header: "type_of_promotion"
+        path: "type_of_promotion"
+        disable_scientific_notation: true
+      - header: "promo_attributes"
+        path: "promo_attributes"
+        disable_scientific_notation: true
+      - header: "is_private_label"
+        path: "is_private_label"
+        disable_scientific_notation: true
+      - header: "latitude"
+        path: "latitude"
+        disable_scientific_notation: true
+      - header: "longitude"
+        path: "longitude"
+        disable_scientific_notation: true
+      - header: "reviews"
+        path: "reviews"
+        disable_scientific_notation: true
+      - header: "store_reviews"
+        path: "store_reviews"
+        disable_scientific_notation: true
+      - header: "item_attributes"
+        path: "item_attributes"
+        disable_scientific_notation: true
+      - header: "item_identifiers"
+        path: "item_identifiers"
+        disable_scientific_notation: true
+      - header: "country_of_origin"
+        path: "country_of_origin"
+        disable_scientific_notation: true
+      - header: "variants"
+        path: "variants"
+        disable_scientific_notation: true
+      - header: "allergens"
+        path: "_"
+        disable_scientific_notation: true
+      - header: "nutrition_facts"
+        path: "_"
+        disable_scientific_notation: true
+      - header: "ingredients"
+        path: "_"
+        disable_scientific_notation: true
+      - header: "dimensions"
+        path: "_"
+        disable_scientific_notation: true
+      - header: "img_url_2"
+        path: "_"
+        disable_scientific_notation: true
+      - header: "img_url_3"
+        path: "_"
+        disable_scientific_notation: true
+      - header: "img_url_4"
+        path: "_"
+        disable_scientific_notation: true

@@ -1,0 +1,909 @@
+description = "Phase 2: Update navigation parsers in boilerplate (categories, subcategories, listings). Reads discovery knowledge, edits existing parser files, writes navigation knowledge, completes independently."
+
+prompt = """
+You are performing Phase 2: Navigation Parser Generation using the dmart_dloc_boilerplate template. This command is COMPLETELY INDEPENDENT - it reads discovery state files, edits existing parser files in the boilerplate, writes ALL findings, and completes. No conversation history needed.
+
+🚨🚨🚨 **CRITICAL: YOU ARE IN GEMINI CLI - USE TOOLS DIRECTLY, NEVER GENERATE CODE** 🚨🚨🚨
+- **STOP**: If you are about to write `import os`, `import json`, `print()`, `def `, or any Python/JavaScript code, STOP IMMEDIATELY
+- **YOU ARE AN AI ASSISTANT IN GEMINI CLI** - You have direct access to MCP tools via tool calling
+- **USE TOOLS DIRECTLY** - Call tools like `read_file`, `browser_navigate`, `parser_tester`, `write_file` using the tool interface
+- **FORBIDDEN**: Never write Python scripts, JavaScript code, or any programming code
+- **FORBIDDEN**: Never use `import`, `print()`, `def `, `class `, or any code syntax
+- **CODE EXAMPLES IN THIS PROMPT ARE FOR REFERENCE ONLY** - They show tool call patterns, NOT code to write
+- **YOU ARE THE EXECUTOR** - Execute actions directly using tools, don't write code that executes actions
+- **EXAMPLE**: When you see instructions to read files, you should CALL the read_file tool directly for each file, NOT write Python code
+- **IF YOU START WRITING CODE**: Stop immediately and use tools instead
+
+🚨 **CRITICAL AUTO-CHAINING EXECUTION RULE**:
+- **MANDATORY**: If `auto_next=true` parameter is provided in `{{args}}`, you MUST execute the next command automatically
+- After displaying completion summary (step 29), you MUST check for `auto_next=true` in `{{args}}`
+- If `auto_next=true`, you MUST execute steps 30-33 (check auto_next, close browser, detect shell, spawn console, execute command)
+- **DO NOT** just display the command - you MUST execute it using `run_terminal_cmd` tool
+- **DO NOT** skip execution - the execution is MANDATORY, not optional
+- Failure to execute when `auto_next=true` is a completion failure
+
+🚨 **BOILERPLATE-BASED APPROACH**:
+- **This command edits existing parser files** from the boilerplate template - it does NOT create files from scratch
+- **Parser files already exist** in `generated_scraper/<scraper>/parsers/` with PLACEHOLDER selectors or example selectors
+- **Step 1**: Read existing parser files to understand current structure
+- **Step 2**: Discover selectors using browser tools
+- **Step 3**: **Edit existing parser files** - replace selectors, fix incomplete code, update logic
+- **Step 4**: Test parsers using parser_tester
+- **Step 5**: Config.yaml already exists and is complete - verify only, no changes needed
+
+🚨 **CRITICAL: DataHen v3 Parser Structure**:
+- **DataHen parsers are TOP-LEVEL SCRIPTS, NOT FUNCTIONS**
+- **NEVER** use `def parse(...)` or any function definition in parser files
+- **NEVER** wrap parser code in functions - DataHen executes parser files directly as scripts
+- **ALWAYS** start parser code directly with `html = Nokogiri::HTML(content)` - no function wrapper
+- **Pre-defined variables** available at script level: `content`, `page`, `pages`, `outputs`
+- **Why**: DataHen loads and executes parser files as Ruby scripts, not as function calls
+
+🚨 MODULAR DESIGN PRINCIPLES:
+1. **Read State Files First** - Load discovery-state.json and discovery-knowledge.md
+2. **Read Existing Parsers** - Load parser files from boilerplate to understand structure
+3. **Edit Instead of Create** - Replace selectors in existing files, fix incomplete code
+4. **Write ALL Findings** - Before completion, write everything discovered
+5. **Write Knowledge Files** - Human-readable + AI-readable summaries
+6. **Self-Contained** - All needed info from state files
+7. **Clear Completion** - Report what's done, what's next
+
+🚨 CRITICAL - ABSOLUTE PATHS REQUIRED:
+- **ALL WriteFile operations MUST use ABSOLUTE PATHS** - Relative paths will fail
+- Before writing any file, convert relative path to absolute:
+  * Determine workspace root (current working directory)
+  * Convert: `generated_scraper/<scraper>/.scraper-state/file.json`
+  * To absolute: `<workspace_root>/generated_scraper/<scraper>/.scraper-state/file.json`
+- Use absolute paths for: navigation-selectors.json, navigation-knowledge.md, phase-status.json, parser files
+
+🚨 BROWSER TOOLS FOR NAVIGATION AND POPUP HANDLING:
+- **browser_screenshot()**: Use to visually inspect pages for popups, modals, cookie banners
+- **browser_click()**: Use to interact with elements (navigation, popups, cookies, notifications)
+- **browser_snapshot()**: Use to check for overlays and get accessibility tree
+- **MANDATORY**: After every `browser_navigate()`, check for and handle popups before proceeding
+- Common popup patterns: cookie banners, notification overlays, modal dialogs, age verification
+- Always use `browser_snapshot()` after handling popups to verify page is ready
+
+Inputs (order-agnostic via {{args}}):
+  - scraper=<scraper_name> (REQUIRED - scraper must exist with discovery-state.json)
+  - resume-url=<url> (OPTIONAL - resume browser from this URL)
+  - out=<base_dir> (OPTIONAL - defaults to ./generated_scraper)
+  - auto_next=true|false (OPTIONAL, default: false) - If true, automatically execute next command (/dmart-details-parser)
+
+Process:
+
+🚨 **BEFORE YOU START**: Remember - USE TOOLS DIRECTLY, DO NOT WRITE CODE. Call read_file tool for each file individually.
+
+=== STEP 1: Load State Files and Existing Parsers ===
+**CRITICAL**: Read files one by one using read_file tool
+**CRITICAL**: CALL the read_file tool directly for each file - DO NOT write Python code
+
+1) Load all required state files one by one using read_file tool (CALL THE TOOL DIRECTLY for each file):
+   - Read `generated_scraper/<scraper>/.scraper-state/phase-status.json` (if exists)
+   - Read `generated_scraper/<scraper>/.scraper-state/discovery-state.json` (if exists)
+   - Read `generated_scraper/<scraper>/.scraper-state/discovery-knowledge.md` (if exists)
+   - Read `generated_scraper/<scraper>/.scraper-state/navigation-selectors.json` (if exists)
+   - Read `generated_scraper/<scraper>/.scraper-state/navigation-knowledge.md` (if exists)
+   
+   **Note**: If a file doesn't exist, read_file will return an error - handle gracefully and continue with other files.
+
+2) Load existing parser files from boilerplate (CALL THE TOOL DIRECTLY for each file):
+   - Read `generated_scraper/<scraper>/parsers/categories.rb` (should exist from boilerplate)
+   - Read `generated_scraper/<scraper>/parsers/subcategories.rb` (should exist from boilerplate, if has_subcategories)
+   - Read `generated_scraper/<scraper>/parsers/listings.rb` (should exist from boilerplate)
+   - Read `generated_scraper/<scraper>/config.yaml` (should exist from boilerplate - verify structure)
+   
+   **Note**: These files should already exist from the boilerplate template. If they don't exist, report error and stop.
+
+3) Parse loaded files:
+   - **phase-status.json**: Check navigation_discovery.status
+     * If "completed": Display summary, suggest next phase (`/dmart-details-parser`)
+     * If "in_progress": Resume from checkpoint
+     * Else: Start fresh navigation discovery
+   - **discovery-state.json**: Extract site structure
+     * has_categories, has_subcategories, has_listings
+     * navigation_depth
+     * sample_urls (category, subcategory, listings)
+     * **popup_handling**: Read successful popup handling strategy (selectors or coordinates) for reuse
+   - **discovery-knowledge.md**: Read for additional context
+   - **navigation-selectors.json**: If exists, check what's already discovered
+   - **navigation-knowledge.md**: If exists, read previous discoveries
+   - **Existing parser files**: Identify:
+     * PLACEHOLDER strings that need replacement
+     * Incomplete code (e.g., incomplete `next if` statements)
+     * Outdated selectors that need updating
+     * Code structure that should be preserved
+
+4) Validate prerequisites:
+   - **REQUIRED**: discovery-state.json must exist (run `/dmart-scrape` first if missing)
+   - **REQUIRED**: Parser files must exist from boilerplate (run `/dmart-scrape` first if missing)
+   - If missing: Display error: "Discovery or boilerplate not found. Run: /dmart-scrape url=<url> name=<scraper>"
+   - If exists: Continue with navigation parser editing
+
+5) Check for existing parsers and test them:
+   **CRITICAL**: Before editing parsers, test existing parsers to see if they already work
+   
+   a) For each parser file that exists:
+      - Navigate to sample URL first (if not already there)
+      - Test with parser_tester MCP tool with `auto_download: true`:
+        ```javascript
+        parser_tester({
+          scraper_dir: "<absolute_path>/generated_scraper/<scraper>",
+          parser_path: "parsers/categories.rb",  // or subcategories.rb, listings.rb
+          page_type: "categories",  // or subcategories, listings
+          auto_download: true,  // RECOMMENDED: Automatically downloads HTML from active browser tab
+          vars: '{"base_url":"<site_url>"}',
+          quiet: false
+        })
+        ```
+      - Analyze test results:
+        * If test passes: Parser is working, can skip or enhance
+        * If test fails: Parser needs modification, continue with discovery
+        * If selectors outdated: Update selectors, keep parser structure
+   
+   b) Decision logic:
+      - **If parser exists AND test passes**: 
+        * Option 1: Skip this parser (already working)
+        * Option 2: Enhance with additional fields/selectors
+        * Option 3: Verify selectors still work, then continue
+      - **If parser exists AND test fails**:
+        * Analyze failure reason
+        * Discover new selectors
+        * Edit existing parser (don't regenerate from scratch)
+      - **If parser doesn't exist** (should not happen with boilerplate):
+        * Report error - boilerplate should have all parsers
+
+**Note**: If a file doesn't exist, read_file will return an error - handle gracefully and continue with other files.
+
+=== STEP 2: Categories Parser (if has_categories) ===
+6) Check for existing parser and test:
+   a) Check if `parsers/categories.rb` exists (should exist from boilerplate)
+   b) If exists:
+      - Navigate to sample category URL (if not already there)
+      - Test with parser_tester (RECOMMENDED - uses auto_download):
+        ```javascript
+        parser_tester({
+          scraper_dir: "<absolute_path>/generated_scraper/<scraper>",
+          parser_path: "parsers/categories.rb",
+          page_type: "categories",
+          auto_download: true,  // RECOMMENDED: Automatically downloads HTML from active browser tab
+          vars: '{"base_url":"<site_url>"}',
+          quiet: false
+        })
+        ```
+      - Analyze results:
+        * If passes: Parser working, can skip or enhance
+        * If fails: Need to discover new selectors and edit parser
+   c) If test failed: Continue with discovery
+
+7) Check checkpoint: If categories_analyzed == true AND parser exists AND test passed, skip to step 11
+
+8) Navigate and discover (if parser test failed):
+   - Use sample_urls.category from discovery-state.json
+   - browser_navigate(sample_category_url)
+   
+   **🚨 CRITICAL PRIORITY: Handle popups/overlays FIRST before any other operations**
+   
+   **Popup Handling Workflow** (execute immediately after navigation):
+   
+   a) **Step 1 - Check for existing strategy**:
+      - Check discovery-state.json for existing popup_handling strategy (if available from site discovery)
+      - **If popup_handling exists**: Try using documented selectors/coordinates first
+   
+   b) **Step 2 - Check for popups**:
+      - browser_snapshot() to check accessibility tree for popup elements
+      - browser_screenshot() to visually inspect for popups/modals/cookie banners
+   
+   c) **Step 3 - First strategy: ESC key press**:
+      - If popup detected (in snapshot or screenshot):
+        * Try pressing ESC key using browser_press_key("Escape") to dismiss modal/overlay
+        * **Note**: ESC key often closes modals, popups, and overlays without needing to find buttons
+        * browser_snapshot() to verify popup dismissed
+        * **If failed (popup still present)**: Proceed to Step 4
+   
+   d) **Step 4 - Second strategy: Click upper left corner**:
+      - If popup still present after Step 3:
+        * Click in the upper left corner of the viewport (e.g., coordinates 10, 10) using browser_mouse_click_xy("Upper left corner", 10, 10)
+        * **Note**: This often dismisses overlays/modals that can be closed by clicking outside the content area
+        * **Note**: browser_mouse_click_xy requires --caps=vision capability flag
+        * browser_snapshot() to verify popup dismissed
+        * **If failed (popup still present)**: Proceed to Step 5
+   
+   e) **Step 5 - Third strategy: Selector-based attempt (1 attempt only)**:
+      - If popup detected in snapshot:
+        * Use browser_click() with element ref or selector to interact:
+          - Cookie banners: Click "Accept", "Accept All", or "I Agree" buttons
+          - Notifications: Click "Later", "Not Now", or "Skip" buttons
+          - Popups/modals: Click close button (X), "Close", or overlay to dismiss
+        * Common selectors to check: `[id*="cookie"]`, `[class*="cookie"]`, `[id*="popup"]`, `[class*="modal"]`, `button:contains("Accept")`, `button:contains("Later")`
+        * browser_snapshot() to verify popup dismissed
+        * **If failed (popup still present)**: Proceed to Step 6
+   
+   f) **Step 6 - Final fallback: Coordinate-based on specific button (if Step 5 failed)**:
+      - If popup visible in screenshot BUT NOT dismissed by Step 5 (or not in snapshot):
+        * Analyze screenshot (AI vision) to identify button location
+        * Extract coordinates (x, y) from button center region
+        * Use browser_mouse_click_xy("Accept button", x, y) to click by coordinates
+        * **Note**: browser_mouse_click_xy requires --caps=vision capability flag
+        * **Important**: Coordinate clicks are viewport-relative; click center of button region, not edge
+        * browser_snapshot() to verify popup dismissed
+   
+   g) **Step 7 - Final verification**:
+      - browser_snapshot() to confirm page is ready (no popups blocking interaction)
+      - **Only proceed to page analysis after popups are confirmed dismissed**
+   
+   - **Logging**: If coordinate-based click was used, document in navigation-knowledge.md for future reference
+   
+   - browser_snapshot()
+   - **TRACK URL**: Record this URL in navigation-selectors.json under `urls_accessed.categories_discovery`
+   - browser_inspect_element() to find category link selectors
+   - browser_verify_selector() for category names
+   - Discover category link pattern, URL structure
+
+9) Edit parsers/categories.rb (USE ABSOLUTE PATH):
+   **CRITICAL**: Edit existing parser file instead of creating new one
+   
+   🚨 **CRITICAL: DataHen v3 Parser Structure**:
+   - **DataHen parsers are TOP-LEVEL SCRIPTS, NOT FUNCTIONS**
+   - **NEVER** use `def parse(...)` or any function definition
+   - **NEVER** declare `pages = []` or `outputs = []` - these are pre-defined by DataHen
+   - **NEVER** declare `page` or `content` - these are pre-defined and available at script level
+   - **ALWAYS** start directly with `html = Nokogiri::HTML(content)` - no function wrapper
+   - **ALWAYS** use reserved variables directly: `pages << {...}` and `outputs << {...}`
+   - **VALIDATION**: Before writing code, scan for function definitions and reserved variable declarations and remove them
+   
+   **Why**: DataHen executes parser files as scripts directly. It does NOT call functions. The parser script has access to pre-defined variables (`content`, `page`, `pages`, `outputs`) at the top level.
+   
+   a) Read existing parser code (already loaded in step 2)
+   b) Identify what needs to be edited:
+      - **Find PLACEHOLDER strings** (if any) and replace with discovered selectors
+      - **Fix incomplete code** (e.g., line 21 in categories.rb has incomplete `next if` - fix or remove)
+      - **Update selectors** with newly discovered ones from browser tools
+      - **Preserve existing structure** (require statements, base_url logic, vars passing, etc.)
+      - **Keep working parts**, fix broken selectors only
+   
+   c) Edit the parser file:
+      - Replace category link selector with discovered selector
+      - Fix any incomplete conditional statements
+      - Update page_type logic if needed
+      - Preserve vars passing structure
+      - Keep save_pages calls
+   
+   d) Write updated parser file (USE ABSOLUTE PATH):
+      - Path: `generated_scraper/<scraper>/parsers/categories.rb`
+      - Convert to absolute path before writing
+
+10) Test Categories Parser (or re-test if modified):
+   **MANDATORY**: Test parser immediately after editing
+   
+   **CRITICAL**: Use `auto_download: true` in parser_tester - NO manual HTML download needed
+   
+   a) Navigate to sample category URL (if not already there):
+      - Use browser_navigate() to visit sample category URL from discovery-state.json
+      - **Handle popups**: Use browser_screenshot() and browser_snapshot() to check for cookies/notifications, then browser_click() to dismiss them (or browser_mouse_click_xy() if popup invisible to accessibility tree)
+   
+   b) Test with parser_tester MCP tool (RECOMMENDED - uses auto_download):
+      ```javascript
+      parser_tester({
+        scraper_dir: "<absolute_path>/generated_scraper/<scraper>",
+        parser_path: "parsers/categories.rb",
+        page_type: "categories",
+        auto_download: true,  // RECOMMENDED: Automatically downloads HTML from active browser tab
+        vars: '{"base_url":"<site_url>"}',
+        quiet: false  // Show verbose output for testing
+      })
+      ```
+      
+      **Alternative** (if you need offline testing with saved HTML):
+      - Use browser_view_html() to get HTML content (optional, for inspection only)
+      - Save HTML to cache/ directory manually (optional)
+      - Use html_file parameter instead: `html_file: "<absolute_path>/cache/category-page.html"`
+   
+   c) Validate test results:
+      - Parser should generate pages with page_type "subcategories" or "listings"
+      - Check that category_name and breadcrumb vars are set correctly
+      - **TRACK URL**: Record tested URL in navigation-selectors.json under `categories.test_urls` and update `urls_accessed.last_tested_url` and `urls_accessed.last_tested_at`
+      - If test fails: Analyze errors, refine selectors, re-test
+      - If test passes: Continue to next parser
+
+11) Save checkpoint:
+   ```json
+   "navigation_discovery": {
+     "checkpoints": {
+       "categories_analyzed": true,
+       "categories_parser_updated": true,
+       "last_category_url": "<current_url>"
+     }
+   }
+   ```
+
+=== STEP 3: Subcategories Parser (if has_subcategories) ===
+12) Check for existing parser and test:
+   a) Check if `parsers/subcategories.rb` exists (should exist from boilerplate)
+   b) If exists: Test with parser_tester (similar to categories)
+   c) If test failed: Continue with discovery
+
+13) Check checkpoint: If subcategories_analyzed == true AND parser exists AND test passed, skip to step 17
+
+14) Navigate and discover (if parser test failed):
+   - Use sample_urls.subcategory from discovery-state.json
+   - browser_navigate(sample_subcategory_url)
+   
+   **🚨 CRITICAL PRIORITY: Handle popups/overlays FIRST before any other operations**
+   
+   **Popup Handling Workflow** (execute immediately after navigation) - same as step 8, use popup_handling from discovery-state.json
+   
+   - **TRACK URL**: Record this URL in navigation-selectors.json under `urls_accessed.subcategories_discovery`
+   - Discover subcategory link selectors
+   - Understand subcategory navigation pattern
+
+15) Edit parsers/subcategories.rb (USE ABSOLUTE PATH):
+   **CRITICAL**: Edit existing parser file instead of creating new one
+   
+   🚨 **CRITICAL: DataHen v3 Parser Structure** - same rules as step 9
+   
+   a) Read existing parser code (already loaded in step 2)
+   b) Identify what needs to be edited:
+      - **Find PLACEHOLDER strings** (if any) and replace with discovered selectors
+      - **Update selectors** with newly discovered ones from browser tools
+      - **Preserve existing structure** (require statements, base_url logic, vars passing, etc.)
+      - **Keep working parts**, fix broken selectors only
+   
+   c) Edit the parser file:
+      - Replace subcategory link selector with discovered selector
+      - Preserve vars passing structure
+      - Keep save_pages calls
+   
+   d) Write updated parser file (USE ABSOLUTE PATH)
+
+16) Test Subcategories Parser (or re-test if modified):
+   **MANDATORY**: Test parser immediately after editing
+   
+   **CRITICAL**: Use `auto_download: true` in parser_tester - NO manual HTML download needed
+   
+   a) Navigate to sample subcategory URL (if not already there)
+   b) Test with parser_tester MCP tool (RECOMMENDED - uses auto_download):
+      ```javascript
+      parser_tester({
+        scraper_dir: "<absolute_path>/generated_scraper/<scraper>",
+        parser_path: "parsers/subcategories.rb",
+        page_type: "subcategories",
+        auto_download: true,  // RECOMMENDED: Automatically downloads HTML from active browser tab
+        vars: '{"category_name":"Electronics","breadcrumb":"Electronics"}',
+        quiet: false
+      })
+      ```
+   c) Validate: Should generate pages with page_type "listings"
+      - **TRACK URL**: Record tested URL in navigation-selectors.json under `subcategories.test_urls` and update `urls_accessed.last_tested_url` and `urls_accessed.last_tested_at`
+
+17) Save checkpoint
+
+=== STEP 4: Listings Parser ===
+18) Check for existing parser and test:
+   a) Check if `parsers/listings.rb` exists (should exist from boilerplate)
+   b) If exists:
+      - Navigate to sample listings URL (if not already there)
+      - Test with parser_tester (RECOMMENDED - uses auto_download):
+        ```javascript
+        parser_tester({
+          scraper_dir: "<absolute_path>/generated_scraper/<scraper>",
+          parser_path: "parsers/listings.rb",
+          page_type: "listings",
+          auto_download: true,  // RECOMMENDED: Automatically downloads HTML from active browser tab
+          vars: '{"category_name":"Electronics","breadcrumb":"Electronics","page":1}',
+          quiet: false
+        })
+        ```
+      - Analyze results:
+        * If passes: Parser working, can skip or enhance
+        * If fails: Need to discover new selectors and edit parser
+   c) If test failed: Continue with discovery
+
+19) Check checkpoint: If listings_analyzed == true AND parser exists AND test passed, skip to step 23
+
+20) Navigate and discover (if parser test failed):
+   - Use sample_urls.listings from discovery-state.json
+   - browser_navigate(sample_listings_url)
+   
+   **🚨 CRITICAL PRIORITY: Handle popups/overlays FIRST before any other operations**
+   
+   **Popup Handling Workflow** (execute immediately after navigation) - same as step 8, use popup_handling from discovery-state.json
+   
+   - **TRACK URL**: Record this URL in navigation-selectors.json under `urls_accessed.listings_discovery`
+   - Discover product link selectors
+   - Analyze pagination pattern (critical - check in priority order):
+     * **Strategy 1: Count-Based Calculation** (check FIRST - if product count is displayed):
+       - Look for product count indicators in page text
+       - Use `browser_evaluate()` to find count elements:
+         ```javascript
+         browser_evaluate(() => {
+           const countElements = document.querySelectorAll('[class*="count"], [class*="total"], [class*="results"], [class*="product-count"]');
+           return Array.from(countElements).map(el => ({
+             text: el.textContent,
+             class: el.className,
+             id: el.id
+           }));
+         })
+         ```
+       - Extract total product count from text (regex pattern matching)
+       - Calculate total pages: total_products ÷ products_per_page
+       - Generate pagination URLs based on discovered pattern (query param or path)
+       - **Note**: Site likely also implements query parameter or path pattern pagination
+     
+     * **Strategy 2: Next Button** (check SECOND - most common):
+       - Look for next button/link in pagination area
+       - Use `browser_inspect_element()` to find next button selector
+       - Common selectors: `.next-page`, `a[aria-label="Next"]`, `.pagination .next`, `a.next`
+       - Verify button exists and has href attribute
+       - Extract next URL from button href
+     
+     * **Strategy 3: Infinite Scroll** (check THIRD - requires browser automation):
+       - Use `browser_evaluate()` to scroll page and detect loading:
+         ```javascript
+         // Step 1: Get initial product count
+         browser_evaluate(() => {
+           const products = document.querySelectorAll('.product-item, .product-card, [class*="product"]');
+           return products.length;
+         })
+         
+         // Step 2: Scroll to bottom to trigger infinite scroll
+         browser_evaluate(() => {
+           window.scrollTo(0, document.body.scrollHeight);
+           return new Promise(resolve => setTimeout(resolve, 2000)); // Wait for load
+         })
+         
+         // Step 3: Check if more products loaded
+         browser_evaluate(() => {
+           const products = document.querySelectorAll('.product-item, .product-card, [class*="product"]');
+           return products.length;
+         })
+         
+         // Step 4: Monitor network requests during scroll (USE SIMPLIFIED VERSION)
+         browser_network_requests_simplified()  // RECOMMENDED: Filtered network requests optimized for scraping
+       ```
+       - **CRITICAL**: Use `browser_network_requests_simplified()` instead of `browser_network_requests()`
+       - **Why**: Simplified version filters out analytics, images, fonts - shows only relevant API calls
+       - Analyze network requests for pagination API patterns:
+         * Look for API endpoints with pagination params (page, offset, limit) in query params
+         * Check POST body data for pagination parameters
+         * Identify request payload structure
+         * Extract pagination parameters from query params or POST body
+       - If infinite scroll detected: Document API endpoint and parameters
+       - **Note**: Infinite scroll requires browser automation - document in notes for manual implementation
+     
+     * **Strategy 4: Query Parameter Pattern** (check FOURTH):
+       - Check if pagination uses ?page=2, ?page=3 pattern
+       - Look for page parameter in current URL
+       - Test pattern: current_url + "?page=2"
+       - Verify pattern works by checking if page 2 exists
+     
+     * **Strategy 5: Path Pattern** (check FIFTH):
+       - Check if pagination uses /page/2, /page/3 pattern
+       - Look for /page/ pattern in URL structure
+       - Test pattern: base_path + "/page/2"
+       - Verify pattern works by checking if page 2 exists
+
+21) Edit parsers/listings.rb (USE ABSOLUTE PATH):
+   **CRITICAL**: Edit existing parser file instead of creating new one
+   
+   🚨 **CRITICAL: DataHen v3 Parser Structure** - same rules as step 9
+   
+   a) Read existing parser code (already loaded in step 2)
+   b) Identify what needs to be edited:
+      - **Find PLACEHOLDER strings** (if any) and replace with discovered selectors
+      - **Update product link selectors** with newly discovered ones
+      - **Update pagination logic** if needed (next button, pagination pattern)
+      - **Preserve existing structure** (require statements, base_url logic, vars passing, etc.)
+      - **Keep working parts**, fix broken selectors only
+   
+   c) Edit the parser file:
+      - Replace product link selector with discovered selector
+      - Update pagination handling based on discovered strategy (match priority order from listings.rb):
+        * **Strategy 1 (Count-Based)**: Uncomment Strategy 1 section in listings.rb, update product count selector and regex pattern, update pagination URL pattern (query param or path)
+        * **Strategy 2 (Next Button)**: Uncomment Strategy 2 section in listings.rb, update next button selector
+        * **Strategy 3 (Infinite Scroll)**: Document API endpoint and parameters in comments (requires browser automation - not implemented in parser)
+        * **Strategy 4 (Query Parameter)**: Uncomment Strategy 4 section in listings.rb, verify ?page= pattern works
+        * **Strategy 5 (Path Pattern)**: Uncomment Strategy 5 section in listings.rb, verify /page/ pattern works
+      - **CRITICAL**: Choose ONE pagination strategy based on discovery results
+      - **CRITICAL**: Match the strategy order in listings.rb boilerplate (Strategy 1 first, then 2, 3, 4, 5)
+      - Preserve vars passing structure (rank, page_number, listing_position)
+      - Keep save_pages calls
+   
+   d) Write updated parser file (USE ABSOLUTE PATH)
+
+22) Test Listings Parser (or re-test if modified):
+   **MANDATORY**: Test parser immediately after editing
+   
+   **CRITICAL**: Use `auto_download: true` in parser_tester - NO manual HTML download needed
+   
+   a) Navigate to sample listings URL (if not already there)
+   b) Test with parser_tester MCP tool (RECOMMENDED - uses auto_download):
+      ```javascript
+      parser_tester({
+        scraper_dir: "<absolute_path>/generated_scraper/<scraper>",
+        parser_path: "parsers/listings.rb",
+        page_type: "listings",
+        auto_download: true,  // RECOMMENDED: Automatically downloads HTML from active browser tab
+        vars: '{"category_name":"Electronics","breadcrumb":"Electronics","page":1}',
+        quiet: false
+      })
+      ```
+   c) Validate test results:
+      - Parser should generate pages with page_type "details"
+      - Check that rank, page_number, listing_position vars are set
+      - Check pagination: Should generate next listings page if pagination exists
+      - Extract sample detail URLs from generated pages for detail parser
+      - **TRACK URL**: Record tested URL in navigation-selectors.json under `listings.test_urls` and update `urls_accessed.last_tested_url` and `urls_accessed.last_tested_at`
+      - If test fails: Analyze errors, refine selectors, re-test
+      - If test passes: Continue
+
+23) Extract sample detail URLs and save checkpoint
+
+=== STEP 5: Write Navigation Selectors (JSON) ===
+**CRITICAL**: Use ABSOLUTE PATH for WriteFile operation
+
+24) Save navigation-selectors.json (USE ABSOLUTE PATH):
+   ```json
+   {
+     "categories": {
+       "category_link_selector": [".category-item a", ".nav-link a"],
+       "category_name_selectors": [".category-title", "a"],
+       "verified": true,
+       "confidence": 0.95,
+       "notes": "Categories found in main navigation menu",
+       "discovery_urls": ["https://example.com/categories"],
+       "test_urls": ["https://example.com/categories"]
+     },
+     "subcategories": {
+       "subcategory_link_selector": [".subcategory-item a"],
+       "subcategory_name_selectors": [".subcategory-name"],
+       "verified": true,
+       "confidence": 0.90,
+       "discovery_urls": ["https://example.com/categories/electronics"],
+       "test_urls": ["https://example.com/categories/electronics"]
+     },
+     "listings": {
+       "product_link_selector": [".product-item a", ".product-card a"],
+       "pagination_pattern": "count_based|next_button|infinite_scroll|query_param|path",
+       "pagination_strategy": "count_based",  // Strategy 1, 2, 3, 4, or 5
+       "pagination_next": [".next-page", "a[aria-label='Next']"],  // For Strategy 2
+       "pagination_param": "page",  // For Strategy 4
+       "product_count_selector": null,  // For Strategy 1
+       "product_count_regex": null,  // For Strategy 1
+       "products_per_page": null,  // For Strategy 1
+       "infinite_scroll_api": null,  // For Strategy 3
+       "infinite_scroll_notes": "If infinite scroll detected, document API endpoint and params here",
+       "verified": true,
+       "confidence": 0.95,
+       "discovery_urls": ["https://example.com/categories/electronics/laptops"],
+       "test_urls": [
+         "https://example.com/categories/electronics/laptops",
+         "https://example.com/categories/electronics/laptops?page=2"
+       ],
+       "sample_detail_urls": [
+         "https://example.com/p/123",
+         "https://example.com/p/456"
+       ]
+     },
+     "urls_accessed": {
+       "categories_discovery": ["https://example.com/categories"],
+       "subcategories_discovery": ["https://example.com/categories/electronics"],
+       "listings_discovery": [
+         "https://example.com/categories/electronics/laptops",
+         "https://example.com/categories/electronics/laptops?page=2"
+       ],
+       "last_tested_url": "https://example.com/categories/electronics/laptops",
+       "last_tested_at": "<timestamp>"
+     }
+   }
+   ```
+
+=== STEP 6: Verify Config.yaml ===
+**CRITICAL**: Config.yaml already exists from boilerplate - verify only, no changes needed
+
+25) Verify config.yaml (USE ABSOLUTE PATH):
+   a) Read existing config.yaml (from generated_scraper/<scraper>/config.yaml)
+   b) Parse YAML structure
+   c) Verify parsers array includes all needed parsers:
+      - categories parser (if has_categories)
+      - subcategories parser (if has_subcategories)
+      - listings parser
+      - details parser (will be updated by dmart-details-parser)
+   d) **Usually no changes needed** - boilerplate config.yaml is already complete
+   e) If structure is incorrect, report error but don't modify (user should fix manually)
+
+=== STEP 7: Write Navigation Knowledge (Markdown) ===
+**CRITICAL**: Use ABSOLUTE PATH for WriteFile operation
+
+26) Save navigation-knowledge.md (USE ABSOLUTE PATH):
+   ```markdown
+   # Navigation Parser Knowledge - <scraper_name>
+   
+   **Completed**: <timestamp>
+   **Phase**: Navigation Discovery (Boilerplate-Based)
+   
+   ## Parsers Updated
+   
+   ### Categories Parser (parsers/categories.rb)
+   - **Status**: ✅ Complete
+   - **Selector**: `.category-item a` (updated from boilerplate)
+   - **Discovery Method**: Browser inspection of main navigation
+   - **Verified**: Yes, tested on 3 category pages
+   - **Edge Cases**: Some categories have subcategories (handled in subcategories parser)
+   - **Notes**: Categories page has 12 main categories
+   - **Changes Made**: [List what was edited - selectors updated, incomplete code fixed, etc.]
+   
+   ### Subcategories Parser (parsers/subcategories.rb)
+   - **Status**: ✅ Complete
+   - **Selector**: `.subcategory-item a` (updated from boilerplate)
+   - **Discovery Method**: Browser inspection of category detail pages
+   - **Verified**: Yes, tested on 2 subcategory pages
+   - **Notes**: Subcategories appear in sidebar
+   - **Changes Made**: [List what was edited]
+   
+   ### Listings Parser (parsers/listings.rb)
+   - **Status**: ✅ Complete
+   - **Product Link Selector**: `.product-card a` (updated from boilerplate)
+   - **Pagination Strategy**: [count_based|next_button|infinite_scroll|query_param|path]
+   - **Pagination Details**:
+     * If Strategy 1 (Count-Based): Product count selector, regex pattern, products per page, URL pattern
+     * If Strategy 2 (Next Button): Next button selector
+     * If Strategy 3 (Infinite Scroll): API endpoint and parameters (documented in notes)
+     * If Strategy 4 (Query Parameter): `?page=2` pattern
+     * If Strategy 5 (Path Pattern): `/page/2` pattern
+   - **Products Per Page**: 24
+   - **Verified**: Yes, tested pagination through 3 pages
+   - **Edge Cases**: Last page has fewer products (handled with conditional)
+   - **Sample Detail URLs**: [List 3-5 URLs for detail parser]
+   - **Changes Made**: [List what was edited - selectors updated, pagination strategy implemented]
+   
+   ## Vars Flow
+   
+   ### Categories → Listings/Subcategories
+   - `category_name`: Name of the category
+   - `category_level`: Hierarchy level (1, 2, 3...)
+   - `breadcrumb`: Full category path
+   
+   ### Subcategories → Listings
+   - `subcategory_name`: Name of subcategory
+   - `category_name`: Parent category name
+   - `breadcrumb`: Full path including subcategory
+   
+   ### Listings → Details
+   - `category_name`: Category name
+   - `breadcrumb`: Full category path
+   - `rank`: Product position in listing (1, 2, 3...)
+   - `page_number`: Pagination page number
+   - `listing_position`: Position within current page
+   
+   ## Selector Discovery Details
+   
+   ### Category Selectors
+   - **Primary**: `.category-item a`
+   - **Fallback**: `.nav-link a`
+   - **Verification**: Tested on homepage and category pages
+   - **Confidence**: 95%
+   
+       ### Pagination Selectors
+       - **Strategy Used**: [count_based|next_button|infinite_scroll|query_param|path]
+       - **Next Button** (if Strategy 2): `.next-page`, `a[aria-label="Next"]`
+       - **Product Count** (if Strategy 1): Selector and regex pattern
+       - **Query Parameter** (if Strategy 4): `?page=2` pattern
+       - **Path Pattern** (if Strategy 5): `/page/2` pattern
+       - **Infinite Scroll API** (if Strategy 3): API endpoint and parameters
+       - **Verification**: Tested through 5 pages
+   
+   ## Next Steps for Detail Parser
+   
+   **Inputs Needed:**
+   - Use sample detail URLs from `sample_detail_urls` array
+   - Expect vars: `category_name`, `breadcrumb`, `rank`, `page_number`
+   
+   **Command to Run:**
+   ```bash
+   /dmart-details-parser scraper=<scraper_slug>
+   ```
+   
+   This will read navigation-selectors.json and navigation-knowledge.md
+   to update the details parser in the boilerplate (replace PLACEHOLDER selectors).
+   ```
+
+=== STEP 8: Update Phase Status ===
+27) Update phase-status.json (USE ABSOLUTE PATH):
+   ```json
+   "navigation_discovery": {
+     "status": "completed",
+     "completed_at": "<timestamp>",
+     "checkpoints": {
+       "categories_analyzed": true,
+       "categories_parser_updated": true,
+       "subcategories_analyzed": true,
+       "subcategories_parser_updated": true,
+       "listings_analyzed": true,
+       "listings_parser_updated": true
+     }
+   }
+   ```
+
+28) Update browser-context.json (USE ABSOLUTE PATH):
+   **CRITICAL**: Save to scraper-specific location: `generated_scraper/<scraper>/.scraper-state/browser-context.json`
+   ```json
+   {
+     "last_url_visited": "<last_url_analyzed>",
+     "last_phase": "navigation_discovery",
+     "last_activity": "<timestamp>",
+     "scraper_name": "<scraper_slug>"
+   }
+   ```
+
+=== STEP 9: Completion Report & Auto-Chaining ===
+29) Display completion summary:
+   ```
+   ✅ Navigation Parsers Updated (Boilerplate-Based)
+   
+   Scraper: <scraper_slug>
+   
+   Parsers Updated & Tested:
+   - parsers/categories.rb ✅ (edited and tested)
+   - parsers/subcategories.rb ✅ (edited and tested, if applicable)
+   - parsers/listings.rb ✅ (edited and tested)
+   
+   Files Created/Updated:
+   - generated_scraper/<scraper>/parsers/categories.rb ✅ (edited)
+   - generated_scraper/<scraper>/parsers/subcategories.rb ✅ (edited, if applicable)
+   - generated_scraper/<scraper>/parsers/listings.rb ✅ (edited)
+   - generated_scraper/<scraper>/config.yaml ✅ (verified, already complete from boilerplate)
+   - generated_scraper/<scraper>/.scraper-state/navigation-selectors.json ✅
+   - generated_scraper/<scraper>/.scraper-state/navigation-knowledge.md ✅
+   - generated_scraper/<scraper>/.scraper-state/phase-status.json ✅ (updated)
+   
+   Next Command:
+   /dmart-details-parser scraper=<scraper_slug>
+   
+   This command will read navigation-selectors.json and navigation-knowledge.md
+   to update the details parser in the boilerplate (replace PLACEHOLDER selectors).
+   ```
+
+🚨🚨🚨 **CRITICAL: AUTO-CHAINING EXECUTION REQUIRED** 🚨🚨🚨
+**YOU MUST NOW CHECK FOR auto_next PARAMETER AND EXECUTE NEXT COMMAND IF PRESENT**
+**DO NOT SKIP THIS STEP - IT IS MANDATORY**
+
+30) **MANDATORY AUTO-CHAINING CHECK**: Parse `{{args}}` and check if `auto_next=true`:
+   - **CRITICAL**: You MUST parse the `{{args}}` string to extract the `auto_next` parameter
+   - **CRITICAL**: Look for `auto_next=true` or `auto_next=false` in the arguments string
+   - **EXAMPLE**: If `{{args}}` contains `scraper=SanRoque_UY auto_next=true`, then `auto_next=true` is present
+   - **EXAMPLE**: If `{{args}}` contains `scraper=SanRoque_UY` (no auto_next), then `auto_next` is not provided
+   - **CRITICAL**: If `auto_next=true` is found: **YOU MUST EXECUTE** steps 31-33 below (close browser, detect shell, spawn console and execute command)
+   - **CRITICAL**: If `auto_next=false` or not provided: Stop here (command complete, wait for user)
+   - **DO NOT** assume auto_next is false - you MUST check the actual `{{args}}` value
+   - **DO NOT** skip this check - it is MANDATORY even if you think auto_next is not present
+   - Extract `auto_next` parameter from `{{args}}`
+   - If `auto_next=true`: **MUST EXECUTE** steps 31-33 below (close browser, detect shell, spawn console and execute command)
+   - If `auto_next=false` or not provided: Stop here (command complete, wait for user)
+   
+31) **IF auto_next=true**: Close browser session:
+   - **MANDATORY**: Call `browser_close()` MCP tool to close browser
+   - This is REQUIRED before spawning new console
+   
+32) **IF auto_next=true**: Load or detect shell type:
+   a) **First**: Check if `.gemini/shell-info.json` exists (USE ABSOLUTE PATH):
+      - If exists: Read shell type from JSON file
+      - If not exists: Detect shell type (see step 32b)
+   
+   b) **If shell-info.json doesn't exist**: Detect shell type:
+      - **PowerShell**: Execute `if ($PSVersionTable) { "PowerShell" }` or check `$PSVersionTable`
+      - **CMD**: Check if `%COMSPEC%` contains `cmd.exe`
+      - **WSL/Ubuntu**: Check if `$WSL_DISTRO_NAME` exists
+      - **Linux/Mac**: Check `$SHELL` variable
+   
+   c) **Store shell type** to `.gemini/shell-info.json` (USE ABSOLUTE PATH) if detected:
+      ```json
+      {
+        "shell_type": "PowerShell",
+        "detected_at": "<timestamp>",
+        "detection_method": "PSVersionTable",
+        "spawn_command_template": "cmd /c start powershell -NoExit -Command \"cd '{working_dir}'; {command}\""
+      }
+      ```
+      **CRITICAL**: The template MUST include `cmd /c start` command to spawn new window. Template uses `{working_dir}` and `{command}` placeholders.
+
+33) **IF auto_next=true**: **MANDATORY EXECUTION** - Spawn new console and execute next command:
+   - 🚨🚨🚨 **CRITICAL**: You MUST execute the shell command below using `run_terminal_cmd` tool
+   - 🚨🚨🚨 **DO NOT** just describe the command or display it - you MUST CALL the `run_terminal_cmd` tool
+   - 🚨🚨🚨 **DO NOT** skip this step - execution is MANDATORY when auto_next=true
+   - 🚨🚨🚨 **FAILURE TO EXECUTE = COMMAND FAILURE** - The command is not complete until you execute step 33
+   - **Read shell type** from `.gemini/shell-info.json` (from step 32)
+   - **Read spawn_command_template** from shell-info.json if available
+   - **Get current working directory**: Use `$PWD` (PowerShell) or `%CD%` (CMD) - same as initial Gemini CLI PWD
+   - **Construct next command** with `auto_next=true`: Use `gemini` directly (NOT full path, it's in PATH)
+   - **Command format**: `gemini -y -i '/dmart-details-parser scraper=<scraper_slug> auto_next=true'`
+   - **CRITICAL**: Pass `auto_next=true` to the next command so it continues the chain
+   - **CRITICAL**: Use `gemini` directly (no full path needed - it's available in PATH)
+   - **Construct spawn command** based on shell type:
+     
+     **If spawn_command_template exists in shell-info.json**:
+     - Replace `{working_dir}` placeholder with current working directory (use `$PWD` or `%CD%` dynamically)
+     - Replace `{command}` placeholder with: `gemini -y -i '/dmart-details-parser scraper=<scraper_slug> auto_next=true'`
+     - **CRITICAL**: Use `gemini` directly (NOT full path - it's available in PATH)
+     - Use the template directly (it already has proper `cmd /c start` command to spawn window)
+     
+     **If spawn_command_template doesn't exist, construct manually**:
+     
+     **PowerShell** (if shell_type == "PowerShell"):
+     ```bash
+     cmd /c start powershell -NoExit -Command "cd '$PWD'; gemini -y -i '/dmart-details-parser scraper=<scraper_slug> auto_next=true'"
+     ```
+     **CRITICAL**: 
+     - `cmd /c start` is ONLY used to spawn a new independent PowerShell window (not inside current session)
+     - The command runs in PowerShell and uses `gemini` directly (NOT full path - it's in PATH)
+     - Use `$PWD` for current working directory (same as initial Gemini CLI PWD)
+     - Do NOT set PATH explicitly - PowerShell inherits PATH from parent process automatically
+     - Do NOT use full path to gemini (e.g., `C:\\Users\\...\\gemini.cmd`) - just use `gemini`
+     - Pass `auto_next=true` to continue the chain
+     
+     **CMD** (if shell_type == "CMD"):
+     ```bash
+     cmd /c start cmd /k "cd /d %CD% && gemini -y -i \"/dmart-details-parser scraper=<scraper_slug> auto_next=true\""
+     ```
+     **CRITICAL**: 
+     - Use `cmd /c start` to spawn a completely independent CMD window (not inside current session)
+     - Use `%CD%` for current working directory (same as initial Gemini CLI PWD)
+     - Do NOT set PATH explicitly - CMD inherits PATH from parent process
+     - Pass `auto_next=true` to continue the chain
+     
+     **WSL** (if shell_type == "WSL"):
+     ```bash
+     cmd /c start powershell -NoExit -Command "wsl -e bash -c \"cd '$PWD' && gemini -y -i '/dmart-details-parser scraper=<scraper_slug> auto_next=true'\""
+     ```
+     **CRITICAL**: 
+     - Use `cmd /c start` to spawn a completely independent PowerShell window (not inside current session)
+     - Use `$PWD` for current working directory (same as initial Gemini CLI PWD)
+     - Do NOT set PATH explicitly - WSL inherits PATH from parent process
+     - Pass `auto_next=true` to continue the chain
+     
+     **Linux/Mac** (if shell_type == "Linux" or "Mac"):
+     ```bash
+     xterm -e "cd '$PWD' && gemini -y -i '/dmart-details-parser scraper=<scraper_slug> auto_next=true'" &
+     ```
+     **CRITICAL**: Pass `auto_next=true` to continue the chain
+   
+   - **EXECUTE** the shell command using `run_terminal_cmd` tool
+   - **DO NOT** just display the command - you MUST execute it
+   - **VERIFY** execution: The command should spawn a completely independent new PowerShell window (separate from Gemini CLI, like opening PowerShell from Windows Start menu)
+   - **AFTER EXECUTION**: This command is now COMPLETE. The spawned window will run independently.
+   - **END SESSION**: After successfully spawning the new window, this agent's work is done. The new window will handle the next phase.
+
+**CRITICAL COMPLETION REQUIREMENTS:**
+- ✅ All parsers edited (categories, subcategories if needed, listings)
+- ✅ All parsers tested with parser_tester MCP tool
+- ✅ config.yaml verified (already complete from boilerplate)
+- ✅ navigation-selectors.json written (machine-readable)
+- ✅ navigation-knowledge.md written (human + AI readable)
+- ✅ phase-status.json updated
+- ✅ Sample detail URLs extracted
+- ✅ Completion report displayed with next steps
+- ✅ **IF auto_next=true**: Browser closed, shell type detected/stored, next command **EXECUTED** (not just displayed)
+  - **MANDATORY**: You MUST execute the shell command in step 33 if auto_next=true
+  - **DO NOT** just display the command - you MUST use `run_terminal_cmd` to execute it
+  - **VERIFY**: Check that new console window opened and command is running
+  - The command execution is REQUIRED, not optional
+
+**This command is now COMPLETE and INDEPENDENT.**
+**Next session can run /dmart-details-parser without any conversation history.**
+
+**Note**: Auto-chaining logic is handled in steps 30-33 above. This section is for reference only.
+
+🚨🚨🚨 **MANDATORY: STOP AFTER COMPLETION (if auto_next=false)** 🚨🚨🚨
+- **IF auto_next=false or not provided**: After displaying completion summary (step 29), you MUST STOP
+- **DO NOT continue with any other work, tasks, or projects**
+- **DO NOT create new scrapers, directories, or todo lists**
+- **DO NOT start any new work**
+- **This command is COMPLETE - END SESSION NOW**
+- **Wait for user's next command - do not proceed autonomously**
+- **IF auto_next=true**: Follow steps 30-33 to spawn next command, then END
+
+Examples:
+  /dmart-navigation-parser scraper=naivas_online
+  /dmart-navigation-parser scraper=my_store resume-url="https://example.com/categories"
+"""
+
