@@ -236,8 +236,71 @@ Process:
    
    - browser_snapshot()
    - **TRACK URL**: Record this URL in navigation-selectors.json under `urls_accessed.categories_discovery`
+   
+   - **MANDATORY**: Detect if categories need browser fetch (check if categories are visible or require button clicks):
+     a) **Check if category links are visible in DOM**:
+        - Use `browser_evaluate()` to check if category links exist:
+          ```javascript
+          browser_evaluate(() => {
+            const categorySelectors = [
+              '.category-item a',
+              '.nav-menu a',
+              '.category-link',
+              '[class*="category"] a',
+              'nav a[href*="category"]'
+            ];
+            
+            for (const selector of categorySelectors) {
+              try {
+                const elements = document.querySelectorAll(selector);
+                if (elements.length > 0) {
+                  return { found: true, selector: selector, count: elements.length };
+                }
+              } catch (e) {}
+            }
+            return { found: false };
+          });
+          ```
+        - **If categories found**: Document that standard fetch_type can be used for next pages
+        - **If categories NOT found**: Proceed to step 8b
+     
+     b) **If categories not found, look for buttons that reveal categories**:
+        - Use `browser_snapshot()` to visually inspect for menu buttons
+        - Use `browser_evaluate()` to find potential reveal buttons (similar to dmart-scrape step 9b)
+        - **If buttons found**: Proceed to step 8c
+        - **If no buttons found**: Document that categories might require JavaScript
+     
+     c) **Test button click to verify categories appear**:
+        - Use `browser_inspect_element()` on button to get real CSS selector
+        - Use `browser_click()` with element ref to click button
+        - Wait 2-3 seconds, then verify categories appear
+        - **If categories appear**: Document button selector, wait time, and puppeteer code
+        - **Document in navigation-selectors.json** (see step 24 for structure):
+          * Set `categories.needs_browser_fetch` to true/false
+          * If button found: Document `categories.button_to_reveal` with selector and puppeteer code
+   
    - browser_inspect_element() to find category link selectors
    - browser_verify_selector() for category names
+   - **Discover category_id** (if available):
+     * Use `browser_inspect_element()` on category links to check for data attributes:
+       - `data-category-id`, `data-categoryid`, `data-id`
+       - Check parent elements for category_id attributes
+     * Use `browser_evaluate()` to find category_id in JSON data:
+       ```javascript
+       browser_evaluate(() => {
+         const categories = document.querySelectorAll('.category-item, .category-link');
+         return Array.from(categories).map(cat => ({
+           name: cat.textContent.trim(),
+           dataAttributes: Array.from(cat.attributes).filter(attr => 
+             attr.name.includes('category') || attr.name.includes('id')
+           ).map(attr => ({ name: attr.name, value: attr.value })),
+           href: cat.href || cat.getAttribute('href')
+         }));
+       })
+       ```
+     * Check if category_id is in URL pattern (e.g., `/category/123/` or `/categories?id=123`)
+     * Check if category data is in JSON format (parse JSON if found)
+     * Record discovered category_id extraction method in navigation-selectors.json
    - Discover category link pattern, URL structure
 
 9) Edit parsers/categories.rb (USE ABSOLUTE PATH):
@@ -264,9 +327,29 @@ Process:
    
    c) Edit the parser file:
       - Replace category link selector with discovered selector
+      - **Extract category_id** (if discovered):
+        * Replace `PLACEHOLDER_CATEGORY_ID_REGEX` with discovered regex pattern (if extracting from URL)
+        * Update category_id extraction code with discovered method:
+          - If from data attribute: Update selector (e.g., `category['data-category-id']`)
+          - If from nested element: Update selector (e.g., `category.at_css('[data-category-id]')['data-category-id']`)
+          - If from URL: Update regex pattern
+        * Ensure category_id is passed in vars to next page
+      - **CRITICAL**: Update `fetch_type` for next pages based on discovery:
+        * Read `navigation-selectors.json` (from step 24) to check `categories.needs_browser_fetch`
+        * If `needs_browser_fetch == true`: Set `fetch_type: "browser"` in next_page_config
+        * If `needs_browser_fetch == false`: Set `fetch_type: "standard"` in next_page_config
+        * Replace `PLACEHOLDER_FETCH_TYPE` with the determined value
+      - **CRITICAL**: Configure driver block if browser fetch is needed:
+        * If `fetch_type == "browser"` AND `categories.button_to_reveal` exists in navigation-selectors.json:
+          - Uncomment the driver block in next_page_config
+          - Replace `PLACEHOLDER_BUTTON_SELECTOR` with `categories.button_to_reveal.selector`
+          - Replace `PLACEHOLDER_WAIT_TIME` with `categories.button_to_reveal.wait_time_ms`
+          - Generate puppeteer code: `"await page.click('#{selector}'); await sleep(#{wait_time_ms});"`
+          - Uncomment the `if next_page_config[:fetch_type] == "browser"` block
+        * If `fetch_type == "standard"`: Leave driver block commented out
       - Fix any incomplete conditional statements
       - Update page_type logic if needed
-      - Preserve vars passing structure
+      - Preserve vars passing structure (include category_id in vars)
       - Keep save_pages calls
    
    d) Write updated parser file (USE ABSOLUTE PATH):
@@ -334,6 +417,15 @@ Process:
    **Popup Handling Workflow** (execute immediately after navigation) - same as step 8, use popup_handling from discovery-state.json
    
    - **TRACK URL**: Record this URL in navigation-selectors.json under `urls_accessed.subcategories_discovery`
+   
+   - **MANDATORY**: Detect if subcategories need browser fetch (similar to step 8):
+     a) **Check if subcategory links are visible in DOM** using `browser_evaluate()`
+     b) **If not found, look for buttons** that reveal subcategories
+     c) **Test button click** to verify subcategories appear
+     d) **Document in navigation-selectors.json**:
+        * Set `subcategories.needs_browser_fetch` to true/false
+        * If button found: Document `subcategories.button_to_reveal` with selector and puppeteer code
+   
    - Discover subcategory link selectors
    - Understand subcategory navigation pattern
 
@@ -351,6 +443,18 @@ Process:
    
    c) Edit the parser file:
       - Replace subcategory link selector with discovered selector
+      - **CRITICAL**: Update `fetch_type` for next pages based on discovery:
+        * Read `navigation-selectors.json` to check `subcategories.needs_browser_fetch`
+        * If `needs_browser_fetch == true`: Set `fetch_type: "browser"` in next_page_config
+        * If `needs_browser_fetch == false`: Set `fetch_type: "standard"` in next_page_config
+        * Replace `PLACEHOLDER_FETCH_TYPE` with the determined value
+      - **CRITICAL**: Configure driver block if browser fetch is needed:
+        * If `fetch_type == "browser"` AND `subcategories.button_to_reveal` exists:
+          - Uncomment the driver block in next_page_config
+          - Replace `PLACEHOLDER_BUTTON_SELECTOR` with discovered selector
+          - Replace `PLACEHOLDER_WAIT_TIME` with discovered wait time
+          - Uncomment the `if next_page_config[:fetch_type] == "browser"` block
+        * If `fetch_type == "standard"`: Leave driver block commented out
       - Preserve vars passing structure
       - Keep save_pages calls
    
@@ -369,7 +473,7 @@ Process:
         parser_path: "parsers/subcategories.rb",
         page_type: "subcategories",
         auto_download: true,  // RECOMMENDED: Automatically downloads HTML from active browser tab
-        vars: '{"category_name":"Electronics","breadcrumb":"Electronics"}',
+        vars: '{"category_name":"Electronics","category_id":"123","breadcrumb":"Electronics"}',
         quiet: false
       })
       ```
@@ -390,7 +494,7 @@ Process:
           parser_path: "parsers/listings.rb",
           page_type: "listings",
           auto_download: true,  // RECOMMENDED: Automatically downloads HTML from active browser tab
-          vars: '{"category_name":"Electronics","breadcrumb":"Electronics","page":1}',
+          vars: '{"category_name":"Electronics","category_id":"123","breadcrumb":"Electronics","page":1}',
           quiet: false
         })
         ```
@@ -412,23 +516,108 @@ Process:
    - **TRACK URL**: Record this URL in navigation-selectors.json under `urls_accessed.listings_discovery`
    - Discover product link selectors
    - Analyze pagination pattern (critical - check in priority order):
-     * **Strategy 1: Count-Based Calculation** (check FIRST - if product count is displayed):
-       - Look for product count indicators in page text
-       - Use `browser_evaluate()` to find count elements:
-         ```javascript
-         browser_evaluate(() => {
-           const countElements = document.querySelectorAll('[class*="count"], [class*="total"], [class*="results"], [class*="product-count"]');
-           return Array.from(countElements).map(el => ({
-             text: el.textContent,
-             class: el.className,
-             id: el.id
-           }));
-         })
-         ```
-       - Extract total product count from text (regex pattern matching)
-       - Calculate total pages: total_products ÷ products_per_page
-       - Generate pagination URLs based on discovered pattern (query param or path)
-       - **Note**: Site likely also implements query parameter or path pattern pagination
+     * **Strategy 1: Count-Based Calculation** (TOP PRIORITY - check FIRST):
+       **CRITICAL**: This is the preferred strategy - try this first before other strategies
+       
+       a) **Discover product count selector**:
+          - Use `browser_evaluate()` to find count elements:
+            ```javascript
+            browser_evaluate(() => {
+              const countElements = document.querySelectorAll('[class*="count"], [class*="total"], [class*="results"], [class*="product-count"], [id*="count"], [id*="total"], p.result-count, .result-count');
+              return Array.from(countElements).map(el => ({
+                text: el.textContent,
+                class: el.className,
+                id: el.id,
+                selector: el.tagName.toLowerCase() + (el.className ? '.' + el.className.split(' ').join('.') : '') + (el.id ? '#' + el.id : '')
+              }));
+            })
+            ```
+          - Use `browser_inspect_element()` on visible count text to get exact CSS selector
+          - Common patterns: "Showing 1-24 of 150 results", "150 products", "Total: 150"
+          - Record discovered selector in navigation-selectors.json
+       
+       b) **Extract count using regex patterns**:
+          - Analyze count text to determine regex pattern
+          - Common patterns:
+            * `/(\\d+)\\s*(?:results?|products?|items?)/i` - "150 products"
+            * `/(?:showing|mostrando|mostrar)\\s*\\d+[–-]\\d+\\s*(?:of|de)\\s*(\\d+)/i` - "Showing 1-24 of 150"
+            * `/(\\d+)\\s*(?:total|en total)/i` - "150 total"
+            * `/\\((\\d+)\\)/` - "(150)"
+          - Test regex pattern with `browser_evaluate()` to extract number
+          - Record regex pattern in navigation-selectors.json
+       
+       c) **Calculate products per page**:
+          - Count products on current page using discovered product link selector
+          - Use `browser_evaluate()` to count product elements:
+            ```javascript
+            browser_evaluate(() => {
+              const products = document.querySelectorAll('PLACEHOLDER_PRODUCT_LINK_SELECTOR');
+              return products.length;
+            })
+            ```
+          - Record products_per_page in navigation-selectors.json
+       
+       d) **Discover pagination pattern** (test how next pages are generated):
+          **CRITICAL**: After finding product count, test pagination patterns to determine URL structure
+          
+          i) **Test Query Parameter Pattern** (most common):
+             - Navigate to page 2 using query param: `current_url + "?page=2"`
+             - Or try: `?p=2`, `?pagina=2`, `?pagenum=2`
+             - Use `browser_navigate()` to test URL
+             - Verify page 2 loads correctly (check if products change)
+             - If works: Record pattern as `?page={num}` or `?p={num}` in navigation-selectors.json
+          
+          ii) **Test Path Pattern** (if query param doesn't work):
+              - Navigate to page 2 using path: `base_path + "/page/2"`
+              - Or try: `/pagina/2`, `/p/2`, `/page-2`
+              - Use `browser_navigate()` to test URL
+              - Verify page 2 loads correctly
+              - If works: Record pattern as `/page/{num}` or `/pagina/{num}` in navigation-selectors.json
+          
+          iii) **Test Next Button** (if query/path patterns don't work):
+               - Look for next button/link in pagination area
+               - Use `browser_inspect_element()` to find next button selector
+               - Click next button or extract href from next button
+               - Analyze next button href to determine pattern:
+                 * If href contains `?page=2`: Use query param pattern
+                 * If href contains `/page/2`: Use path pattern
+                 * If href is relative: Extract pattern from href structure
+               - Record next button selector and pattern in navigation-selectors.json
+          
+          iv) **Test Infinite Scroll** (if no pagination buttons/links found):
+              - Use `browser_evaluate()` to scroll page and detect loading:
+                ```javascript
+                // Get initial product count
+                browser_evaluate(() => {
+                  const products = document.querySelectorAll('.product-item, .product-card, [class*="product"]');
+                  return products.length;
+                })
+                
+                // Scroll to bottom
+                browser_evaluate(() => {
+                  window.scrollTo(0, document.body.scrollHeight);
+                  return new Promise(resolve => setTimeout(resolve, 2000));
+                })
+                
+                // Check if more products loaded
+                browser_evaluate(() => {
+                  const products = document.querySelectorAll('.product-item, .product-card, [class*="product"]');
+                  return products.length;
+                })
+                
+                // Monitor network requests
+                browser_network_requests_simplified()
+                ```
+              - If infinite scroll detected: Document API endpoint and parameters
+              - **Note**: Infinite scroll requires browser automation - document in notes, Strategy 1 will use count-based calculation instead
+       
+       e) **Record Strategy 1 configuration**:
+          - product_count_selector: Discovered CSS selector
+          - product_count_regex: Discovered regex pattern
+          - products_per_page: Count of products on first page
+          - pagination_pattern: "query_param" or "path" or "next_button" (based on discovery)
+          - pagination_url_template: Exact URL pattern (e.g., "?page={num}" or "/page/{num}")
+          - **CRITICAL**: Strategy 1 is now active and will be used in listings.rb
      
      * **Strategy 2: Next Button** (check SECOND - most common):
        - Look for next button/link in pagination area
@@ -498,14 +687,22 @@ Process:
    
    c) Edit the parser file:
       - Replace product link selector with discovered selector
-      - Update pagination handling based on discovered strategy (match priority order from listings.rb):
-        * **Strategy 1 (Count-Based)**: Uncomment Strategy 1 section in listings.rb, update product count selector and regex pattern, update pagination URL pattern (query param or path)
-        * **Strategy 2 (Next Button)**: Uncomment Strategy 2 section in listings.rb, update next button selector
-        * **Strategy 3 (Infinite Scroll)**: Document API endpoint and parameters in comments (requires browser automation - not implemented in parser)
-        * **Strategy 4 (Query Parameter)**: Uncomment Strategy 4 section in listings.rb, verify ?page= pattern works
-        * **Strategy 5 (Path Pattern)**: Uncomment Strategy 5 section in listings.rb, verify /page/ pattern works
-      - **CRITICAL**: Choose ONE pagination strategy based on discovery results
-      - **CRITICAL**: Match the strategy order in listings.rb boilerplate (Strategy 1 first, then 2, 3, 4, 5)
+      - **CRITICAL**: Strategy 1 (Count-Based) is TOP PRIORITY and already active in listings.rb
+      - **Update Strategy 1** with discovered values:
+        * Replace `PLACEHOLDER_PRODUCT_COUNT` with discovered product count selector
+        * Replace `PLACEHOLDER_REGEX` with discovered regex pattern for extracting count
+        * Update pagination URL pattern based on discovered pattern:
+          - If query param discovered: Update line with `?page=#{page_num}` pattern
+          - If path pattern discovered: Update line with `/page/#{page_num}` pattern
+          - If next button pattern discovered: Use next button href structure
+        * Ensure Strategy 1 section is active (not commented out)
+      - **Fallback strategies** (only if Strategy 1 fails or count not available):
+        * **Strategy 2 (Next Button)**: Keep commented, uncomment only if Strategy 1 cannot be used
+        * **Strategy 3 (Infinite Scroll)**: Keep commented, document in notes if detected
+        * **Strategy 4 (Query Parameter)**: Keep commented, use only if Strategy 1 count discovery fails
+        * **Strategy 5 (Path Pattern)**: Keep commented, use only if Strategy 1 count discovery fails
+      - **CRITICAL**: Strategy 1 should be the primary/active strategy - it's already uncommented in boilerplate
+      - **CRITICAL**: Only use fallback strategies if product count cannot be discovered
       - Preserve vars passing structure (rank, page_number, listing_position)
       - Keep save_pages calls
    
@@ -548,6 +745,23 @@ Process:
      "categories": {
        "category_link_selector": [".category-item a", ".nav-link a"],
        "category_name_selectors": [".category-title", "a"],
+       "needs_browser_fetch": true/false,
+       "button_to_reveal": {
+         "exists": true/false,
+         "selector": "button.menu-toggle",
+         "puppeteer_code": "await page.click('button.menu-toggle'); await sleep(2000);",
+         "wait_time_ms": 2000,
+         "verified": true/false
+       },
+       "category_id_extraction": {
+         "method": "data_attribute|url_regex|json|nested_element",
+         "selector": "data-category-id",  // If data attribute
+         "regex_pattern": "/category\\/(\\d+)/",  // If extracting from URL
+         "json_path": "categoryId",  // If JSON format
+         "nested_selector": "[data-category-id]",  // If nested element
+         "verified": true,
+         "notes": "Category ID extraction method and selector"
+       },
        "verified": true,
        "confidence": 0.95,
        "notes": "Categories found in main navigation menu",
@@ -557,6 +771,14 @@ Process:
      "subcategories": {
        "subcategory_link_selector": [".subcategory-item a"],
        "subcategory_name_selectors": [".subcategory-name"],
+       "needs_browser_fetch": true/false,
+       "button_to_reveal": {
+         "exists": true/false,
+         "selector": "button.show-more",
+         "puppeteer_code": "await page.click('button.show-more'); await sleep(2000);",
+         "wait_time_ms": 2000,
+         "verified": true/false
+       },
        "verified": true,
        "confidence": 0.90,
        "discovery_urls": ["https://example.com/categories/electronics"],
@@ -564,14 +786,15 @@ Process:
      },
      "listings": {
        "product_link_selector": [".product-item a", ".product-card a"],
-       "pagination_pattern": "count_based|next_button|infinite_scroll|query_param|path",
-       "pagination_strategy": "count_based",  // Strategy 1, 2, 3, 4, or 5
-       "pagination_next": [".next-page", "a[aria-label='Next']"],  // For Strategy 2
-       "pagination_param": "page",  // For Strategy 4
-       "product_count_selector": null,  // For Strategy 1
-       "product_count_regex": null,  // For Strategy 1
-       "products_per_page": null,  // For Strategy 1
-       "infinite_scroll_api": null,  // For Strategy 3
+       "pagination_strategy": "count_based",  // Strategy 1 (TOP PRIORITY), 2, 3, 4, or 5
+       "pagination_pattern": "query_param|path|next_button",  // Discovered pattern for Strategy 1
+       "pagination_url_template": "?page={num}",  // For Strategy 1: URL pattern template
+       "product_count_selector": ".result-count",  // For Strategy 1: Discovered selector
+       "product_count_regex": "/(\\d+)\\s*(?:results?|products?)/i",  // For Strategy 1: Discovered regex
+       "products_per_page": 24,  // For Strategy 1: Products per page count
+       "pagination_next": [".next-page", "a[aria-label='Next']"],  // For Strategy 2 (fallback)
+       "pagination_param": "page",  // For Strategy 4 (fallback)
+       "infinite_scroll_api": null,  // For Strategy 3 (fallback)
        "infinite_scroll_notes": "If infinite scroll detected, document API endpoint and params here",
        "verified": true,
        "confidence": 0.95,
@@ -627,11 +850,16 @@ Process:
    ### Categories Parser (parsers/categories.rb)
    - **Status**: ✅ Complete
    - **Selector**: `.category-item a` (updated from boilerplate)
+   - **Category ID Extraction**: 
+     * **Method**: [data_attribute|url_regex|json|nested_element]
+     * **Selector/Pattern**: [Discovered selector or regex pattern]
+     * **Example**: `category['data-category-id']` or extracted from URL `/category/(\\d+)/`
+     * **Verified**: Yes, category_id extracted and passed to next page
    - **Discovery Method**: Browser inspection of main navigation
    - **Verified**: Yes, tested on 3 category pages
    - **Edge Cases**: Some categories have subcategories (handled in subcategories parser)
-   - **Notes**: Categories page has 12 main categories
-   - **Changes Made**: [List what was edited - selectors updated, incomplete code fixed, etc.]
+   - **Notes**: Categories page has 12 main categories, category_id available for all categories
+   - **Changes Made**: [List what was edited - selectors updated, category_id extraction added, incomplete code fixed, etc.]
    
    ### Subcategories Parser (parsers/subcategories.rb)
    - **Status**: ✅ Complete
@@ -644,33 +872,41 @@ Process:
    ### Listings Parser (parsers/listings.rb)
    - **Status**: ✅ Complete
    - **Product Link Selector**: `.product-card a` (updated from boilerplate)
-   - **Pagination Strategy**: [count_based|next_button|infinite_scroll|query_param|path]
-   - **Pagination Details**:
-     * If Strategy 1 (Count-Based): Product count selector, regex pattern, products per page, URL pattern
-     * If Strategy 2 (Next Button): Next button selector
-     * If Strategy 3 (Infinite Scroll): API endpoint and parameters (documented in notes)
-     * If Strategy 4 (Query Parameter): `?page=2` pattern
-     * If Strategy 5 (Path Pattern): `/page/2` pattern
-   - **Products Per Page**: 24
-   - **Verified**: Yes, tested pagination through 3 pages
+   - **Pagination Strategy**: Strategy 1 (Count-Based) - TOP PRIORITY
+   - **Pagination Details** (Strategy 1):
+     * **Product Count Selector**: `.result-count` (discovered via browser tools)
+     * **Product Count Regex**: `/(\\d+)\\s*(?:results?|products?)/i` (discovered pattern)
+     * **Products Per Page**: 24 (counted from first page)
+     * **Pagination Pattern**: `query_param` or `path` (discovered via testing)
+     * **Pagination URL Template**: `?page={num}` or `/page/{num}` (discovered pattern)
+     * **Total Pages Calculated**: Based on product_count ÷ products_per_page
+   - **Fallback Strategies** (only if Strategy 1 fails):
+     * Strategy 2 (Next Button): Next button selector (if count not available)
+     * Strategy 3 (Infinite Scroll): API endpoint (documented in notes if detected)
+     * Strategy 4 (Query Parameter): `?page=2` pattern (fallback)
+     * Strategy 5 (Path Pattern): `/page/2` pattern (fallback)
+   - **Verified**: Yes, tested pagination through 3 pages using Strategy 1
    - **Edge Cases**: Last page has fewer products (handled with conditional)
    - **Sample Detail URLs**: [List 3-5 URLs for detail parser]
-   - **Changes Made**: [List what was edited - selectors updated, pagination strategy implemented]
+   - **Changes Made**: [List what was edited - Strategy 1 selectors updated, pagination pattern discovered and tested]
    
    ## Vars Flow
    
    ### Categories → Listings/Subcategories
    - `category_name`: Name of the category
+   - `category_id`: Category ID (if available, extracted from data attributes, URL, or JSON)
    - `category_level`: Hierarchy level (1, 2, 3...)
    - `breadcrumb`: Full category path
    
    ### Subcategories → Listings
    - `subcategory_name`: Name of subcategory
    - `category_name`: Parent category name
+   - `category_id`: Category ID (preserved from parent category)
    - `breadcrumb`: Full path including subcategory
    
    ### Listings → Details
    - `category_name`: Category name
+   - `category_id`: Category ID (preserved from parent category)
    - `breadcrumb`: Full category path
    - `rank`: Product position in listing (1, 2, 3...)
    - `page_number`: Pagination page number
@@ -684,20 +920,25 @@ Process:
    - **Verification**: Tested on homepage and category pages
    - **Confidence**: 95%
    
-       ### Pagination Selectors
-       - **Strategy Used**: [count_based|next_button|infinite_scroll|query_param|path]
-       - **Next Button** (if Strategy 2): `.next-page`, `a[aria-label="Next"]`
-       - **Product Count** (if Strategy 1): Selector and regex pattern
-       - **Query Parameter** (if Strategy 4): `?page=2` pattern
-       - **Path Pattern** (if Strategy 5): `/page/2` pattern
-       - **Infinite Scroll API** (if Strategy 3): API endpoint and parameters
-       - **Verification**: Tested through 5 pages
+       ### Pagination Selectors (Strategy 1 - Count-Based - TOP PRIORITY)
+       - **Strategy Used**: Strategy 1 (Count-Based) - Primary strategy
+       - **Product Count Selector**: `.result-count` (discovered)
+       - **Product Count Regex**: `/(\\d+)\\s*(?:results?|products?)/i` (discovered)
+       - **Products Per Page**: 24 (calculated from first page)
+       - **Pagination Pattern**: `query_param` or `path` (discovered via testing)
+       - **Pagination URL Template**: `?page={num}` or `/page/{num}` (discovered)
+       - **Fallback Strategies** (only if Strategy 1 unavailable):
+         * Strategy 2 (Next Button): `.next-page`, `a[aria-label="Next"]`
+         * Strategy 4 (Query Parameter): `?page=2` pattern
+         * Strategy 5 (Path Pattern): `/page/2` pattern
+         * Strategy 3 (Infinite Scroll): API endpoint and parameters
+       - **Verification**: Tested Strategy 1 through 5 pages, verified pagination URLs generated correctly
    
    ## Next Steps for Detail Parser
    
    **Inputs Needed:**
    - Use sample detail URLs from `sample_detail_urls` array
-   - Expect vars: `category_name`, `breadcrumb`, `rank`, `page_number`
+   - Expect vars: `category_name`, `category_id`, `breadcrumb`, `rank`, `page_number`
    
    **Command to Run:**
    ```bash
@@ -785,87 +1026,41 @@ Process:
    - **MANDATORY**: Call `browser_close()` MCP tool to close browser
    - This is REQUIRED before spawning new console
    
-32) **IF auto_next=true**: Load or detect shell type:
-   a) **First**: Check if `.gemini/shell-info.json` exists (USE ABSOLUTE PATH):
-      - If exists: Read shell type from JSON file
-      - If not exists: Detect shell type (see step 32b)
-   
-   b) **If shell-info.json doesn't exist**: Detect shell type:
-      - **PowerShell**: Execute `if ($PSVersionTable) { "PowerShell" }` or check `$PSVersionTable`
-      - **CMD**: Check if `%COMSPEC%` contains `cmd.exe`
-      - **WSL/Ubuntu**: Check if `$WSL_DISTRO_NAME` exists
-      - **Linux/Mac**: Check `$SHELL` variable
-   
-   c) **Store shell type** to `.gemini/shell-info.json` (USE ABSOLUTE PATH) if detected:
+32) **IF auto_next=true**: Prepare PowerShell spawn command:
+   a) **Get current working directory**: Use `$PWD` - same as initial Gemini CLI PWD
+   b) **Construct next command** with `auto_next=true`: Use `gemini` directly (NOT full path, it's in PATH)
+   c) **Command format**: `gemini -y -i '/dmart-details-parser scraper=<scraper_slug> auto_next=true'`
+   d) **CRITICAL**: Pass `auto_next=true` to the next command so it continues the chain
+   e) **CRITICAL**: Use `gemini` directly (no full path needed - it's available in PATH)
+   f) **Store shell info** to `.gemini/shell-info.json` (USE ABSOLUTE PATH) for consistency:
       ```json
       {
         "shell_type": "PowerShell",
-        "detected_at": "<timestamp>",
-        "detection_method": "PSVersionTable",
+        "standardized_at": "<timestamp>",
         "spawn_command_template": "cmd /c start powershell -NoExit -Command \"cd '{working_dir}'; {command}\""
       }
       ```
-      **CRITICAL**: The template MUST include `cmd /c start` command to spawn new window. Template uses `{working_dir}` and `{command}` placeholders.
+      **CRITICAL**: Always use PowerShell - this is standardized across all commands.
 
-33) **IF auto_next=true**: **MANDATORY EXECUTION** - Spawn new console and execute next command:
+33) **IF auto_next=true**: **MANDATORY EXECUTION** - Spawn new PowerShell console and execute next command:
    - 🚨🚨🚨 **CRITICAL**: You MUST execute the shell command below using `run_terminal_cmd` tool
    - 🚨🚨🚨 **DO NOT** just describe the command or display it - you MUST CALL the `run_terminal_cmd` tool
    - 🚨🚨🚨 **DO NOT** skip this step - execution is MANDATORY when auto_next=true
    - 🚨🚨🚨 **FAILURE TO EXECUTE = COMMAND FAILURE** - The command is not complete until you execute step 33
-   - **Read shell type** from `.gemini/shell-info.json` (from step 32)
-   - **Read spawn_command_template** from shell-info.json if available
-   - **Get current working directory**: Use `$PWD` (PowerShell) or `%CD%` (CMD) - same as initial Gemini CLI PWD
-   - **Construct next command** with `auto_next=true`: Use `gemini` directly (NOT full path, it's in PATH)
-   - **Command format**: `gemini -y -i '/dmart-details-parser scraper=<scraper_slug> auto_next=true'`
-   - **CRITICAL**: Pass `auto_next=true` to the next command so it continues the chain
-   - **CRITICAL**: Use `gemini` directly (no full path needed - it's available in PATH)
-   - **Construct spawn command** based on shell type:
-     
-     **If spawn_command_template exists in shell-info.json**:
-     - Replace `{working_dir}` placeholder with current working directory (use `$PWD` or `%CD%` dynamically)
-     - Replace `{command}` placeholder with: `gemini -y -i '/dmart-details-parser scraper=<scraper_slug> auto_next=true'`
-     - **CRITICAL**: Use `gemini` directly (NOT full path - it's available in PATH)
-     - Use the template directly (it already has proper `cmd /c start` command to spawn window)
-     
-     **If spawn_command_template doesn't exist, construct manually**:
-     
-     **PowerShell** (if shell_type == "PowerShell"):
+   - **CRITICAL**: Always use PowerShell - standardized across all commands
+   - **Get current working directory**: Use `$PWD` - same as initial Gemini CLI PWD
+   - **Construct spawn command** (ALWAYS PowerShell):
      ```bash
      cmd /c start powershell -NoExit -Command "cd '$PWD'; gemini -y -i '/dmart-details-parser scraper=<scraper_slug> auto_next=true'"
      ```
      **CRITICAL**: 
+     - **ALWAYS use PowerShell** - standardized across all commands
      - `cmd /c start` is ONLY used to spawn a new independent PowerShell window (not inside current session)
      - The command runs in PowerShell and uses `gemini` directly (NOT full path - it's in PATH)
      - Use `$PWD` for current working directory (same as initial Gemini CLI PWD)
      - Do NOT set PATH explicitly - PowerShell inherits PATH from parent process automatically
      - Do NOT use full path to gemini (e.g., `C:\\Users\\...\\gemini.cmd`) - just use `gemini`
      - Pass `auto_next=true` to continue the chain
-     
-     **CMD** (if shell_type == "CMD"):
-     ```bash
-     cmd /c start cmd /k "cd /d %CD% && gemini -y -i \"/dmart-details-parser scraper=<scraper_slug> auto_next=true\""
-     ```
-     **CRITICAL**: 
-     - Use `cmd /c start` to spawn a completely independent CMD window (not inside current session)
-     - Use `%CD%` for current working directory (same as initial Gemini CLI PWD)
-     - Do NOT set PATH explicitly - CMD inherits PATH from parent process
-     - Pass `auto_next=true` to continue the chain
-     
-     **WSL** (if shell_type == "WSL"):
-     ```bash
-     cmd /c start powershell -NoExit -Command "wsl -e bash -c \"cd '$PWD' && gemini -y -i '/dmart-details-parser scraper=<scraper_slug> auto_next=true'\""
-     ```
-     **CRITICAL**: 
-     - Use `cmd /c start` to spawn a completely independent PowerShell window (not inside current session)
-     - Use `$PWD` for current working directory (same as initial Gemini CLI PWD)
-     - Do NOT set PATH explicitly - WSL inherits PATH from parent process
-     - Pass `auto_next=true` to continue the chain
-     
-     **Linux/Mac** (if shell_type == "Linux" or "Mac"):
-     ```bash
-     xterm -e "cd '$PWD' && gemini -y -i '/dmart-details-parser scraper=<scraper_slug> auto_next=true'" &
-     ```
-     **CRITICAL**: Pass `auto_next=true` to continue the chain
    
    - **EXECUTE** the shell command using `run_terminal_cmd` tool
    - **DO NOT** just display the command - you MUST execute it
