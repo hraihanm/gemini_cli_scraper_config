@@ -294,8 +294,16 @@ Process:
       After iterating through ALL FIND fields:
       - Count discovered_fields: fields where discovered == true
       - Count failed_fields: FIND fields where discovered == false
+      - **Count all field types** for discovery_summary:
+        * total_fields: Count of ALL fields in field-spec.json (FIND + PROCESS + DETERMINE + INFER + HARDCODED)
+        * find_fields: Count of fields where extraction_method == "FIND"
+        * process_fields: Count of fields where extraction_method == "PROCESS"
+        * determine_fields: Count of fields where extraction_method == "DETERMINE"
+        * infer_fields: Count of fields where extraction_method == "INFER"
+        * hardcoded_fields: Count of fields where extraction_method == "HARDCODED"
       - Report discovery summary:
         * "Discovered: X/Y FIND fields (Priority 1: A/B, Priority 2: C/D, Priority 3: E/F, Priority 4: G/H)"
+        * "Total fields: 53 (FIND: 15, PROCESS: 10, DETERMINE: 5, INFER: 3, HARDCODED: 20)"
         * List any failed fields (fields that couldn't be discovered)
         * Note: Some fields may be optional (e.g., barcode, allergens) - document as "not available on site"
    
@@ -318,14 +326,27 @@ Process:
       {
         "discovery_status": {
           "total_fields": 53,
-          "find_fields": 25,
-          "discovered_fields": 20,
-          "verified_fields": 20,
-          "pending_fields": 5,
+          "find_fields": 15,
+          "discovered_fields": 15,
+          "verified_fields": 15,
+          "pending_fields": 0,
+          "process_fields": 10,
+          "determine_fields": 5,
+          "infer_fields": 3,
+          "hardcoded_fields": 20,
           "last_discovery_at": "<timestamp>"
         }
       }
       ```
+      
+      **CRITICAL**: Calculate counts for ALL field types:
+      - total_fields: Count ALL fields in field-spec.json.fields
+      - find_fields: Count where extraction_method == "FIND"
+      - process_fields: Count where extraction_method == "PROCESS"
+      - determine_fields: Count where extraction_method == "DETERMINE"
+      - infer_fields: Count where extraction_method == "INFER"
+      - hardcoded_fields: Count where extraction_method == "HARDCODED"
+      - **Validation**: find_fields + process_fields + determine_fields + infer_fields + hardcoded_fields should equal total_fields
    
    b) Ensure all discovered fields have:
       - selectors: [array of discovered selectors]
@@ -531,84 +552,164 @@ Process:
 
 === STEP 5: Test Detail Parser ===
 **MANDATORY**: Test parser immediately after editing
+**CRITICAL**: Test on multiple products to verify selectors work across different product types
 
-12) Test Detail Parser (or re-test if modified):
+12) Test Detail Parser on Multiple Products (MANDATORY - test 3 products):
    **CRITICAL**: Use `auto_download: true` in parser_tester - NO manual HTML download needed
+   **CRITICAL**: Test on 3 different products to ensure selectors are robust:
+   - Product 1: Product WITH discount (base_price_lc present)
+   - Product 2: Product WITHOUT discount (base_price_lc absent/equals customer_price)
+   - Product 3: Random product (any product from sample_detail_urls)
    
-   a) Navigate to sample detail URL (if not already there):
-      - Use browser_navigate() to visit detail URL from navigation-selectors.json or discovery-state.json
-      - **Handle popups**: Use browser_screenshot() and browser_snapshot() to check for cookies/notifications, then browser_click() to dismiss them (or browser_mouse_click_xy() if popup invisible to accessibility tree)
+   a) **Collect test URLs**:
+      - Read navigation-selectors.json to get `listings.sample_detail_urls` array
+      - Read discovery-state.json to get `sample_urls.detail` (if available)
+      - **Goal**: Identify 3 products for testing:
+        * Product with discount: Look for products that likely have discounts (check listings for discount indicators)
+        * Product without discount: Look for products that likely don't have discounts
+        * Random product: Pick any product from sample_detail_urls
+      - If sample_detail_urls has fewer than 3 URLs: Use available URLs and note limitation
+      - **Store test URLs**: Keep list of 3 URLs for testing
    
-   b) Test with parser_tester MCP tool (RECOMMENDED - uses auto_download):
-      ```javascript
-      parser_tester({
-        scraper_dir: "<absolute_path>/generated_scraper/<scraper>",
-        parser_path: "parsers/details.rb",
-        page_type: "details",
-        auto_download: true,  // RECOMMENDED: Automatically downloads HTML from active browser tab
-        vars: '{"category_name":"Electronics","breadcrumb":"Electronics","rank":1,"page_number":1}',
-        quiet: false  // Show verbose output for testing
-      })
-      ```
-      
-      **Alternative** (if you need offline testing with saved HTML):
+   b) **Test Product 1 (WITH discount)**:
+      - Navigate to first test URL (product with discount)
+      - **Handle popups**: Use browser_screenshot() and browser_snapshot() to check for cookies/notifications, then browser_click() to dismiss them
+      - Test with parser_tester:
+        ```javascript
+        parser_tester({
+          scraper_dir: "<absolute_path>/generated_scraper/<scraper>",
+          parser_path: "parsers/details.rb",
+          page_type: "details",
+          auto_download: true,
+          vars: '{"category_name":"Electronics","breadcrumb":"Electronics","rank":1,"page_number":1}',
+          quiet: false
+        })
+        ```
+      - **Validate**: Check that base_price_lc is present and different from customer_price_lc
+      - **TRACK URL**: Record tested URL in detail-selectors.json under `urls_accessed.test_urls`
+      - If test fails: Analyze errors, refine selectors if needed
+   
+   c) **Test Product 2 (WITHOUT discount)**:
+      - Navigate to second test URL (product without discount)
+      - **Handle popups**: Use same popup handling strategy
+      - Test with parser_tester (same configuration as step 12b)
+      - **Validate**: Check that base_price_lc is either absent, nil, or equals customer_price_lc
+      - **TRACK URL**: Record tested URL in detail-selectors.json under `urls_accessed.test_urls`
+      - If test fails: Analyze errors, refine selectors if needed
+   
+   d) **Test Product 3 (Random product)**:
+      - Navigate to third test URL (random product)
+      - **Handle popups**: Use same popup handling strategy
+      - Test with parser_tester (same configuration as step 12b)
+      - **Validate**: Check that all Priority 1 fields are extracted correctly
+      - **TRACK URL**: Record tested URL in detail-selectors.json under `urls_accessed.test_urls`
+      - If test fails: Analyze errors, refine selectors if needed
+   
+   e) **Multi-product validation summary**:
+      - Count successful tests: X/3 products tested successfully
+      - Verify selectors work across different product types:
+        * Discount products: base_price_lc extraction works ✅
+        * Non-discount products: base_price_lc fallback works ✅
+        * All products: Priority 1 fields extracted correctly ✅
+      - **TRACK URLS**: Update `urls_accessed.last_tested_url` with last tested URL and `last_tested_at` with timestamp
+      - If any test fails: Analyze errors, refine selectors, re-test failed products
+      - If all tests pass: Continue to validation
+   
+   f) **Alternative** (if you need offline testing with saved HTML):
       - Use browser_view_html() to get HTML content (optional, for inspection only)
       - Save HTML to cache/ directory manually (optional)
       - Use html_file parameter instead: `html_file: "<absolute_path>/cache/product-page.html"`
-   
-   c) Validate test results:
-      - Parser should output product data with all fields
-      - Check that navigation vars (category_name, breadcrumb, rank) are included
-      - Verify price extraction (customer_price, base_price logic)
-      - Check product ID generation (_id field)
-      - **Verify output hash matches config.yaml exporter fields** (all fields should be present)
-      - **TRACK URL**: Record tested URL in detail-selectors.json under `urls_accessed.test_urls` and update `last_tested_url` and `last_tested_at`
-      - If test fails: Analyze errors, refine selectors, re-test
-      - If test passes: Continue
 
 12a) **VALIDATION: Test Results Match Field Spec**:
-   **CRITICAL**: Validate that test output includes all discovered fields
+   **CRITICAL**: Validate that test output includes all discovered fields across all 3 products
    
-   a) Parse parser_tester output
-   b) Extract output hash from test results
-   c) For each field in field-spec.json where discovered == true:
-      - Check if field exists in test output
-      - Check if field value is not nil (unless field is optional)
-      - **If missing or nil**: Report warning
+   a) Parse parser_tester output from all 3 test products
+   b) Extract output hash from each test result
+   c) **For each product test**:
+      - For each field in field-spec.json where discovered == true:
+        * Check if field exists in test output
+        * Check if field value is not nil (unless field is optional)
+        * **If missing or nil**: Report warning for that product
+      - **Special validation for discount products**:
+        * Product with discount: Verify base_price_lc is present and different from customer_price_lc
+        * Product without discount: Verify base_price_lc is nil or equals customer_price_lc
    
-   d) Validation check:
-      - **If all discovered fields in test output**: Validation passed
+   d) **Cross-product validation**:
+      - Check that selectors work consistently across all 3 products
+      - Identify any fields that fail on specific products (e.g., base_price_lc on non-discount products is expected)
+      - Report any inconsistencies in field extraction across products
+   
+   e) Validation check:
+      - **If all discovered fields in all test outputs**: Validation passed
       - **If any discovered fields missing**: 
         * Report warning: "WARNING: X discovered fields missing from test output: [list field names]"
+        * Indicate which product(s) had missing fields
         * Check if selectors are correct
         * Re-test if needed
    
-   e) Report validation result:
-      - "Test output validation: X/Y discovered fields present in output"
-      - List any missing fields
+   f) Report validation result:
+      - "Multi-product test validation: 3/3 products tested"
+      - "Test output validation: X/Y discovered fields present in output (across all products)"
+      - "Discount product validation: base_price_lc extraction ✅"
+      - "Non-discount product validation: base_price_lc fallback ✅"
+      - List any missing fields (if any)
 
 === STEP 6: Write Detail Selectors (JSON) ===
 **CRITICAL**: Use ABSOLUTE PATH for WriteFile operation
 **CRITICAL**: Include ALL discovered fields from field-spec.json, not just a few
 
 13) Save detail-selectors.json (USE ABSOLUTE PATH):
-   **MANDATORY**: Include ALL fields from field-spec.json where discovered == true
+   **MANDATORY**: Include ALL fields from field-spec.json, not just FIND fields
+   **CRITICAL**: Document ALL 53 fields (or total_fields count), including PROCESS, DETERMINE, INFER, and HARDCODED fields
    
-   a) Read field-spec.json (already loaded in step 1) to get ALL discovered fields
-   b) For each field in field-spec.json where discovered == true:
-      - Add field to product_fields section
-      - Include: selectors, verified, confidence, priority, notes, extraction_notes
-      - Include tested_urls array
+   a) Read field-spec.json (already loaded in step 1) to get ALL fields
+   b) **CRITICAL**: Iterate through ALL fields in field-spec.json, not just FIND fields:
+      
+      **For FIND fields**:
+      - If discovered == true: Add to product_fields section
+        * Include: selectors, verified, confidence, priority, type, extraction_method, notes, extraction_notes
+        * Include tested_urls array (from multi-product testing in step 12)
+      - If discovered == false: Add to fields_not_discovered section
+        * Include: name, priority, type, extraction_method, notes, extraction_notes, discovered: false
+      
+      **For PROCESS fields**:
+      - Add to computed_fields section (NEW section)
+        * Include: name, priority, type, extraction_method: "PROCESS", computation (if available), notes
+        * Example: has_discount, discount_percentage, etc.
+      
+      **For DETERMINE fields**:
+      - Add to computed_fields section
+        * Include: name, priority, type, extraction_method: "DETERMINE", determination_logic (if available), notes
+      
+      **For INFER fields**:
+      - Add to computed_fields section
+        * Include: name, priority, type, extraction_method: "INFER", inference_logic (if available), notes
+      
+      **For HARDCODED fields**:
+      - Add to hardcoded_fields section (NEW section)
+        * Include: name, priority, type, extraction_method: "HARDCODED", hardcoded_value (if available), notes
+        * Example: competitor_name, site_name, etc.
+   
+   c) **CRITICAL**: Ensure all sections are populated:
+      - product_fields: All FIND fields where discovered == true
+      - fields_not_discovered: All FIND fields where discovered == false
+      - computed_fields: All PROCESS, DETERMINE, and INFER fields
+      - hardcoded_fields: All HARDCODED fields
+      - **Total count**: product_fields + fields_not_discovered + computed_fields + hardcoded_fields should equal total_fields (53)
    
    c) Structure detail-selectors.json:
       ```json
       {
         "discovery_summary": {
           "total_fields": 53,
-          "find_fields": 25,
-          "discovered_fields": 20,
-          "verified_fields": 20,
-          "pending_fields": 5,
+          "find_fields": 15,
+          "discovered_fields": 15,
+          "verified_fields": 15,
+          "pending_fields": 0,
+          "process_fields": 10,
+          "determine_fields": 5,
+          "infer_fields": 3,
+          "hardcoded_fields": 20,
           "priority_breakdown": {
             "priority_1": {"total": 5, "discovered": 5, "verified": 5},
             "priority_2": {"total": 10, "discovered": 8, "verified": 8},
@@ -697,6 +798,31 @@ Process:
             "discovered": false
           }
         ],
+        "computed_fields": {
+          "has_discount": {
+            "priority": 1,
+            "type": "boolean",
+            "extraction_method": "PROCESS",
+            "computation": "customer_price_lc < base_price_lc",
+            "notes": "Computed from price comparison"
+          },
+          "discount_percentage": {
+            "priority": 2,
+            "type": "float",
+            "extraction_method": "PROCESS",
+            "computation": "((base_price_lc - customer_price_lc) / base_price_lc) * 100",
+            "notes": "Calculated discount percentage"
+          }
+        },
+        "hardcoded_fields": {
+          "competitor_name": {
+            "priority": 1,
+            "type": "str",
+            "extraction_method": "HARDCODED",
+            "hardcoded_value": "Farmacias San Nicolas",
+            "notes": "Hardcoded site name"
+          }
+        },
         "navigation_integration": {
           "vars_received": ["category_name", "breadcrumb", "rank", "page_number"],
           "integration_status": "complete"
@@ -717,17 +843,30 @@ Process:
       }
       ```
    
-   d) **CRITICAL**: Include ALL discovered fields:
-      - Iterate through field-spec.json.fields
-      - For each field where discovered == true: Add to product_fields
-      - For each field where discovered == false AND extraction_method == "FIND": Add to fields_not_discovered
+   d) **CRITICAL**: Include ALL fields from field-spec.json:
+      - Iterate through ALL fields in field-spec.json.fields (not just FIND fields)
+      - **FIND fields**:
+        * If discovered == true: Add to product_fields
+        * If discovered == false: Add to fields_not_discovered
+      - **PROCESS/DETERMINE/INFER fields**: Add to computed_fields
+      - **HARDCODED fields**: Add to hardcoded_fields
       - Include priority, type, extraction_method for each field
-      - Include discovery_summary with priority breakdown
+      - Include discovery_summary with counts for all field types:
+        * total_fields: Total count of all fields
+        * find_fields: Count of FIND fields
+        * process_fields: Count of PROCESS fields
+        * determine_fields: Count of DETERMINE fields
+        * infer_fields: Count of INFER fields
+        * hardcoded_fields: Count of HARDCODED fields
+      - **Validation**: Ensure sum of all field types equals total_fields
    
    e) Save detail-selectors.json (USE ABSOLUTE PATH):
       - Path: `generated_scraper/<scraper>/.scraper-state/detail-selectors.json`
-      - **CRITICAL**: Must include ALL discovered fields, not just a few
+      - **CRITICAL**: Must include ALL fields from field-spec.json (all 53 fields or total_fields count)
+      - **CRITICAL**: Must include all sections: product_fields, fields_not_discovered, computed_fields, hardcoded_fields
+      - **CRITICAL**: Tested URLs should include all 3 products tested (with discount, without discount, random)
       - This provides complete field discovery status for debugging and verification
+      - **Validation check**: Count fields in all sections - should equal total_fields from discovery_summary
 
 === STEP 7: Verify Config.yaml ===
 **CRITICAL**: Config.yaml already exists from boilerplate - verify only, no changes needed

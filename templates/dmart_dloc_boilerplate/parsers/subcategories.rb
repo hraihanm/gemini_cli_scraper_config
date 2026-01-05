@@ -14,8 +14,8 @@
 # - DO NOT wrap in functions - DataHen executes this file directly as a script
 #
 # VARIABLE FLOW:
-# - Receives: category_name, breadcrumb, category_level (from categories parser)
-# - Passes to next stage: subcategory_name, category_name, breadcrumb, page_number
+# - Receives: category_name, category_id, breadcrumb, category_level (from categories parser)
+# - Passes to next stage: subcategory_name, category_name, category_id, breadcrumb, page_number
 #
 # PLACEHOLDER REPLACEMENT:
 # - Replace 'PLACEHOLDER' strings with discovered CSS selectors from browser tools
@@ -58,19 +58,51 @@ subcategories.each do |subcat|
   # ============================================================================
   # NOTE: pages is pre-defined by DataHen - DO NOT declare (pages = [] is FORBIDDEN)
   # Use pages << directly to queue pages for DataHen to process
-  pages << {
+  
+  # PLACEHOLDER: Configure fetch_type based on site requirements
+  # - "standard": Use for static HTML pages (default, faster)
+  # - "browser": Use if listings require JavaScript or button clicks
+  # Discovery: Check if listings page requires browser fetch during navigation discovery
+  next_page_config = {
     url: subcat_url,
     page_type: "listings", # Subcategories typically lead to listings pages
     priority: 100,
     headers: ReqHeaders::MINIMAL_HEADERS,
+    # PLACEHOLDER: Set fetch_type based on discovery
+    # If listings require button clicks or JavaScript, set to "browser"
+    fetch_type: "PLACEHOLDER_FETCH_TYPE", # "standard" or "browser"
     vars: vars.merge({
       # Navigation context passed to listings parser
       subcategory_name: subcat_name,
       category_name: vars['category_name'], # Preserve parent category name
+      category_id: vars['category_id'], # Preserve category_id from parent category
       breadcrumb: "#{vars['breadcrumb']} > #{subcat_name}",
       page_number: 1 # Start from page 1 for new listings
     })
   }
+  
+  # PLACEHOLDER: Add driver block ONLY if fetch_type is "browser" and button clicks are needed
+  # Uncomment and configure if listings page requires button clicks to reveal content
+  # Common scenarios:
+  # - Listings hidden behind "Show Products" button
+  # - Products require menu interaction to appear
+  # If fetch_type is "standard", leave this commented out
+  # if next_page_config[:fetch_type] == "browser"
+  #   next_page_config[:driver] = {
+  #     name: "reveal_listings",
+  #     # PLACEHOLDER: Replace with discovered button selector
+  #     # Example: "await page.click('button.show-products'); await sleep(2000);"
+  #     code: "await page.click('PLACEHOLDER_BUTTON_SELECTOR'); await sleep(PLACEHOLDER_WAIT_TIME);",
+  #     goto_options: {
+  #       waitUntil: "domcontentloaded"
+  #     },
+  #     stealth: true,
+  #     enable_images: false,
+  #     disable_adblocker: false
+  #   }
+  # end
+  
+  pages << next_page_config
   
   # Memory management: Save pages to server when array gets large
   # NOTE: save_pages is a pre-defined function - DO NOT declare it

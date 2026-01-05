@@ -1,6 +1,8 @@
 {
   "version": "1.0",
   "source": "spec_full.csv",
+  "source_file": "spec_full.json",
+  "parsed_at": null,
   "description": "Full field specification for e-commerce product scraping with priorities",
   "fields": [
     {
@@ -8,72 +10,86 @@
       "type": "str",
       "extraction_method": "HARDCODED",
       "priority": 2,
-      "notes": "hardcoded: `Supermercado Real - Paraguay`",
-      "hardcoded_value": "Supermercado Real - Paraguay",
+      "notes": "Hardcoded. Example: `Supermercado Real - Paraguay`. Refer from the site",
+      "hardcoded_value": "<Refer from the site>",
       "selectors": [],
       "verified": false,
-      "discovered": false
+      "discovered": false,
+      "confidence": null,
+      "extraction_notes": null
     },
     {
       "name": "competitor_type",
       "type": "str",
       "extraction_method": "HARDCODED",
       "priority": 2,
-      "notes": "hardcoded `local_store`",
-      "hardcoded_value": "local_store",
+      "notes": "Hardcoded. Example: `local_store` for DLOCAL or `dmart` for DMART",
+      "hardcoded_value": "<Refer from the project>",
       "selectors": [],
       "verified": false,
-      "discovered": false
+      "discovered": false,
+      "confidence": null,
+      "extraction_notes": null
     },
     {
       "name": "store_name",
       "type": "str",
       "extraction_method": "FIND",
-      "priority": 3,
-      "notes": "FIND",
+      "priority": 5,
+      "notes": "Usually hardcoded or nil",
       "selectors": [],
       "verified": false,
-      "discovered": false
+      "discovered": false,
+      "confidence": null,
+      "extraction_notes": null
     },
     {
       "name": "store_id",
       "type": "str",
       "extraction_method": "FIND",
-      "priority": 3,
-      "notes": "FIND",
+      "priority": 5,
+      "notes": "Usually hardcoded or nil",
       "selectors": [],
       "verified": false,
-      "discovered": false
+      "discovered": false,
+      "confidence": null,
+      "extraction_notes": null
     },
     {
       "name": "country_iso",
       "type": "str",
       "extraction_method": "INFER",
       "priority": 3,
-      "notes": "INFER",
+      "notes": "INFER - infer from the site. 2-letter code",
       "selectors": [],
       "verified": false,
-      "discovered": false
+      "discovered": false,
+      "confidence": null,
+      "extraction_notes": null
     },
     {
       "name": "language",
       "type": "str",
       "extraction_method": "INFER",
       "priority": 3,
-      "notes": "INFER",
+      "notes": "INFER - infer from the site. 3-letter code",
       "selectors": [],
       "verified": false,
-      "discovered": false
+      "discovered": false,
+      "confidence": null,
+      "extraction_notes": null
     },
     {
       "name": "currency_code_lc",
       "type": "str",
       "extraction_method": "INFER",
       "priority": 3,
-      "notes": "INFER",
+      "notes": "INFER - infer from the site/country. 3-letter code",
       "selectors": [],
       "verified": false,
-      "discovered": false
+      "discovered": false,
+      "confidence": null,
+      "extraction_notes": null
     },
     {
       "name": "scraped_at_timestamp",
@@ -84,7 +100,9 @@
       "computation": "Time.parse(page['fetched_at']).strftime('%Y-%m-%d %H:%M:%S')",
       "selectors": [],
       "verified": false,
-      "discovered": false
+      "discovered": false,
+      "confidence": null,
+      "extraction_notes": null
     },
     {
       "name": "competitor_product_id",
@@ -94,7 +112,9 @@
       "notes": "FIND - can be from internal product id, SKU, barcode, etc. Anything that can be good identifier",
       "selectors": [],
       "verified": false,
-      "discovered": false
+      "discovered": false,
+      "confidence": null,
+      "extraction_notes": null
     },
     {
       "name": "name",
@@ -104,7 +124,9 @@
       "notes": "FIND - Product name - required field",
       "selectors": [],
       "verified": false,
-      "discovered": false
+      "discovered": false,
+      "confidence": null,
+      "extraction_notes": null
     },
     {
       "name": "brand",
@@ -114,17 +136,21 @@
       "notes": "FIND",
       "selectors": [],
       "verified": false,
-      "discovered": false
+      "discovered": false,
+      "confidence": null,
+      "extraction_notes": null
     },
     {
       "name": "category_id",
       "type": "str",
       "extraction_method": "FIND",
       "priority": 2,
-      "notes": "FIND or REFER - probably hides inside html",
+      "notes": "FIND or REFER - The category_id of main category. Probably hides inside html. Probably in listings (if exists, as fallback) or details page (prioritize from details page)",
       "selectors": [],
       "verified": false,
-      "discovered": false
+      "discovered": false,
+      "confidence": null,
+      "extraction_notes": null
     },
     {
       "name": "category",
@@ -134,7 +160,9 @@
       "notes": "FIND - probably exist in breadcrumb or find from product cards (just keep the main categories)",
       "selectors": [],
       "verified": false,
-      "discovered": false
+      "discovered": false,
+      "confidence": null,
+      "extraction_notes": null
     },
     {
       "name": "sub_category",
@@ -144,7 +172,9 @@
       "notes": "FIND - probably exist in breadcrumb or find from product cards. Format: [cat level 2,3,4...] joined by ` > `",
       "selectors": [],
       "verified": false,
-      "discovered": false
+      "discovered": false,
+      "confidence": null,
+      "extraction_notes": null
     },
     {
       "name": "customer_price_lc",
@@ -154,7 +184,9 @@
       "notes": "FIND - current price",
       "selectors": [],
       "verified": false,
-      "discovered": false
+      "discovered": false,
+      "confidence": null,
+      "extraction_notes": null
     },
     {
       "name": "base_price_lc",
@@ -164,7 +196,9 @@
       "notes": "FIND - the price before discount",
       "selectors": [],
       "verified": false,
-      "discovered": false
+      "discovered": false,
+      "confidence": null,
+      "extraction_notes": null
     },
     {
       "name": "has_discount",
@@ -175,7 +209,9 @@
       "computation": "customer_price_lc < base_price_lc",
       "selectors": [],
       "verified": false,
-      "discovered": false
+      "discovered": false,
+      "confidence": null,
+      "extraction_notes": null
     },
     {
       "name": "discount_percentage",
@@ -186,7 +222,9 @@
       "computation": "((base_price_lc - customer_price_lc) / base_price_lc) * 100).round(7)",
       "selectors": [],
       "verified": false,
-      "discovered": false
+      "discovered": false,
+      "confidence": null,
+      "extraction_notes": null
     },
     {
       "name": "rank_in_listing",
@@ -196,7 +234,9 @@
       "notes": "FIND - from listings, usually referred from vars",
       "selectors": [],
       "verified": false,
-      "discovered": false
+      "discovered": false,
+      "confidence": null,
+      "extraction_notes": null
     },
     {
       "name": "page_number",
@@ -206,7 +246,9 @@
       "notes": "FIND - from listings, usually referred from vars",
       "selectors": [],
       "verified": false,
-      "discovered": false
+      "discovered": false,
+      "confidence": null,
+      "extraction_notes": null
     },
     {
       "name": "product_pieces",
@@ -217,7 +259,9 @@
       "computation": "MeasurementExtractor.extract_pieces(name)",
       "selectors": [],
       "verified": false,
-      "discovered": false
+      "discovered": false,
+      "confidence": null,
+      "extraction_notes": null
     },
     {
       "name": "size_std",
@@ -228,7 +272,9 @@
       "computation": "MeasurementExtractor.extract_uom(name)",
       "selectors": [],
       "verified": false,
-      "discovered": false
+      "discovered": false,
+      "confidence": null,
+      "extraction_notes": null
     },
     {
       "name": "size_unit_std",
@@ -239,7 +285,9 @@
       "computation": "MeasurementExtractor.extract_uom(name)",
       "selectors": [],
       "verified": false,
-      "discovered": false
+      "discovered": false,
+      "confidence": null,
+      "extraction_notes": null
     },
     {
       "name": "description",
@@ -249,7 +297,9 @@
       "notes": "FIND",
       "selectors": [],
       "verified": false,
-      "discovered": false
+      "discovered": false,
+      "confidence": null,
+      "extraction_notes": null
     },
     {
       "name": "img_url",
@@ -259,7 +309,9 @@
       "notes": "FIND - if multiple images persists, then create img_url_2 to 4 only",
       "selectors": [],
       "verified": false,
-      "discovered": false
+      "discovered": false,
+      "confidence": null,
+      "extraction_notes": null
     },
     {
       "name": "barcode",
@@ -269,7 +321,9 @@
       "notes": "FIND - if any",
       "selectors": [],
       "verified": false,
-      "discovered": false
+      "discovered": false,
+      "confidence": null,
+      "extraction_notes": null
     },
     {
       "name": "sku",
@@ -279,18 +333,22 @@
       "notes": "FIND - if any",
       "selectors": [],
       "verified": false,
-      "discovered": false
+      "discovered": false,
+      "confidence": null,
+      "extraction_notes": null
     },
     {
       "name": "url",
       "type": "str",
       "extraction_method": "HARDCODED",
       "priority": 3,
-      "notes": "page['url']",
+      "notes": "from `page` variable:page['url']",
       "computation": "page['url']",
       "selectors": [],
       "verified": false,
-      "discovered": false
+      "discovered": false,
+      "confidence": null,
+      "extraction_notes": null
     },
     {
       "name": "is_available",
@@ -300,7 +358,9 @@
       "notes": "FIND",
       "selectors": [],
       "verified": false,
-      "discovered": false
+      "discovered": false,
+      "confidence": null,
+      "extraction_notes": null
     },
     {
       "name": "crawled_source",
@@ -311,7 +371,9 @@
       "hardcoded_value": "WEB",
       "selectors": [],
       "verified": false,
-      "discovered": false
+      "discovered": false,
+      "confidence": null,
+      "extraction_notes": null
     },
     {
       "name": "is_promoted",
@@ -322,7 +384,9 @@
       "computation": "has_discount",
       "selectors": [],
       "verified": false,
-      "discovered": false
+      "discovered": false,
+      "confidence": null,
+      "extraction_notes": null
     },
     {
       "name": "type_of_promotion",
@@ -332,7 +396,9 @@
       "notes": "FIND - if any. Can be 'Banner', or 'Badge', etc.",
       "selectors": [],
       "verified": false,
-      "discovered": false
+      "discovered": false,
+      "confidence": null,
+      "extraction_notes": null
     },
     {
       "name": "promo_attributes",
@@ -342,7 +408,9 @@
       "notes": "FIND - if any. Format: `{\"promo_detail\":\"'Any 2 @ $9.95'\",\"free_item\":\"\"}`",
       "selectors": [],
       "verified": false,
-      "discovered": false
+      "discovered": false,
+      "confidence": null,
+      "extraction_notes": null
     },
     {
       "name": "is_private_label",
@@ -353,7 +421,9 @@
       "computation": "is_private_label = true unless brand.include?(store_name)",
       "selectors": [],
       "verified": false,
-      "discovered": false
+      "discovered": false,
+      "confidence": null,
+      "extraction_notes": null
     },
     {
       "name": "latitude",
@@ -363,7 +433,9 @@
       "notes": "null",
       "selectors": [],
       "verified": false,
-      "discovered": false
+      "discovered": false,
+      "confidence": null,
+      "extraction_notes": null
     },
     {
       "name": "longitude",
@@ -373,7 +445,9 @@
       "notes": "null",
       "selectors": [],
       "verified": false,
-      "discovered": false
+      "discovered": false,
+      "confidence": null,
+      "extraction_notes": null
     },
     {
       "name": "reviews",
@@ -383,7 +457,9 @@
       "notes": "null",
       "selectors": [],
       "verified": false,
-      "discovered": false
+      "discovered": false,
+      "confidence": null,
+      "extraction_notes": null
     },
     {
       "name": "store_reviews",
@@ -393,7 +469,9 @@
       "notes": "null",
       "selectors": [],
       "verified": false,
-      "discovered": false
+      "discovered": false,
+      "confidence": null,
+      "extraction_notes": null
     },
     {
       "name": "item_attributes",
@@ -403,7 +481,9 @@
       "notes": "FIND - if any",
       "selectors": [],
       "verified": false,
-      "discovered": false
+      "discovered": false,
+      "confidence": null,
+      "extraction_notes": null
     },
     {
       "name": "item_identifiers",
@@ -414,7 +494,9 @@
       "computation": "JSON format from barcode/ean",
       "selectors": [],
       "verified": false,
-      "discovered": false
+      "discovered": false,
+      "confidence": null,
+      "extraction_notes": null
     },
     {
       "name": "country_of_origin",
@@ -424,7 +506,9 @@
       "notes": "FIND - if any",
       "selectors": [],
       "verified": false,
-      "discovered": false
+      "discovered": false,
+      "confidence": null,
+      "extraction_notes": null
     },
     {
       "name": "variants",
@@ -434,7 +518,9 @@
       "notes": "FIND - if any",
       "selectors": [],
       "verified": false,
-      "discovered": false
+      "discovered": false,
+      "confidence": null,
+      "extraction_notes": null
     },
     {
       "name": "allergens",
@@ -444,7 +530,9 @@
       "notes": "FIND - if any",
       "selectors": [],
       "verified": false,
-      "discovered": false
+      "discovered": false,
+      "confidence": null,
+      "extraction_notes": null
     },
     {
       "name": "nutrition_facts",
@@ -454,7 +542,9 @@
       "notes": "FIND - if any",
       "selectors": [],
       "verified": false,
-      "discovered": false
+      "discovered": false,
+      "confidence": null,
+      "extraction_notes": null
     },
     {
       "name": "ingredients",
@@ -464,7 +554,9 @@
       "notes": "FIND - if any",
       "selectors": [],
       "verified": false,
-      "discovered": false
+      "discovered": false,
+      "confidence": null,
+      "extraction_notes": null
     },
     {
       "name": "dimensions",
@@ -474,7 +566,9 @@
       "notes": "null",
       "selectors": [],
       "verified": false,
-      "discovered": false
+      "discovered": false,
+      "confidence": null,
+      "extraction_notes": null
     },
     {
       "name": "img_url_2",
@@ -484,7 +578,9 @@
       "notes": "FIND - if any",
       "selectors": [],
       "verified": false,
-      "discovered": false
+      "discovered": false,
+      "confidence": null,
+      "extraction_notes": null
     },
     {
       "name": "img_url_3",
@@ -494,7 +590,9 @@
       "notes": "FIND - if any",
       "selectors": [],
       "verified": false,
-      "discovered": false
+      "discovered": false,
+      "confidence": null,
+      "extraction_notes": null
     },
     {
       "name": "img_url_4",
@@ -504,7 +602,9 @@
       "notes": "FIND - if any",
       "selectors": [],
       "verified": false,
-      "discovered": false
+      "discovered": false,
+      "confidence": null,
+      "extraction_notes": null
     }
   ],
   "discovery_status": {
@@ -516,4 +616,3 @@
     "last_discovery_at": null
   }
 }
-

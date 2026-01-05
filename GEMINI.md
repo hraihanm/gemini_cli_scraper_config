@@ -264,6 +264,194 @@ browser_view_html({
 3. **Third**: Use `browser_evaluate()` for non-text attributes (images, data attributes)
 4. **Last Resort**: Use `browser_view_html()` for comprehensive HTML analysis (high token cost)
 
+### Browser Fetch Type and JavaScript Requirements
+**CRITICAL**: Some e-commerce sites require JavaScript execution or button clicks to reveal categories/subcategories in the DOM. The "standard" fetch_type doesn't run JavaScript, so you must use "browser" fetch_type with puppeteer driver code.
+
+#### When to Use Standard vs Browser Fetch Type
+
+**Use "standard" fetch_type** (default, faster):
+- ✅ Categories/subcategories are visible in initial HTML (no JavaScript required)
+- ✅ Static HTML pages with all content loaded immediately
+- ✅ Server-rendered content that doesn't require client-side JavaScript
+- ✅ Faster execution, lower resource usage
+
+**Use "browser" fetch_type** (slower, but necessary):
+- ✅ Categories/subcategories require JavaScript to render
+- ✅ Button clicks needed to reveal navigation (hamburger menus, "Show Categories" buttons)
+- ✅ Content loaded dynamically via JavaScript after page load
+- ✅ Sites that hide navigation behind interactive elements
+
+#### Detection Workflow
+
+**Step 1: Check if categories are visible in DOM**
+```javascript
+// After navigating to homepage, check if category links exist
+browser_evaluate(() => {
+  // Try common category selectors
+  const categorySelectors = [
+    '.category-item a',
+    '.nav-menu a',
+    '.category-link',
+    '[class*="category"] a',
+    'nav a[href*="category"]'
+  ];
+  
+  for (const selector of categorySelectors) {
+    const elements = document.querySelectorAll(selector);
+    if (elements.length > 0) {
+      return {
+        found: true,
+        selector: selector,
+        count: elements.length
+      };
+    }
+  }
+  
+  return { found: false, message: "No category links found in DOM" };
+});
+```
+
+**Step 2: If categories not found, look for reveal buttons**
+```javascript
+// Check for buttons that might reveal categories
+browser_evaluate(() => {
+  const buttonSelectors = [
+    'button[aria-label*="menu" i]',
+    'button[aria-label*="category" i]',
+    '.menu-toggle',
+    '.hamburger',
+    '[class*="menu-toggle"]',
+    '[class*="hamburger"]',
+    'button:contains("Menu")',
+    'button:contains("Categories")'
+  ];
+  
+  const foundButtons = [];
+  for (const selector of buttonSelectors) {
+    try {
+      const buttons = document.querySelectorAll(selector);
+      if (buttons.length > 0) {
+        foundButtons.push({
+          selector: selector,
+          count: buttons.length,
+          text: Array.from(buttons).map(b => b.textContent.trim())
+        });
+      }
+    } catch (e) {
+      // Selector might not be valid, continue
+    }
+  }
+  
+  return foundButtons;
+});
+```
+
+**Step 3: Test button click to verify categories appear**
+```javascript
+// Click button and check if categories appear
+browser_click('Menu Button', 'e123'); // Use element ref from browser_snapshot()
+await sleep(2000); // Wait for categories to appear
+
+// Verify categories are now visible
+browser_evaluate(() => {
+  const categories = document.querySelectorAll('.category-item a');
+  return {
+    categoriesFound: categories.length > 0,
+    count: categories.length
+  };
+});
+```
+
+#### Driver Configuration Structure
+
+When browser fetch_type is required, configure the driver block with puppeteer code:
+
+```ruby
+pages << {
+  url: "https://example.com",
+  page_type: "categories",
+  fetch_type: "browser", # REQUIRED for JavaScript/button clicks
+  driver: {
+    name: "reveal_categories",
+    # Puppeteer code to execute before page content is captured
+    code: "await page.click('button.menu-toggle'); await sleep(2000);",
+    goto_options: {
+      waitUntil: "domcontentloaded" # Wait for DOM to be ready
+    },
+    stealth: true, # Use stealth mode to avoid detection
+    enable_images: false, # Disable images for faster loading
+    disable_adblocker: false # Keep adblocker disabled
+  }
+}
+```
+
+#### Puppeteer Code Patterns
+
+**Common button click patterns**:
+```javascript
+// Hamburger menu
+"await page.click('button.hamburger'); await sleep(2000);"
+
+// Menu toggle
+"await page.click('.menu-toggle'); await sleep(2000);"
+
+// Show categories button
+"await page.click('button.show-categories'); await sleep(2000);"
+
+// Multiple clicks (if needed)
+"await page.click('button.menu-toggle'); await sleep(1000); await page.click('button.show-categories'); await sleep(2000);"
+
+// Wait for element to appear before clicking
+"await page.waitForSelector('button.menu-toggle'); await page.click('button.menu-toggle'); await sleep(2000);"
+```
+
+**Wait time considerations**:
+- **Minimum wait**: 1000ms (1 second) for simple interactions
+- **Recommended wait**: 2000ms (2 seconds) for most cases
+- **Long wait**: 3000-5000ms for complex animations or slow-loading content
+- **Test wait times**: Use `browser_evaluate()` to verify content appears before finalizing wait time
+
+#### Documenting Browser Fetch Requirements
+
+**In discovery-state.json**:
+```json
+{
+  "fetch_requirements": {
+    "initial_page_needs_browser": true,
+    "categories_need_browser": true,
+    "button_to_reveal_categories": {
+      "exists": true,
+      "selector": "button.menu-toggle",
+      "puppeteer_code": "await page.click('button.menu-toggle'); await sleep(2000);",
+      "wait_time_ms": 2000,
+      "verified": true
+    }
+  }
+}
+```
+
+**In navigation-selectors.json**:
+```json
+{
+  "categories": {
+    "needs_browser_fetch": true,
+    "button_to_reveal": {
+      "selector": "button.menu-toggle",
+      "puppeteer_code": "await page.click('button.menu-toggle'); await sleep(2000);",
+      "wait_time_ms": 2000
+    }
+  }
+}
+```
+
+#### Best Practices
+
+1. **Always test with browser tools first**: Use `browser_evaluate()` to check if content exists before assuming browser fetch is needed
+2. **Minimize wait times**: Use the shortest wait time that reliably works
+3. **Test button selectors**: Verify button selectors work across different pages
+4. **Document thoroughly**: Record selector, wait time, and verification status
+5. **Fallback to standard**: If content is visible without JavaScript, use "standard" fetch_type for better performance
+
 ## E-commerce Data Patterns
 
 ### Category Processing

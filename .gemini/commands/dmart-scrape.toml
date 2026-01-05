@@ -58,7 +58,9 @@ You are performing Phase 1: Site Discovery for scraper generation using the dmar
 Inputs (order-agnostic via {{args}}):
   - url=<site_url> (REQUIRED - target website URL) - USE THIS EXACT URL ONLY
   - name=<scraper_name> | --scraper <scraper_name> (REQUIRED)
-  - spec=<path-to-CSV-or-JSON> (OPTIONAL - field specification file, e.g., spec_general_sample.csv)
+  - spec=<path-to-field-spec.json> (OPTIONAL - field specification file, e.g., "field-spec.json" or "spec_full.json")
+    * If provided: Copy specified file to `.scraper-state/field-spec.json`
+    * If not provided: Use `spec_full.json` from workspace root as default
   - out=<base_dir> (OPTIONAL, default: "./generated_scraper")
   - auto_next=true|false (OPTIONAL, default: false) - If true, automatically execute next command (/dmart-navigation-parser)
 
@@ -111,91 +113,52 @@ Process:
    - Read `generated_scraper/<scraper_slug>/parsers/details.rb` (should exist)
    - If any files are missing, report error and stop
 
-=== STEP 3: Parse Field Specification (if provided) ===
-5) If `spec` parameter provided:
-   a) Read spec file (JSON preferred, CSV fallback):
-      - **JSON format** (preferred): Read JSON file directly
-        * Check if file has `version`, `fields` array structure
-        * Validate JSON structure matches expected format
-        * If valid JSON: Use directly, add discovery tracking fields if missing
-      - **CSV format** (fallback): `column_name,column_type,dev_notes`
-        * Parse each row to extract: field name, type, extraction method, notes
-        * Normalize field names to snake_case
-        * Convert to JSON structure with priorities
+=== STEP 3: Copy Field Specification ===
+5) **MANDATORY**: Copy field-spec.json file to `.scraper-state/` (USE FILE COPY COMMAND - DO NOT USE WRITEFILE):
+   🚨🚨🚨 **CRITICAL**: This MUST be a FILE COPY operation using `run_terminal_cmd` - NOT a read_file + write_file operation 🚨🚨🚨
+   🚨 **YOU MUST**: Use operating system copy command (copy/cp) to copy the file directly
+   🚨 **YOU MUST NOT**: Use read_file + write_file - this causes JSON reconstruction
+   🚨 **YOU MUST NOT**: Parse JSON, modify content, or serialize - just copy the file as-is
    
-   b) Parse extraction method from notes:
-      - **FIND**: Notes contain "FIND" or field needs selector discovery
-      - **PROCESS**: Notes contain "PROCESS" or computation logic
-      - **DETERMINE**: Notes contain "DETERMINE" or conditional logic
-      - **INFER**: Notes contain "INFER" or derived from other fields
-      - **HARDCODED**: Notes contain "hardcoded" or fixed value
-      - **null**: Notes contain "null" or field is optional/not available
+   **Determine source file**:
+   a) **Check if `spec` parameter provided** in `{{args}}`:
+      - If `spec` parameter exists: Use the specified file path (e.g., `spec="field-spec.json"`)
+      - If `spec` parameter NOT provided: Use default `spec_full.json` from workspace root
+      - Convert to absolute paths for both source and destination
    
-   c) Determine priority for each field:
-      - **Priority 1** (Critical): name, competitor_product_id, customer_price_lc, base_price_lc, is_available
-      - **Priority 2** (Important): brand, category, sub_category, description, img_url, sku, barcode, rank_in_listing, page_number, has_discount, discount_percentage, is_promoted
-      - **Priority 3** (Standard): All other FIND/PROCESS/DETERMINE/INFER fields (default)
-      - **Priority 4** (Optional): Fields with null extraction_method or optional fields (allergens, nutrition_facts, ingredients, dimensions, latitude, longitude, reviews, store_reviews)
-      - **If JSON has priority field**: Use it directly
-      - **If CSV or priority missing**: Apply priority mapping above, default to 3
+   **WORKFLOW** (follow exactly - USE FILE COPY COMMAND):
    
-   d) Create field-spec.json structure:
-      ```json
-      {
-        "version": "1.0",
-        "source_file": "<spec_file_path>",
-        "parsed_at": "<timestamp>",
-        "fields": [
-          {
-            "name": "competitor_product_id",
-            "type": "str",
-            "extraction_method": "FIND",
-            "priority": 1,
-            "notes": "Find the product-id if possible or else use sku or barcode",
-            "selectors": [],
-            "verified": false,
-            "discovered": false
-          },
-          {
-            "name": "has_discount",
-            "type": "boolean",
-            "extraction_method": "DETERMINE",
-            "priority": 2,
-            "notes": "true if it has discount",
-            "computation": "customer_price_lc < base_price_lc",
-            "selectors": [],
-            "verified": false,
-            "discovered": false
-          }
-        ],
-        "discovery_status": {
-          "total_fields": 0,
-          "find_fields": 0,
-          "discovered_fields": 0,
-          "verified_fields": 0,
-          "pending_fields": 0,
-          "last_discovery_at": null
-        }
-      }
-      ```
+   b) **Copy file using run_terminal_cmd** (FILE COPY - NOT read_file + write_file):
+      - **Source**: Absolute path from step 5a
+      - **Destination**: `generated_scraper/<scraper>/.scraper-state/field-spec.json` (absolute path)
+      - **Windows**: Use `copy` command: `copy "<source_absolute_path>" "<destination_absolute_path>"`
+      - **Linux/Mac**: Use `cp` command: `cp "<source_absolute_path>" "<destination_absolute_path>"`
+      - **CRITICAL**: Use `run_terminal_cmd` tool to execute the copy command
+      - **CRITICAL**: Do NOT use read_file tool
+      - **CRITICAL**: Do NOT use write_file tool
+      - **CRITICAL**: Just copy the file directly - no parsing, no modification, no reconstruction
    
-   e) Calculate discovery_status:
-      - Count total_fields: length of fields array
-      - Count find_fields: fields where extraction_method == "FIND"
-      - Count discovered_fields: fields where discovered == true
-      - Count verified_fields: fields where verified == true
-      - Count pending_fields: find_fields - discovered_fields
-      - Set last_discovery_at: null (will be updated by dmart-details-parser)
+   c) **Optional: Update metadata after copy** (only if needed):
+      - After copying, you may optionally read the copied file and update:
+        * discovery_status (calculate counts from fields array)
+        * source_file: Set to source file path
+        * parsed_at: current timestamp
+      - **BUT**: This is OPTIONAL - the file copy is the primary operation
+      - **Note**: dmart-details-parser will update discovery_status during field discovery anyway
    
-   f) Sort fields by priority:
-      - Sort fields array by priority (1→2→3→4)
-      - Within same priority, maintain original order
-      - This ensures Priority 1 fields are discovered first
+   **FORBIDDEN** (causes reconstruction):
+      ❌ DO NOT use read_file + write_file for this step
+      ❌ DO NOT parse JSON and reconstruct
+      ❌ DO NOT iterate through fields
+      ❌ DO NOT build JSON structure
+      ❌ DO NOT serialize JSON manually
    
-   g) Save field-spec.json (USE ABSOLUTE PATH):
-      - Path: `generated_scraper/<scraper>/.scraper-state/field-spec.json`
-      - **CRITICAL**: Include all fields with priorities, discovery tracking, and discovery_status
-      - This will be used by dmart-details-parser to systematically discover ALL FIND fields
+   **REQUIRED** (preserves file exactly):
+      ✅ Use run_terminal_cmd with copy/cp command
+      ✅ Copy file directly from source to destination
+      ✅ No parsing, no modification, no reconstruction
+   
+   **Why**: File copy preserves the exact file structure, byte-for-byte. read_file + write_file causes JSON reconstruction which can modify formatting and structure.
 
 === STEP 4: Initialize State Directory ===
 6) Create `.scraper-state/` directory if it doesn't exist:
@@ -279,7 +242,126 @@ Process:
    
    - browser_snapshot() to understand page structure
 
-9) Analyze site structure:
+9) **MANDATORY**: Detect browser fetch requirements (check if categories need JavaScript/button clicks):
+   **CRITICAL**: This detection determines if the initial page needs "browser" fetch_type with puppeteer driver code
+   
+   a) **Check if category links are visible in DOM**:
+      - Use `browser_evaluate()` to check if category links exist in the DOM:
+        ```javascript
+        browser_evaluate(() => {
+          // Try common category selectors
+          const categorySelectors = [
+            '.category-item a',
+            '.nav-menu a',
+            '.category-link',
+            '[class*="category"] a',
+            'nav a[href*="category"]',
+            'a[href*="/category"]',
+            'a[href*="/categories"]'
+          ];
+          
+          for (const selector of categorySelectors) {
+            try {
+              const elements = document.querySelectorAll(selector);
+              if (elements.length > 0) {
+                return {
+                  found: true,
+                  selector: selector,
+                  count: elements.length,
+                  sampleText: Array.from(elements).slice(0, 3).map(el => el.textContent.trim())
+                };
+              }
+            } catch (e) {
+              // Selector might not be valid, continue
+            }
+          }
+          
+          return { found: false, message: "No category links found in DOM" };
+        });
+        ```
+      - **If categories found**: Document that standard fetch_type can be used
+      - **If categories NOT found**: Proceed to step 9b to look for reveal buttons
+   
+   b) **If categories not found, look for buttons that reveal categories**:
+      - Use `browser_snapshot()` to visually inspect for menu buttons, hamburger icons, "Show Categories" buttons
+      - Use `browser_evaluate()` to find potential reveal buttons:
+        ```javascript
+        browser_evaluate(() => {
+          const buttonSelectors = [
+            'button[aria-label*="menu" i]',
+            'button[aria-label*="category" i]',
+            '.menu-toggle',
+            '.hamburger',
+            '[class*="menu-toggle"]',
+            '[class*="hamburger"]',
+            '[id*="menu-toggle"]',
+            '[id*="hamburger"]',
+            'button:contains("Menu")',
+            'button:contains("Categories")',
+            'button:contains("Show")'
+          ];
+          
+          const foundButtons = [];
+          for (const selector of buttonSelectors) {
+            try {
+              const buttons = document.querySelectorAll(selector);
+              if (buttons.length > 0) {
+                foundButtons.push({
+                  selector: selector,
+                  count: buttons.length,
+                  text: Array.from(buttons).map(b => b.textContent.trim()),
+                  visible: Array.from(buttons).some(b => {
+                    const style = window.getComputedStyle(b);
+                    return style.display !== 'none' && style.visibility !== 'hidden';
+                  })
+                });
+              }
+            } catch (e) {
+              // Selector might not be valid, continue
+            }
+          }
+          
+          return foundButtons;
+        });
+        ```
+      - **If buttons found**: Proceed to step 9c to test clicking
+      - **If no buttons found**: Document that categories might require JavaScript (but no button clicks)
+   
+   c) **Test button click to verify categories appear**:
+      - Use `browser_inspect_element()` on the button to get its real CSS selector
+      - Use `browser_click()` with element ref to click the button
+      - Wait 2-3 seconds using `browser_evaluate()` with sleep:
+        ```javascript
+        browser_evaluate(() => {
+          return new Promise(resolve => setTimeout(resolve, 2000));
+        });
+        ```
+      - **Verify categories appear**:
+        ```javascript
+        browser_evaluate(() => {
+          const categories = document.querySelectorAll('.category-item a, .nav-menu a, [class*="category"] a');
+          return {
+            categoriesFound: categories.length > 0,
+            count: categories.length,
+            sampleText: Array.from(categories).slice(0, 5).map(el => el.textContent.trim())
+          };
+        });
+        ```
+      - **If categories appear after click**: Document button selector, wait time, and puppeteer code
+      - **If categories still not found**: Document that JavaScript might be required but button click didn't work
+   
+   d) **Document findings in discovery-state.json** (see step 11 for JSON structure):
+      - Set `fetch_requirements.initial_page_needs_browser` to true/false
+      - Set `fetch_requirements.categories_need_browser` to true/false
+      - If button found: Document `fetch_requirements.button_to_reveal_categories` with:
+        * `exists`: true/false
+        * `selector`: CSS selector of the button
+        * `puppeteer_code`: Generated puppeteer code (e.g., "await page.click('button.menu-toggle'); await sleep(2000);")
+        * `wait_time_ms`: Wait time in milliseconds (typically 2000ms)
+        * `verified`: true if categories appeared after click
+      - **CRITICAL**: This information will be used in step 13 to configure seeder.rb
+
+10) Analyze site structure:
    - Detect navigation patterns:
      * Main menu/category links
      * Breadcrumb structure
@@ -296,7 +378,7 @@ Process:
      * Two levels: categories → subcategories → listings
      * Three+ levels: handle hierarchy
 
-10) Discover sample URLs:
+11) Discover sample URLs:
    - Navigate through site to find:
      * Sample category URL
      * Sample subcategory URL (if applicable)
@@ -309,7 +391,7 @@ Process:
 === STEP 6: Write Discovery State (JSON) ===
 **CRITICAL**: Use ABSOLUTE PATH for WriteFile operation
 
-11) **MANDATORY**: Save discovery-state.json (USE ABSOLUTE PATH):
+12) **MANDATORY**: Save discovery-state.json (USE ABSOLUTE PATH):
    - **CRITICAL**: This file MUST be written - it's REQUIRED by dmart-navigation-parser
    - **Path**: `generated_scraper/<scraper>/.scraper-state/discovery-state.json`
    - **Convert to absolute path** before writing
@@ -373,6 +455,19 @@ Process:
          }
        ],
        "notes": "Any additional observations about popup behavior"
+     },
+     "fetch_requirements": {
+       "initial_page_needs_browser": true/false,
+       "categories_need_browser": true/false,
+       "button_to_reveal_categories": {
+         "exists": true/false,
+         "selector": "button.menu-toggle",
+         "puppeteer_code": "await page.click('button.menu-toggle'); await sleep(2000);",
+         "wait_time_ms": 2000,
+         "verified": true/false,
+         "notes": "Button that reveals categories when clicked"
+       },
+       "notes": "Browser fetch requirements for initial page and categories"
      }
    }
    ```
@@ -381,7 +476,7 @@ Process:
 **CRITICAL**: Use ABSOLUTE PATH for WriteFile operation
 **MANDATORY**: You MUST write discovery-knowledge.md before proceeding. This file is REQUIRED for next phase.
 
-12) **MANDATORY**: Save discovery-knowledge.md (USE ABSOLUTE PATH):
+13) **MANDATORY**: Save discovery-knowledge.md (USE ABSOLUTE PATH):
    - **CRITICAL**: This file MUST be written - it's required by dmart-navigation-parser
    - **Path**: `generated_scraper/<scraper>/.scraper-state/discovery-knowledge.md`
    - **Convert to absolute path** before writing
@@ -470,24 +565,38 @@ Process:
 === STEP 8: Update Boilerplate Files ===
 **CRITICAL**: Edit existing boilerplate files instead of creating new ones
 
-13) Update `lib/headers.rb` (USE ABSOLUTE PATH):
+14) Update `lib/headers.rb` (USE ABSOLUTE PATH):
    - Read existing file: `generated_scraper/<scraper_slug>/lib/headers.rb`
    - Update `URLs::BASE_URL` constant with discovered site URL
    - Extract base URL from input URL (e.g., "https://example.com" from "https://example.com/products")
    - Preserve all other code (ReqHeaders module, etc.)
    - Write updated file (USE ABSOLUTE PATH)
 
-14) Update `seeder/seeder.rb` (USE ABSOLUTE PATH):
+15) Update `seeder/seeder.rb` (USE ABSOLUTE PATH):
    - Read existing file: `generated_scraper/<scraper_slug>/seeder/seeder.rb`
    - Update `url:` field with discovered site URL
    - Update `page_type:` based on discovery-state.json:
      * If has_categories == true: page_type = "categories"
      * Else if has_listings == true: page_type = "listings"
      * Else: page_type = "categories" (default)
+   - **CRITICAL**: Update `fetch_type:` based on discovery-state.json:
+     * Read `fetch_requirements.initial_page_needs_browser` from discovery-state.json
+     * If `initial_page_needs_browser == true`: Set `fetch_type: "browser"`
+     * If `initial_page_needs_browser == false`: Set `fetch_type: "standard"`
+     * Replace `PLACEHOLDER_FETCH_TYPE` with the determined value
+   - **CRITICAL**: Configure driver block if browser fetch is needed:
+     * If `fetch_type == "browser"` AND `fetch_requirements.button_to_reveal_categories.exists == true`:
+       - Uncomment the driver block
+       - Replace `PLACEHOLDER_BUTTON_SELECTOR` with `fetch_requirements.button_to_reveal_categories.selector`
+       - Replace `PLACEHOLDER_WAIT_TIME` with `fetch_requirements.button_to_reveal_categories.wait_time_ms`
+       - The puppeteer code should be: `"await page.click('#{selector}'); await sleep(#{wait_time_ms});"`
+       - Example: If selector is "button.menu-toggle" and wait_time_ms is 2000:
+         * Code: `"await page.click('button.menu-toggle'); await sleep(2000);"`
+     * If `fetch_type == "standard"`: Leave driver block commented out
    - Preserve all other code (require statements, headers reference, etc.)
    - Write updated file (USE ABSOLUTE PATH)
 
-15) Verify `config.yaml` (USE ABSOLUTE PATH):
+16) Verify `config.yaml` (USE ABSOLUTE PATH):
    - Read existing file: `generated_scraper/<scraper_slug>/config.yaml`
    - Verify structure is correct (should already be complete from boilerplate)
    - Check that parsers array includes all needed parsers (categories, subcategories, listings, details)
@@ -495,7 +604,7 @@ Process:
    - **Usually no changes needed** - boilerplate config.yaml is already complete
 
 === STEP 9: Update Phase Status ===
-16) Update phase-status.json (USE ABSOLUTE PATH):
+17) Update phase-status.json (USE ABSOLUTE PATH):
    ```json
    "site_discovery": {
      "status": "completed",
@@ -505,7 +614,7 @@ Process:
    }
    ```
 
-17) Save browser-context.json (USE ABSOLUTE PATH):
+18) Save browser-context.json (USE ABSOLUTE PATH):
    **CRITICAL**: Save to scraper-specific location: `generated_scraper/<scraper>/.scraper-state/browser-context.json`
    ```json
    {
@@ -517,7 +626,7 @@ Process:
    ```
 
 === STEP 10: Completion Report & Auto-Chaining ===
-18) Display completion summary:
+19) Display completion summary:
    ```
    ✅ Site Discovery Complete (Boilerplate-Based)
    
@@ -538,10 +647,14 @@ Process:
    - Sample URLs: <count> URLs documented
    
    State Files Created:
-   - generated_scraper/<scraper>/.scraper-state/discovery-state.json ✅
+   - generated_scraper/<scraper>/.scraper-state/discovery-state.json ✅ (includes fetch_requirements)
    - generated_scraper/<scraper>/.scraper-state/discovery-knowledge.md ✅
-   - generated_scraper/<scraper>/.scraper-state/field-spec.json ✅ (if spec provided)
+   - generated_scraper/<scraper>/.scraper-state/field-spec.json ✅ (copied from spec parameter or spec_full.json)
    - generated_scraper/<scraper>/.scraper-state/phase-status.json ✅
+   
+   Browser Fetch Configuration:
+   - Initial page fetch_type: <standard|browser> ✅
+   - Button to reveal categories: <selector or "none"> ✅
    
    Next Command:
    /dmart-navigation-parser scraper=<scraper_slug>
@@ -554,7 +667,7 @@ Process:
 **YOU MUST NOW CHECK FOR auto_next PARAMETER AND EXECUTE NEXT COMMAND IF PRESENT**
 **DO NOT SKIP THIS STEP - IT IS MANDATORY**
 
-19) **MANDATORY AUTO-CHAINING CHECK**: Parse `{{args}}` and check if `auto_next=true`:
+20) **MANDATORY AUTO-CHAINING CHECK**: Parse `{{args}}` and check if `auto_next=true`:
    - **CRITICAL**: You MUST parse the `{{args}}` string to extract the `auto_next` parameter
    - **CRITICAL**: Look for `auto_next=true` or `auto_next=false` in the arguments string
    - **EXAMPLE**: If `{{args}}` contains `url=... name=... auto_next=true`, then `auto_next=true` is present
@@ -564,82 +677,42 @@ Process:
    - **DO NOT** assume auto_next is false - you MUST check the actual `{{args}}` value
    - **DO NOT** skip this check - it is MANDATORY even if you think auto_next is not present
    
-20) **IF auto_next=true**: Close browser session:
+21) **IF auto_next=true**: Close browser session:
    - **MANDATORY**: Call `browser_close()` MCP tool to close browser
    - This is REQUIRED before spawning new console
    
-21) **IF auto_next=true**: Load or detect shell type:
-   a) **First**: Check if `.gemini/shell-info.json` exists (USE ABSOLUTE PATH):
-      - If exists: Read shell type from JSON file
-      - If not exists: Detect shell type (see step 21b)
-   
-   b) **If shell-info.json doesn't exist**: Detect shell type:
-      - **PowerShell**: Execute `if ($PSVersionTable) { "PowerShell" }` or check `$PSVersionTable`
-      - **CMD**: Check if `%COMSPEC%` contains `cmd.exe`
-      - **WSL/Ubuntu**: Check if `$WSL_DISTRO_NAME` exists
-      - **Linux/Mac**: Check `$SHELL` variable
-   
-   c) **Store shell type** to `.gemini/shell-info.json` (USE ABSOLUTE PATH) if detected:
+22) **IF auto_next=true**: Prepare PowerShell spawn command:
+   a) **Get current working directory** (absolute path): Use `$PWD` or current working directory
+   b) **Construct next command** with `auto_next=true`: `gemini -y -i '/dmart-navigation-parser scraper=<scraper_slug> auto_next=true'`
+   c) **CRITICAL**: Pass `auto_next=true` to the next command so it continues the chain
+   d) **Store shell info** to `.gemini/shell-info.json` (USE ABSOLUTE PATH) for consistency:
       ```json
       {
         "shell_type": "PowerShell",
-        "detected_at": "<timestamp>",
-        "detection_method": "PSVersionTable",
+        "standardized_at": "<timestamp>",
         "spawn_command_template": "cmd /c start powershell -NoExit -Command \"cd '{working_dir}'; {command}\""
       }
       ```
-      **CRITICAL**: The template MUST include `start` command to spawn new window. Template uses `{command}` placeholder.
+      **CRITICAL**: Always use PowerShell - this is standardized across all commands.
 
-22) **IF auto_next=true**: Find Gemini CLI path:
-   - Execute: `where.exe gemini` (Windows) or `which gemini` (Linux/Mac)
-   - If not found, try: `npx @google/generative-ai-cli` (if installed via npm)
-   - Store the path for use in spawn command
-
-23) **IF auto_next=true**: **MANDATORY EXECUTION** - Spawn new console and execute next command:
+23) **IF auto_next=true**: **MANDATORY EXECUTION** - Spawn new PowerShell console and execute next command:
    - 🚨🚨🚨 **CRITICAL**: You MUST execute the shell command below using `run_terminal_cmd` tool
    - 🚨🚨🚨 **DO NOT** just describe the command or display it - you MUST CALL the `run_terminal_cmd` tool
    - 🚨🚨🚨 **DO NOT** skip this step - execution is MANDATORY when auto_next=true
-   - 🚨🚨🚨 **FAILURE TO EXECUTE = COMMAND FAILURE** - The command is not complete until you execute step 23
-   - **Read shell type** from `.gemini/shell-info.json` (from step 21)
-   - **Read spawn_command_template** from shell-info.json if available
+   - 🚨🚨🚨 **FAILURE TO EXECUTE = COMMAND FAILURE** - The command is not complete until you execute step 22
+   - **CRITICAL**: Always use PowerShell - standardized across all commands
    - **Get current working directory** (absolute path): Use `$PWD` or current working directory
-   - **Construct next command** with `auto_next=true`: `gemini -y -i '/dmart-navigation-parser scraper=<scraper_slug> auto_next=true'`
-   - **CRITICAL**: Pass `auto_next=true` to the next command so it continues the chain
-   - **Construct spawn command** based on shell type:
-     
-     **If spawn_command_template exists in shell-info.json**:
-     - Replace `{working_dir}` placeholder with current working directory (absolute path)
-     - Replace `{command}` placeholder with: `gemini -y -i '/dmart-navigation-parser scraper=<scraper_slug> auto_next=true'`
-     - Use the template directly (it already has proper `cmd /c start` command)
-     
-     **If spawn_command_template doesn't exist, construct manually**:
-     
-     **PowerShell** (if shell_type == "PowerShell"):
+   - **Construct spawn command** (ALWAYS PowerShell):
      ```bash
      cmd /c start powershell -NoExit -Command "cd '$PWD'; gemini -y -i '/dmart-navigation-parser scraper=<scraper_slug> auto_next=true'"
      ```
      **CRITICAL**: 
+     - **ALWAYS use PowerShell** - standardized across all commands
      - Use `cmd /c start` to spawn a completely independent PowerShell window (not inside current session)
      - Use `$PWD` for current working directory (same as initial Gemini CLI PWD)
      - Do NOT set PATH explicitly - PowerShell inherits PATH from parent process
+     - Use `gemini` directly (NOT full path - it's available in PATH)
      - Pass `auto_next=true` to continue the chain
-     
-     **CMD** (if shell_type == "CMD"):
-     ```bash
-     cmd /c start cmd /k "cd /d %CD% && gemini -y -i \"/dmart-navigation-parser scraper=<scraper_slug> auto_next=true\""
-     ```
-     **CRITICAL**: Use `cmd /c start` to spawn a completely independent CMD window (not inside current session)
-     
-     **WSL** (if shell_type == "WSL"):
-     ```bash
-     cmd /c start powershell -NoExit -Command "wsl -e bash -c \"cd '$PWD' && gemini -y -i '/dmart-navigation-parser scraper=<scraper_slug> auto_next=true'\""
-     ```
-     **CRITICAL**: Use `cmd /c start` to spawn a completely independent PowerShell window (not inside current session)
-     
-     **Linux/Mac** (if shell_type == "Linux" or "Mac"):
-     ```bash
-     xterm -e "cd '$PWD' && gemini -y -i '/dmart-navigation-parser scraper=<scraper_slug> auto_next=true'" &
-     ```
    
    - **EXECUTE** the shell command using `run_terminal_cmd` tool
    - **DO NOT** just display the command - you MUST execute it
@@ -654,7 +727,7 @@ Process:
 - ✅ **MANDATORY**: `config.yaml` verified (usually no changes needed)
 - ✅ **MANDATORY**: discovery-state.json written (machine-readable) - REQUIRED for next phase
 - ✅ **MANDATORY**: discovery-knowledge.md written (human + AI readable) - REQUIRED for next phase
-- ✅ field-spec.json written (if spec provided) - guides detail parser field discovery
+- ✅ field-spec.json copied to .scraper-state/ - guides detail parser field discovery (will be modified during discovery)
 - ✅ phase-status.json updated
 - ✅ browser-context.json saved
 - ✅ Completion report displayed with next steps
@@ -679,13 +752,13 @@ Process:
 - **IF auto_next=true**: Follow steps 19-23 to spawn next command, then END
 
 Examples:
-  # Basic usage (no field spec - will use common fields)
+  # Basic usage (uses spec_full.json as default)
   /dmart-scrape url="https://naivas.online" name=naivas_online
   
-  # With field specification (recommended)
-  /dmart-scrape url="https://example.com" name=my_store spec="spec_general_sample.csv"
+  # With custom field-spec.json file
+  /dmart-scrape url="https://globusonline.cz" name=globus_cz spec="field-spec.json" auto_next=true
   
   # Custom output directory
-  /dmart-scrape url="https://shop.com" --scraper shop spec="fields.csv" out="./custom_scrapers"
+  /dmart-scrape url="https://shop.com" --scraper shop spec="spec_full.json" out="./custom_scrapers"
 """
 
