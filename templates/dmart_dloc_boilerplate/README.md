@@ -85,7 +85,7 @@ Variables are passed via `vars` hash and merged at each stage:
 - **Replace**: `html.css('PLACEHOLDER')` with category link selector
 - **Replace**: `category.at_css('PLACEHOLDER')` with category name selector
 - **Update**: Site-specific logic for determining next page_type (lines 50-52)
-- **Keep**: Variable passing structure, save_pages calls
+- **Keep**: Variable passing structure, save_pages(pages) calls
 - **Comments**: Explains variable flow, DataHen v3 structure, and PLACEHOLDER replacement
 
 ### 4. `parsers/subcategories.rb`
