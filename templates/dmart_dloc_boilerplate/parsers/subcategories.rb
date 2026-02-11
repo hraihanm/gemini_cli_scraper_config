@@ -105,6 +105,6 @@ subcategories.each do |subcat|
   pages << next_page_config
   
   # Memory management: Save pages to server when array gets large
-  # NOTE: save_pages is a pre-defined function - DO NOT declare it
-  save_pages if pages.count > 99
+  # NOTE: save_pages(pages) is a pre-defined function - DO NOT declare it
+  save_pages(pages) if pages.count > 99
 end

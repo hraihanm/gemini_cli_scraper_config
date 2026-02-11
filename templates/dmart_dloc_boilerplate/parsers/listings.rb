@@ -76,8 +76,8 @@ products.each_with_index do |product_link, idx|
   }
   
   # Memory management: Save pages to server when array gets large
-  # NOTE: save_pages is a pre-defined function - DO NOT declare it
-  save_pages if pages.count > 99
+  # NOTE: save_pages(pages) is a pre-defined function - DO NOT declare it
+  save_pages(pages) if pages.count > 99
 end
 
 # ============================================================================
@@ -192,7 +192,7 @@ if vars['page_number'] == 1 || vars['page'] == 1 || vars['page_number'].nil?
           priority: 50,
           vars: vars.merge({ page_number: page_num })
         }
-        save_pages if pages.count > 99
+        save_pages(pages) if pages.count > 99
       end
     end
   end
@@ -214,7 +214,7 @@ end
 #     page_type: "listings",
 #     vars: vars.merge({ page_number: (vars['page_number'] || 1).to_i + 1 })
 #   }
-#   save_pages if pages.count > 99
+#   save_pages(pages) if pages.count > 99
 # end
 
 # ----------------------------------------------------------------------------
@@ -229,7 +229,7 @@ end
 #   page_type: "listings",
 #   vars: vars.merge({ page_number: next_page })
 # }
-# save_pages if pages.count > 99
+# save_pages(pages) if pages.count > 99
 
 # ----------------------------------------------------------------------------
 # Strategy 5: Path Pattern (uncomment and update pattern)
@@ -244,5 +244,5 @@ end
 #   page_type: "listings",
 #   vars: vars.merge({ page_number: next_page })
 # }
-# save_pages if pages.count > 99
+# save_pages(pages) if pages.count > 99
 
