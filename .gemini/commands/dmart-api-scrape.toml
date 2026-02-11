@@ -1,0 +1,407 @@
+description = "Phase 1 (API): Site discovery with API endpoint detection. Copies boilerplate, discovers API endpoints via browser_network_search, downloads sample responses with browser_network_download, writes API-specific discovery state."
+
+prompt = """
+You are performing Phase 1 (API Approach): Site Discovery with API Endpoint Detection using the dmart_dloc_boilerplate template. This variant focuses on discovering **JSON/XML API endpoints** (XHR/fetch) that return structured data, rather than HTML CSS selectors.
+
+🚨🚨🚨 **CRITICAL: YOU ARE IN GEMINI CLI - USE TOOLS DIRECTLY, NEVER GENERATE CODE** 🚨🚨🚨
+- **STOP**: If you are about to write `import os`, `import json`, `print()`, `def `, or any Python/JavaScript code, STOP IMMEDIATELY
+- **YOU ARE AN AI ASSISTANT IN GEMINI CLI** - You have direct access to MCP tools via tool calling
+- **USE TOOLS DIRECTLY** - Call tools like `read_file`, `browser_navigate`, `browser_network_search`, `browser_network_download`, `browser_request`, `write_file` using the tool interface
+- **FORBIDDEN**: Never write Python scripts, JavaScript code, or any programming code
+- **CODE EXAMPLES IN THIS PROMPT ARE FOR REFERENCE ONLY** - They show tool call patterns and Ruby parser code, NOT code to write/execute
+- **YOU ARE THE EXECUTOR** - Execute actions directly using tools, don't write code that executes actions
+- **IF YOU START WRITING CODE**: Stop immediately and use tools instead
+
+🚨 **API-FIRST APPROACH**:
+- **This command discovers API endpoints** that return JSON/XML data for categories, listings, and product details
+- **Instead of CSS selectors**, we find XHR/fetch endpoints that the site's JavaScript uses to load data
+- **Key tools**:
+  - `browser_network_search` - searches across captured network request URLs, headers, and response bodies
+  - `browser_network_download` - downloads a captured network response body to a file for testing
+  - `browser_request` - makes arbitrary HTTP requests from the browser context (inherits cookies/session)
+- **Workflow**: Navigate to page → let JavaScript load data → `browser_network_search({query: "product_name"})` → identify API endpoints → `browser_network_download` to save responses → verify with `browser_request`
+
+🚨 **TWO PRODUCTION API PATTERNS TO IDENTIFY**:
+The agent must determine which fetch strategy the site requires:
+
+**Pattern A: `fetch_type: "standard"` (direct HTTP)**
+- DataHen fetches the API URL directly via HTTP (no browser needed)
+- `content` = raw JSON string → parser uses `JSON.parse(content)` directly
+- Requires passing cookies/headers explicitly in page entry
+- Example: `pages << { url: api_url, fetch_type: "standard", headers: { 'Cookie' => cookie }, ... }`
+- Best for: Simple REST APIs with stable authentication
+
+**Pattern B: `fetch_type: "browser"` (Chromium renders)**
+- Chromium navigates to the API URL
+- For JSON: `content` = HTML-wrapped JSON → parser must extract from HTML wrapper
+- For XML: `content` = HTML-wrapped XML → parser uses `Nokogiri::HTML(content)` → extract XML → `Nokogiri::XML(xml)`
+- Example: `pages << { url: api_url, fetch_type: "browser", driver: { name: "test", stealth: true }, ... }`
+- Best for: APIs requiring complex auth, CORS restrictions, or JavaScript-set cookies
+
+**Key decision factors**:
+- Does the API require cookies set by JavaScript? → Pattern B (browser) or Pattern A with cookie passing
+- Does the API have CORS restrictions? → Pattern B (browser)
+- Is the API a simple REST endpoint with static auth? → Pattern A (standard)
+
+🚨 **COOKIE/SESSION MANAGEMENT**:
+- Initial browser fetch captures cookies via `page['response_cookie']`
+- Pass cookies to subsequent API pages via `vars` hash: `vars: { cookie: page['response_cookie'] }`
+- In parsers, read cookies: `cookie = page['vars']['cookie'] rescue page['response_cookie']`
+- Or set directly on page entry: `cookie: cookie_string`
+
+🚨 **CRITICAL AUTO-CHAINING EXECUTION RULE**:
+- **MANDATORY**: If `auto_next=true` parameter is provided in `{{args}}`, you MUST execute the next command automatically
+
+🚨 **BOILERPLATE-BASED APPROACH**:
+- **Step 1**: Copy `templates/dmart_dloc_boilerplate/` to `generated_scraper/<scraper_name>/`
+- **Step 2**: Discover API endpoints using browser_network_search
+- **Step 3**: Download sample API responses using browser_network_download
+- **Step 4**: Verify API calls work independently using browser_request
+- **Step 5**: Edit boilerplate files with discovered API info
+- **Step 6**: Write API-specific discovery state for next phases
+
+🚨 CRITICAL - ABSOLUTE PATHS REQUIRED:
+- **ALL WriteFile operations MUST use ABSOLUTE PATHS** - Relative paths will fail
+
+Inputs (order-agnostic via {{args}}):
+  - url=<site_url> (REQUIRED - target website URL)
+  - name=<scraper_name> (REQUIRED)
+  - spec=<path-to-field-spec.json> (OPTIONAL - defaults to spec_full.json)
+  - out=<base_dir> (OPTIONAL, default: "./generated_scraper")
+  - auto_next=true|false (OPTIONAL, default: false) - If true, automatically execute next command (/dmart-api-navigation-parser)
+
+Process:
+
+=== STEP 1: Load Existing State Files (if exist) ===
+1) Load existing state files using read_file tool:
+   - Read `generated_scraper/<scraper>/.scraper-state/phase-status.json` (if exists)
+   - Read `generated_scraper/<scraper>/.scraper-state/discovery-state.json` (if exists)
+   - Read `generated_scraper/<scraper>/.scraper-state/discovery-knowledge.md` (if exists)
+   - Handle missing files gracefully
+
+2) Handle results:
+   - If phase-status.json exists and site_discovery.status == "completed": Display summary, suggest next phase
+   - If "in_progress": Resume from checkpoint
+   - Else: Start fresh discovery
+
+=== STEP 2: Copy Boilerplate Template ===
+3) Check if scraper directory exists:
+   - If exists: Read existing files, only update what needs changes
+   - If NOT exists: Copy `templates/dmart_dloc_boilerplate/` to `generated_scraper/<scraper>/`
+     * Windows: `xcopy /E /I /Y templates\\dmart_dloc_boilerplate generated_scraper\\<scraper>`
+   - Verify copy was successful
+
+4) Verify boilerplate structure:
+   - Read config.yaml, seeder.rb, lib/headers.rb, parsers/categories.rb, parsers/details.rb
+
+=== STEP 3: Copy Field Specification ===
+5) Copy field-spec.json to `.scraper-state/` using file copy command (NOT read_file + write_file):
+   - Source: `spec` parameter or default `spec_full.json`
+   - Destination: `generated_scraper/<scraper>/.scraper-state/field-spec.json`
+   - Use `copy` (Windows) or `cp` (Linux) via run_terminal_cmd
+
+=== STEP 4: Initialize State Directory ===
+6) Create `.scraper-state/` directory if needed
+7) Initialize phase-status.json with site_discovery in_progress
+
+=== STEP 5: Site Discovery with API Endpoint Detection ===
+8) Navigate to site URL:
+   - browser_navigate(url)
+
+   **🚨 CRITICAL: Handle popups/overlays FIRST** (same popup handling workflow as dmart-scrape: ESC → corner click → selector click → coordinate click → verify)
+
+   - browser_snapshot() to understand page structure
+
+9) **🚨 API ENDPOINT DISCOVERY** (the core differentiator from HTML approach):
+
+   a) **Wait for page to fully load** - API calls are triggered by JavaScript:
+      - browser_wait_for({time: 3}) to let XHR/fetch requests complete
+
+   b) **Search for product/category data in network requests**:
+      - Use `browser_network_search` to find API endpoints:
+        ```
+        browser_network_search({
+          query: "category",
+          searchIn: ["url", "responseBody"],
+          maxResults: 10,
+          contextChars: 200
+        })
+        ```
+      - Try multiple search terms:
+        * "category" or "categories" - find category listing APIs
+        * "product" or "products" - find product listing APIs
+        * A visible product name from the page - find product data APIs
+        * "price" - find pricing APIs
+        * "page" or "offset" or "limit" - find pagination patterns
+
+   c) **Identify API endpoint patterns**:
+      - Look for JSON responses (Content-Type: application/json) or XML responses
+      - Identify base API URL (e.g., `https://api.example.com/v2/`)
+      - Identify authentication headers (API keys, tokens, cookies)
+      - Identify pagination parameters (page, offset, limit, cursor)
+      - Identify category/product ID patterns in URLs
+
+   d) **🚨 Download sample API responses using browser_network_download**:
+      For each discovered API endpoint, download the response body:
+        ```
+        browser_network_download({
+          urlPattern: "api.example.com/categories",
+          outputPath: "D:\\path\\to\\generated_scraper\\<scraper>\\cache\\categories-api.json"
+        })
+        ```
+      - Save to `generated_scraper/<scraper>/cache/` directory
+      - Download at least: categories response, listings response, detail response
+      - These files will be used later for parser testing with parser_tester
+
+   e) **🚨 Verify API endpoints work independently using browser_request**:
+      For each discovered endpoint, replay the API call:
+        ```
+        browser_request({
+          url: "https://api.example.com/v2/categories",
+          method: "GET",
+          headers: {"Accept": "application/json"},
+          outputPath: "D:\\path\\to\\generated_scraper\\<scraper>\\cache\\categories-verify.json"
+        })
+        ```
+      - This confirms the API call works with the browser's cookies/session
+      - Compare with the captured response to ensure consistency
+      - **If browser_request fails but browser_network_download works**: the API likely requires JavaScript context → use `fetch_type: "browser"`
+      - **If browser_request succeeds**: the API can likely be called directly → `fetch_type: "standard"` is possible (but still test without cookies)
+
+   f) **Determine fetch strategy** for each endpoint:
+      - Test if API works with `fetch_type: "standard"` (direct HTTP): Try `browser_request` without cookies
+      - Test if API requires cookies: Try with and without `Cookie` header
+      - Document: which fetch_type to use, what headers/cookies are required
+
+   g) **Map API response structure**:
+      For each endpoint, document (from downloaded files):
+      - Response format (JSON object, array, paginated wrapper)
+      - Key fields: where product name, price, image, etc. live in the JSON
+      - Pagination: total_count / per_page = total_pages, loop `(2..total_pages)`
+      - Total count: field path in response metadata
+
+10) **Navigate through site to trigger more API calls**:
+    - Click on a category to trigger category listing API
+    - Use browser_network_search to capture the API call
+    - **Download the response**: browser_network_download to save it
+    - Click on a product to trigger detail API
+    - Use browser_network_search to capture the detail API call
+    - **Download the response**: browser_network_download to save it
+    - Document each endpoint discovered
+
+11) **Analyze site structure from API perspective**:
+    - Determine navigation depth from API endpoints:
+      * Categories API → Subcategories API → Product listing API → Product detail API
+    - Identify if APIs use:
+      * REST patterns (/categories/123/products)
+      * GraphQL (single endpoint, query-based) - if GraphQL, document query structure and Base64 encoding
+      * Custom API patterns
+    - Document API authentication requirements
+    - Document cookie/session flow between parsers
+
+=== STEP 6: Write API-Specific Discovery State ===
+12) Save discovery-state.json (USE ABSOLUTE PATH):
+    ```json
+    {
+      "site_url": "<input_url>",
+      "scraper_name": "<scraper_slug>",
+      "discovered_at": "<timestamp>",
+      "scraping_approach": "api",
+      "site_structure": {
+        "has_categories": true,
+        "has_subcategories": true,
+        "has_listings": true,
+        "navigation_depth": 2,
+        "listing_pattern": "api_pagination"
+      },
+      "api_endpoints": {
+        "base_url": "https://api.example.com/v2",
+        "fetch_strategy": "standard or browser",
+        "requires_cookies": true,
+        "cookie_source": "initial browser fetch of homepage",
+        "categories": {
+          "url": "https://api.example.com/v2/categories",
+          "method": "GET",
+          "fetch_type": "standard",
+          "headers": {"Accept": "application/json"},
+          "cookie_required": true,
+          "response_type": "json",
+          "response_structure": {
+            "data_path": "data.categories",
+            "id_field": "id",
+            "name_field": "name",
+            "slug_field": "slug",
+            "children_field": "subcategories"
+          },
+          "pagination": {
+            "type": "offset",
+            "param": "page",
+            "per_page": 20,
+            "total_field": "meta.total"
+          },
+          "sample_response_file": "cache/categories-api.json",
+          "sample_response_snippet": "..."
+        },
+        "listings": {
+          "url": "https://api.example.com/v2/categories/{category_id}/products",
+          "method": "GET",
+          "fetch_type": "standard",
+          "headers": {},
+          "response_type": "json",
+          "response_structure": {
+            "data_path": "data.products",
+            "id_field": "id",
+            "name_field": "name",
+            "price_field": "price",
+            "url_field": "slug"
+          },
+          "pagination": {
+            "strategy": "queue_all_upfront",
+            "type": "page_number",
+            "param": "page",
+            "per_page": 24,
+            "total_field": "meta.total_count"
+          },
+          "sample_response_file": "cache/listings-api.json",
+          "sample_response_snippet": "..."
+        },
+        "details": {
+          "url": "https://api.example.com/v2/products/{product_id}",
+          "method": "GET",
+          "fetch_type": "standard",
+          "headers": {},
+          "response_type": "json",
+          "response_structure": {
+            "data_path": "data",
+            "fields_map": {
+              "name": "data.name",
+              "price": "data.price",
+              "description": "data.description",
+              "images": "data.images",
+              "brand": "data.brand.name",
+              "sku": "data.sku"
+            }
+          },
+          "sample_response_file": "cache/details-api.json",
+          "sample_response_snippet": "..."
+        }
+      },
+      "sample_urls": {
+        "category": "https://example.com/categories",
+        "subcategory": "https://example.com/categories/electronics",
+        "listings": "https://example.com/categories/electronics/laptops",
+        "detail": "https://example.com/p/123"
+      },
+      "sample_api_urls": {
+        "categories_api": "https://api.example.com/v2/categories",
+        "listings_api": "https://api.example.com/v2/categories/123/products?page=1",
+        "details_api": "https://api.example.com/v2/products/456"
+      },
+      "popup_handling": {
+        "popups_encountered": false,
+        "handling_method": "none",
+        "notes": ""
+      },
+      "fetch_requirements": {
+        "initial_page_needs_browser": true,
+        "cookie_passing_strategy": "vars hash between parsers",
+        "notes": "Initial seeder uses fetch_type: browser to get cookies. Subsequent parsers use fetch_type: standard with cookie from vars."
+      }
+    }
+    ```
+
+=== STEP 7: Write Discovery Knowledge ===
+13) Save discovery-knowledge.md (USE ABSOLUTE PATH):
+    Include:
+    - Scraping approach: API-based
+    - Fetch strategy decision: standard vs browser, and why
+    - All discovered API endpoints with URL patterns
+    - Response structure documentation for each endpoint (from downloaded files)
+    - Pagination patterns (queue all upfront vs next-page)
+    - Cookie/session management strategy
+    - Authentication requirements
+    - Field mapping (API field → output field)
+    - Downloaded sample response files (cache/ directory)
+    - Notes on rate limiting or special requirements
+
+=== STEP 8: Update Boilerplate Files ===
+14) Update `lib/headers.rb` (USE ABSOLUTE PATH):
+    - Update BASE_URL with site URL
+    - **NEW**: Add API_BASE_URL constant with discovered API base URL
+    - Add any required API headers (tokens, keys) if public
+
+15) Update `seeder/seeder.rb` (USE ABSOLUTE PATH):
+    - Update url with site URL (homepage)
+    - Set fetch_type to "browser" (initial page load to capture cookies)
+    - The seeder page entry should:
+      * Load the homepage with browser to capture cookies
+      * Set page_type to "categories" so the categories parser receives the page
+      * Pass cookies forward via vars or response_cookie
+
+16) Verify config.yaml (USE ABSOLUTE PATH):
+    - Ensure structure is correct from boilerplate
+
+=== STEP 9: Update Phase Status ===
+17) Update phase-status.json
+18) Save browser-context.json
+
+=== STEP 10: Completion Report & Auto-Chaining ===
+19) Display completion summary:
+    ```
+    ✅ Site Discovery Complete (API Approach)
+
+    Scraper: <scraper_slug>
+    Site: <site_url>
+    Approach: API-based scraping
+    Fetch Strategy: <standard|browser>
+
+    API Endpoints Discovered:
+    - Categories API: <url> ✅ (fetch_type: <type>)
+    - Listings API: <url> ✅ (fetch_type: <type>)
+    - Details API: <url> ✅ (fetch_type: <type>)
+
+    Sample Responses Downloaded:
+    - cache/categories-api.json ✅
+    - cache/listings-api.json ✅
+    - cache/details-api.json ✅
+
+    Boilerplate Copied & Updated:
+    - generated_scraper/<scraper>/ ✅
+    - lib/headers.rb ✅ (BASE_URL + API_BASE_URL)
+    - seeder/seeder.rb ✅ (browser fetch for cookies)
+
+    State Files:
+    - discovery-state.json ✅ (includes api_endpoints with fetch strategy)
+    - discovery-knowledge.md ✅ (API documentation)
+    - field-spec.json ✅
+    - phase-status.json ✅
+
+    Next Command:
+    /dmart-api-navigation-parser scraper=<scraper_slug>
+    ```
+
+20) **MANDATORY AUTO-CHAINING CHECK**: Parse `{{args}}` for `auto_next=true`:
+    - If `auto_next=true`: Execute steps 21-23
+    - If `auto_next=false` or not provided: Stop here
+
+21) **IF auto_next=true**: Close browser: browser_close()
+
+22) **IF auto_next=true**: Prepare PowerShell spawn command:
+    - Store shell info to `.gemini/shell-info.json`
+
+23) **IF auto_next=true**: **MANDATORY EXECUTION** - Spawn new console:
+    ```bash
+    cmd /c start powershell -NoExit -Command "cd '$PWD'; gemini -y -i '/dmart-api-navigation-parser scraper=<scraper_slug> auto_next=true'"
+    ```
+    - **EXECUTE** using run_terminal_cmd tool
+    - **DO NOT** just display the command
+
+🚨🚨🚨 **MANDATORY: STOP AFTER COMPLETION (if auto_next=false)** 🚨🚨🚨
+- After displaying completion summary, you MUST STOP
+- DO NOT continue with any other work
+- This command is COMPLETE - END SESSION NOW
+
+Examples:
+  /dmart-api-scrape url="https://www.dmart.in" name=dmart_in
+  /dmart-api-scrape url="https://www.bigbasket.com" name=bigbasket spec="field-spec.json" auto_next=true
+"""
