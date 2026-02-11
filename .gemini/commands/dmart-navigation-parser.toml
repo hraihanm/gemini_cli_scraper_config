@@ -281,27 +281,8 @@ Process:
    
    - browser_inspect_element() to find category link selectors
    - browser_verify_selector() for category names
-   - **Discover category_id** (if available):
-     * Use `browser_inspect_element()` on category links to check for data attributes:
-       - `data-category-id`, `data-categoryid`, `data-id`
-       - Check parent elements for category_id attributes
-     * Use `browser_evaluate()` to find category_id in JSON data:
-       ```javascript
-       browser_evaluate(() => {
-         const categories = document.querySelectorAll('.category-item, .category-link');
-         return Array.from(categories).map(cat => ({
-           name: cat.textContent.trim(),
-           dataAttributes: Array.from(cat.attributes).filter(attr => 
-             attr.name.includes('category') || attr.name.includes('id')
-           ).map(attr => ({ name: attr.name, value: attr.value })),
-           href: cat.href || cat.getAttribute('href')
-         }));
-       })
-       ```
-     * Check if category_id is in URL pattern (e.g., `/category/123/` or `/categories?id=123`)
-     * Check if category data is in JSON format (parse JSON if found)
-     * Record discovered category_id extraction method in navigation-selectors.json
    - Discover category link pattern, URL structure
+   - **NOTE**: Category ID discovery is disabled - focus only on navigation selectors
 
 9) Edit parsers/categories.rb (USE ABSOLUTE PATH):
    **CRITICAL**: Edit existing parser file instead of creating new one
@@ -327,13 +308,7 @@ Process:
    
    c) Edit the parser file:
       - Replace category link selector with discovered selector
-      - **Extract category_id** (if discovered):
-        * Replace `PLACEHOLDER_CATEGORY_ID_REGEX` with discovered regex pattern (if extracting from URL)
-        * Update category_id extraction code with discovered method:
-          - If from data attribute: Update selector (e.g., `category['data-category-id']`)
-          - If from nested element: Update selector (e.g., `category.at_css('[data-category-id]')['data-category-id']`)
-          - If from URL: Update regex pattern
-        * Ensure category_id is passed in vars to next page
+      - **NOTE**: Category ID extraction is disabled - do not extract or pass category_id
       - **CRITICAL**: Update `fetch_type` for next pages based on discovery:
         * Read `navigation-selectors.json` (from step 24) to check `categories.needs_browser_fetch`
         * If `needs_browser_fetch == true`: Set `fetch_type: "browser"` in next_page_config
@@ -349,7 +324,7 @@ Process:
         * If `fetch_type == "standard"`: Leave driver block commented out
       - Fix any incomplete conditional statements
       - Update page_type logic if needed
-      - Preserve vars passing structure (include category_id in vars)
+      - Preserve vars passing structure (do NOT include category_id - it's disabled)
       - Keep save_pages calls
    
    d) Write updated parser file (USE ABSOLUTE PATH):
@@ -376,11 +351,6 @@ Process:
         quiet: false  // Show verbose output for testing
       })
       ```
-      
-      **Alternative** (if you need offline testing with saved HTML):
-      - Use browser_view_html() to get HTML content (optional, for inspection only)
-      - Save HTML to cache/ directory manually (optional)
-      - Use html_file parameter instead: `html_file: "<absolute_path>/cache/category-page.html"`
    
    c) Validate test results:
       - Parser should generate pages with page_type "subcategories" or "listings"
@@ -473,7 +443,7 @@ Process:
         parser_path: "parsers/subcategories.rb",
         page_type: "subcategories",
         auto_download: true,  // RECOMMENDED: Automatically downloads HTML from active browser tab
-        vars: '{"category_name":"Electronics","category_id":"123","breadcrumb":"Electronics"}',
+        vars: '{"category_name":"Electronics","breadcrumb":"Electronics"}',
         quiet: false
       })
       ```
@@ -494,7 +464,7 @@ Process:
           parser_path: "parsers/listings.rb",
           page_type: "listings",
           auto_download: true,  // RECOMMENDED: Automatically downloads HTML from active browser tab
-          vars: '{"category_name":"Electronics","category_id":"123","breadcrumb":"Electronics","page":1}',
+          vars: '{"category_name":"Electronics","breadcrumb":"Electronics","page":1}',
           quiet: false
         })
         ```
@@ -753,15 +723,6 @@ Process:
          "wait_time_ms": 2000,
          "verified": true/false
        },
-       "category_id_extraction": {
-         "method": "data_attribute|url_regex|json|nested_element",
-         "selector": "data-category-id",  // If data attribute
-         "regex_pattern": "/category\\/(\\d+)/",  // If extracting from URL
-         "json_path": "categoryId",  // If JSON format
-         "nested_selector": "[data-category-id]",  // If nested element
-         "verified": true,
-         "notes": "Category ID extraction method and selector"
-       },
        "verified": true,
        "confidence": 0.95,
        "notes": "Categories found in main navigation menu",
@@ -850,16 +811,12 @@ Process:
    ### Categories Parser (parsers/categories.rb)
    - **Status**: ✅ Complete
    - **Selector**: `.category-item a` (updated from boilerplate)
-   - **Category ID Extraction**: 
-     * **Method**: [data_attribute|url_regex|json|nested_element]
-     * **Selector/Pattern**: [Discovered selector or regex pattern]
-     * **Example**: `category['data-category-id']` or extracted from URL `/category/(\\d+)/`
-     * **Verified**: Yes, category_id extracted and passed to next page
    - **Discovery Method**: Browser inspection of main navigation
    - **Verified**: Yes, tested on 3 category pages
    - **Edge Cases**: Some categories have subcategories (handled in subcategories parser)
-   - **Notes**: Categories page has 12 main categories, category_id available for all categories
-   - **Changes Made**: [List what was edited - selectors updated, category_id extraction added, incomplete code fixed, etc.]
+   - **Notes**: Categories page has 12 main categories
+   - **Changes Made**: [List what was edited - selectors updated, incomplete code fixed, etc.]
+   - **NOTE**: Category ID extraction is disabled - focus only on navigation selectors
    
    ### Subcategories Parser (parsers/subcategories.rb)
    - **Status**: ✅ Complete
@@ -894,23 +851,23 @@ Process:
    
    ### Categories → Listings/Subcategories
    - `category_name`: Name of the category
-   - `category_id`: Category ID (if available, extracted from data attributes, URL, or JSON)
    - `category_level`: Hierarchy level (1, 2, 3...)
    - `breadcrumb`: Full category path
+   - **NOTE**: `category_id` is NOT extracted or passed (disabled)
    
    ### Subcategories → Listings
    - `subcategory_name`: Name of subcategory
    - `category_name`: Parent category name
-   - `category_id`: Category ID (preserved from parent category)
    - `breadcrumb`: Full path including subcategory
+   - **NOTE**: `category_id` is NOT extracted or passed (disabled)
    
    ### Listings → Details
    - `category_name`: Category name
-   - `category_id`: Category ID (preserved from parent category)
    - `breadcrumb`: Full category path
    - `rank`: Product position in listing (1, 2, 3...)
    - `page_number`: Pagination page number
    - `listing_position`: Position within current page
+   - **NOTE**: `category_id` is NOT extracted or passed (disabled)
    
    ## Selector Discovery Details
    
@@ -938,7 +895,8 @@ Process:
    
    **Inputs Needed:**
    - Use sample detail URLs from `sample_detail_urls` array
-   - Expect vars: `category_name`, `category_id`, `breadcrumb`, `rank`, `page_number`
+   - Expect vars: `category_name`, `breadcrumb`, `rank`, `page_number`
+   - **NOTE**: `category_id` is NOT passed (disabled)
    
    **Command to Run:**
    ```bash
