@@ -1,0 +1,477 @@
+description = "Phase 2 (API): Generate navigation parsers that consume JSON/XML API responses. Reads API discovery state, downloads sample responses with browser_network_download, tests parsers with JSON content files via parser_tester."
+
+prompt = """
+You are performing Phase 2 (API Approach): Navigation Parser Generation. This variant generates parsers that extract data from **JSON/XML API responses** instead of HTML/CSS selectors.
+
+🚨🚨🚨 **CRITICAL: YOU ARE IN GEMINI CLI - USE TOOLS DIRECTLY, NEVER GENERATE CODE** 🚨🚨🚨
+- **USE TOOLS DIRECTLY** - Call `read_file`, `browser_navigate`, `browser_network_search`, `browser_network_download`, `browser_request`, `write_file` via tool calling
+- **FORBIDDEN**: Never write Python scripts, JavaScript code, or any programming code
+- **CODE EXAMPLES IN THIS PROMPT ARE FOR REFERENCE ONLY** - They show Ruby parser code patterns
+- **IF YOU START WRITING CODE**: Stop immediately and use tools instead
+
+🚨 **API PARSER APPROACH** (key differences from HTML approach):
+- **Parsers use `JSON.parse(content)`** instead of `Nokogiri::HTML(content)` (for `fetch_type: "standard"`)
+- **For `fetch_type: "browser"` with JSON APIs**: Chromium wraps JSON in HTML → parser may need to extract JSON from HTML
+- **For `fetch_type: "browser"` with XML APIs**: `Nokogiri::HTML(content)` → find XML element → `Nokogiri::XML(xml)`
+- **Data extraction uses hash traversal**: `data['products'][0]['name']` instead of CSS selectors
+- **Pagination uses API response metadata**: `total_count / per_page = total_pages`, then queue ALL pages upfront
+- **No CSS selector discovery needed** - we already have API endpoints from Phase 1
+
+🚨 **TWO PRODUCTION PARSER PATTERNS**:
+
+**Pattern A: `fetch_type: "standard"` parser (raw JSON content)**
+```ruby
+# content = raw JSON string from direct HTTP fetch
+json = JSON.parse(content)
+products = json['data']['productSearch']['products']
+products.each.with_index(1) do |product, idx|
+  pages << {
+    url: "#{API_BASE_URL}/products/#{product['id']}",
+    page_type: 'details',
+    fetch_type: 'standard',
+    headers: { 'Cookie' => cookie, 'Accept' => 'application/json' },
+    vars: { product_id: product['id'], rank: idx }
+  }
+end
+```
+
+**Pattern B: `fetch_type: "browser"` parser (HTML-wrapped XML/JSON)**
+```ruby
+# content = HTML wrapping an XML response (Chromium rendered the API URL)
+html = Nokogiri::HTML(content)
+xml_div = html.at_css('#webkit-xml-viewer-source-xml')
+doc = Nokogiri::XML(xml_div.inner_html)
+doc.xpath('//products/product').each do |product|
+  # extract via XPath
+end
+```
+
+🚨 **PAGINATION PATTERN — Queue ALL pages upfront**:
+From production scrapers, the proven pagination approach is:
+```ruby
+# On page 1, calculate total pages and queue ALL remaining pages
+current_page = (page['vars']['page'] || 1).to_i
+if current_page == 1
+  total_count = json.dig('data', 'total') || 0
+  per_page = products.length
+  total_pages = (total_count.to_f / per_page).ceil if per_page > 0
+  (2..total_pages).each do |pg|
+    api_url = "#{API_BASE_URL}/categories/#{category_id}/products?page=#{pg}"
+    pages << {
+      url: api_url,
+      page_type: 'listings',
+      fetch_type: 'standard',
+      headers: { 'Cookie' => cookie },
+      vars: page['vars'].merge('page' => pg)
+    }
+  end
+end
+```
+
+🚨 **COOKIE/SESSION FLOW BETWEEN PARSERS**:
+```ruby
+# In categories parser - pass cookies forward
+cookie = page['response_cookie'] || page['vars']['cookie']
+pages << {
+  url: api_url,
+  cookie: cookie,  # Direct cookie field on page entry
+  vars: { cookie: cookie, category_id: cat['id'] }
+}
+
+# In listings parser - read cookies from vars
+cookie = page['vars']['cookie'] rescue page['response_cookie']
+```
+
+🚨 **PAGE ENTRY FIELDS FOR API CALLS**:
+```ruby
+pages << {
+  url: "https://api.example.com/endpoint",
+  page_type: "listings",
+  method: "GET",           # or "POST"
+  fetch_type: "standard",  # or "browser"
+  http2: true,             # Enable HTTP/2 if needed
+  headers: { 'Cookie' => cookie, 'Accept' => 'application/json' },
+  body: '{"query": "..."}',  # For POST requests
+  cookie: cookie,           # Alternative cookie passing
+  driver: { name: "test", stealth: true },  # For browser fetch only
+  vars: { category_id: "123", page: 1 },
+}
+```
+
+🚨 **CRITICAL AUTO-CHAINING EXECUTION RULE**:
+- **MANDATORY**: If `auto_next=true` parameter is provided in `{{args}}`, you MUST execute the next command automatically
+
+🚨 **CRITICAL: DataHen v3 Parser Structure**:
+- **DataHen parsers are TOP-LEVEL SCRIPTS, NOT FUNCTIONS**
+- **NEVER** use `def parse(...)` or any function definition
+- **NEVER** declare `pages = []` or `outputs = []` - pre-defined by DataHen
+- **ALWAYS** start directly with parsing logic - no function wrapper
+- **Pre-defined variables**: `content`, `page`, `pages`, `outputs`
+
+🚨 CRITICAL - ABSOLUTE PATHS REQUIRED for all WriteFile operations
+
+Inputs (order-agnostic via {{args}}):
+  - scraper=<scraper_name> (REQUIRED - scraper must exist with discovery-state.json)
+  - resume-url=<url> (OPTIONAL - resume browser from this URL)
+  - out=<base_dir> (OPTIONAL - defaults to ./generated_scraper)
+  - auto_next=true|false (OPTIONAL, default: false)
+
+Process:
+
+=== STEP 1: Load State Files and Existing Parsers ===
+1) Load all required state files using read_file tool:
+   - Read `generated_scraper/<scraper>/.scraper-state/phase-status.json`
+   - Read `generated_scraper/<scraper>/.scraper-state/discovery-state.json` (REQUIRED - must have api_endpoints)
+   - Read `generated_scraper/<scraper>/.scraper-state/discovery-knowledge.md`
+   - Read `generated_scraper/<scraper>/.scraper-state/navigation-selectors.json` (if exists)
+
+2) Load existing parser files:
+   - Read `generated_scraper/<scraper>/parsers/categories.rb`
+   - Read `generated_scraper/<scraper>/parsers/subcategories.rb` (if has_subcategories)
+   - Read `generated_scraper/<scraper>/parsers/listings.rb`
+   - Read `generated_scraper/<scraper>/config.yaml`
+
+3) Parse loaded files:
+   - **CRITICAL**: Verify discovery-state.json has `scraping_approach: "api"` and `api_endpoints` section
+   - Extract API endpoint details: URLs, methods, headers, fetch_type, response structures, pagination
+   - Determine fetch strategy: standard vs browser
+   - Identify cookie management approach
+   - If `scraping_approach` is not "api": Display error "This command requires API discovery. Run /dmart-api-scrape first."
+
+4) Validate prerequisites:
+   - discovery-state.json MUST exist with api_endpoints
+   - Parser files MUST exist from boilerplate
+
+=== STEP 2: Get Sample API Responses for Testing ===
+5) Check if sample response files exist in `cache/` directory (from Phase 1):
+   - Read `generated_scraper/<scraper>/cache/categories-api.json` (if exists)
+   - Read `generated_scraper/<scraper>/cache/listings-api.json` (if exists)
+
+6) If sample files don't exist, download them:
+   - Navigate to site: browser_navigate(site_url)
+   - Handle popups (same workflow as other dmart commands)
+   - browser_wait_for({time: 3}) to let API calls fire
+   - Use `browser_network_download` to save responses:
+     ```
+     browser_network_download({
+       urlPattern: "<categories_api_pattern>",
+       outputPath: "D:\\...\\cache\\categories-api.json"
+     })
+     ```
+   - Navigate to a category and download listings response
+   - **Or use `browser_request`** to replay API calls:
+     ```
+     browser_request({
+       url: "<categories_api_url>",
+       method: "GET",
+       headers: {"Accept": "application/json"},
+       outputPath: "D:\\...\\cache\\categories-api.json"
+     })
+     ```
+
+=== STEP 3: Categories Parser (API Version) ===
+7) Edit parsers/categories.rb for API consumption (USE ABSOLUTE PATH):
+
+   Based on the fetch_type from discovery-state.json:
+
+   **For `fetch_type: "standard"` (raw JSON content)**:
+   ```ruby
+   # API-based categories parser (fetch_type: standard)
+   # content = raw JSON from direct HTTP fetch
+   require './lib/headers'
+   require 'json'
+
+   cookie = page['response_cookie'] || page['vars']['cookie'] rescue nil
+
+   begin
+     data = JSON.parse(content)
+   rescue JSON::ParserError => e
+     raise "Failed to parse API response as JSON: #{e.message}"
+   end
+
+   # Navigate to categories in JSON response (adjust path from discovery-state)
+   categories = data.dig('data', 'categories') || data.dig('categories') || []
+
+   categories.each do |cat|
+     category_name = cat['name'] || cat['title']
+     category_id = cat['id'].to_s
+
+     next if category_name.nil? || category_name.strip.empty?
+
+     # Build API URL for this category's listings
+     api_url = "#{URLs::API_BASE_URL}/categories/#{category_id}/products?page=1"
+
+     pages << {
+       url: api_url,
+       page_type: 'listings',
+       fetch_type: 'standard',
+       headers: { 'Cookie' => cookie, 'Accept' => 'application/json' },
+       cookie: cookie,
+       vars: {
+         cookie: cookie,
+         category_name: category_name.strip,
+         category_id: category_id,
+         breadcrumb: category_name.strip,
+         page: 1
+       }
+     }
+   end
+   ```
+
+   **For `fetch_type: "browser"` (HTML-wrapped response)**:
+   ```ruby
+   # API-based categories parser (fetch_type: browser)
+   # content = HTML-wrapped JSON/XML (Chromium rendered the API URL)
+   require './lib/headers'
+   require 'json'
+
+   cookie = page['response_cookie'] || page['vars']['cookie'] rescue nil
+
+   # Extract JSON from HTML wrapper
+   html = Nokogiri::HTML(content)
+   json_text = html.at_css('pre')&.text || html.at_css('body')&.text || content
+   begin
+     data = JSON.parse(json_text)
+   rescue JSON::ParserError
+     data = JSON.parse(content) rescue {}
+   end
+
+   categories = data.dig('data', 'categories') || []
+   # ... same extraction logic ...
+   ```
+
+   a) Read existing categories.rb parser
+   b) Replace with API-based version matching the site's fetch_type
+   c) Use JSON paths from discovery-state.json api_endpoints.categories.response_structure
+   d) Include cookie passing logic
+   e) Write updated parser (USE ABSOLUTE PATH)
+
+8) **Test categories parser using downloaded JSON file**:
+   - Use parser_tester with the saved JSON response:
+     ```
+     parser_tester({
+       scraper_dir: "D:\\...\\generated_scraper\\<scraper>",
+       parser_path: "parsers/categories.rb",
+       content_file: "D:\\...\\generated_scraper\\<scraper>\\cache\\categories-api.json",
+       content_type: "json",
+       page_type: "categories",
+       quiet: true
+     })
+     ```
+   - Validate: Parser generates pages with correct category names and API URLs
+   - If test fails: Refine JSON path navigation, re-test
+
+9) Save checkpoint
+
+=== STEP 4: Subcategories Parser (if has_subcategories, API Version) ===
+10-12) Similar to categories but for subcategories API:
+    - Read subcategories API endpoint from discovery-state.json
+    - Edit subcategories.rb to parse JSON response
+    - Use category_id from vars to construct API URL
+    - Test with downloaded JSON and parser_tester
+    - Validate
+
+=== STEP 5: Listings Parser (API Version) ===
+13) Edit parsers/listings.rb for API consumption (USE ABSOLUTE PATH):
+
+    **Listings parser with upfront pagination (production pattern)**:
+    ```ruby
+    # API-based listings parser with queue-all-upfront pagination
+    require './lib/headers'
+    require 'json'
+
+    cookie = page['vars']['cookie'] rescue page['response_cookie']
+    category_name = page['vars']['category_name'] rescue ''
+    category_id = page['vars']['category_id'] rescue ''
+    breadcrumb = page['vars']['breadcrumb'] rescue ''
+    current_page = (page['vars']['page'] || 1).to_i
+
+    begin
+      data = JSON.parse(content)
+    rescue JSON::ParserError => e
+      raise "Failed to parse API response as JSON: #{e.message}"
+    end
+
+    # Navigate to products in JSON response
+    products = data.dig('data', 'products') || []
+    total_count = data.dig('data', 'total') || data.dig('meta', 'total_count') || 0
+    per_page = products.length
+
+    # Queue ALL remaining pages upfront (on page 1 only)
+    if current_page == 1 && per_page > 0
+      total_pages = (total_count.to_f / per_page).ceil
+      (2..total_pages).each do |pg|
+        api_url = "#{URLs::API_BASE_URL}/categories/#{category_id}/products?page=#{pg}"
+        pages << {
+          url: api_url,
+          page_type: 'listings',
+          fetch_type: 'standard',
+          headers: { 'Cookie' => cookie, 'Accept' => 'application/json' },
+          cookie: cookie,
+          vars: {
+            cookie: cookie,
+            category_name: category_name,
+            category_id: category_id,
+            breadcrumb: breadcrumb,
+            page: pg
+          }
+        }
+      end
+    end
+
+    # Generate detail pages for each product
+    products.each_with_index do |product, index|
+      product_name = product['name'] || product['title']
+      product_id = product['id'] || product['sku']
+      rank = (current_page - 1) * per_page + index + 1
+
+      # Build detail API URL
+      detail_api_url = "#{URLs::API_BASE_URL}/products/#{product_id}"
+
+      pages << {
+        url: detail_api_url,
+        page_type: 'details',
+        fetch_type: 'standard',
+        headers: { 'Cookie' => cookie, 'Accept' => 'application/json' },
+        cookie: cookie,
+        vars: {
+          cookie: cookie,
+          category_name: category_name,
+          breadcrumb: breadcrumb,
+          rank: rank,
+          page_number: current_page,
+          listing_position: index + 1,
+          product_id: product_id.to_s
+        }
+      }
+    end
+    ```
+
+    a) Read existing listings.rb parser
+    b) Replace with API-based version using JSON paths from discovery-state.json
+    c) Implement queue-all-upfront pagination pattern
+    d) Include cookie passing logic
+    e) Write updated parser (USE ABSOLUTE PATH)
+
+14) **Test listings parser using downloaded JSON file**:
+    - Use parser_tester with the saved JSON response:
+      ```
+      parser_tester({
+        scraper_dir: "D:\\...\\generated_scraper\\<scraper>",
+        parser_path: "parsers/listings.rb",
+        content_file: "D:\\...\\generated_scraper\\<scraper>\\cache\\listings-api.json",
+        content_type: "json",
+        page_type: "listings",
+        quiet: true
+      })
+      ```
+    - Validate: Parser generates detail pages AND pagination pages
+    - Extract sample detail URLs for Phase 3
+
+15) Save checkpoint
+
+=== STEP 6: Write Navigation Selectors (JSON) ===
+16) Save navigation-selectors.json (USE ABSOLUTE PATH):
+    **API version** - includes api_endpoints and fetch strategy:
+    ```json
+    {
+      "scraping_approach": "api",
+      "fetch_strategy": "standard",
+      "categories": {
+        "api_endpoint": "https://api.example.com/v2/categories",
+        "api_method": "GET",
+        "fetch_type": "standard",
+        "response_data_path": "data.categories",
+        "category_name_field": "name",
+        "category_id_field": "id",
+        "cookie_required": true,
+        "verified": true,
+        "confidence": 0.95,
+        "tested_with_file": "cache/categories-api.json"
+      },
+      "listings": {
+        "api_endpoint": "https://api.example.com/v2/categories/{category_id}/products",
+        "api_method": "GET",
+        "fetch_type": "standard",
+        "response_data_path": "data.products",
+        "pagination": {
+          "strategy": "queue_all_upfront",
+          "page_param": "page",
+          "per_page": 24,
+          "total_field": "data.total"
+        },
+        "product_name_field": "name",
+        "product_id_field": "id",
+        "cookie_required": true,
+        "verified": true,
+        "confidence": 0.95,
+        "tested_with_file": "cache/listings-api.json",
+        "sample_detail_urls": ["https://api.example.com/v2/products/123"]
+      },
+      "urls_accessed": {
+        "categories_discovery": ["..."],
+        "listings_discovery": ["..."]
+      }
+    }
+    ```
+
+=== STEP 7: Verify Config.yaml ===
+17) Verify config.yaml - usually no changes needed from boilerplate
+
+=== STEP 8: Write Navigation Knowledge ===
+18) Save navigation-knowledge.md (USE ABSOLUTE PATH):
+    Include:
+    - Scraping approach: API-based
+    - Fetch strategy: standard vs browser for each parser
+    - API endpoint documentation for each parser
+    - JSON response structures and field mappings
+    - Pagination strategy: queue-all-upfront from total count
+    - Cookie/session flow between parsers (via vars hash)
+    - Page entry field documentation (url, fetch_type, headers, cookie, vars)
+    - Testing notes: which JSON files were used, parser_tester results
+
+=== STEP 9: Update Phase Status ===
+19) Update phase-status.json
+20) Update browser-context.json
+
+=== STEP 10: Completion Report & Auto-Chaining ===
+21) Display completion summary:
+    ```
+    ✅ Navigation Parsers Updated (API Approach)
+
+    Scraper: <scraper_slug>
+    Approach: API-based scraping
+    Fetch Strategy: <standard|browser>
+
+    Parsers Updated & Tested:
+    - parsers/categories.rb ✅ (JSON.parse, tested with cache/categories-api.json)
+    - parsers/subcategories.rb ✅ (if applicable)
+    - parsers/listings.rb ✅ (JSON.parse, queue-all-upfront pagination, tested with cache/listings-api.json)
+
+    API Endpoints Used:
+    - Categories: <api_url> ✅ (fetch_type: <type>)
+    - Listings: <api_url> ✅ (fetch_type: <type>)
+
+    Cookie Flow:
+    - seeder → categories (via response_cookie)
+    - categories → listings (via vars.cookie)
+    - listings → details (via vars.cookie)
+
+    Next Command:
+    /dmart-api-details-parser scraper=<scraper_slug>
+    ```
+
+22) **MANDATORY AUTO-CHAINING CHECK**: Parse `{{args}}` for `auto_next=true`:
+    - If `auto_next=true`: Close browser, spawn new console with next command
+    - Command: `cmd /c start powershell -NoExit -Command "cd '$PWD'; gemini -y -i '/dmart-api-details-parser scraper=<scraper_slug> auto_next=true'"`
+    - **EXECUTE** using run_terminal_cmd tool
+
+🚨🚨🚨 **MANDATORY: STOP AFTER COMPLETION (if auto_next=false)** 🚨🚨🚨
+- After displaying completion summary, you MUST STOP
+- DO NOT continue with any other work
+- This command is COMPLETE - END SESSION NOW
+
+Examples:
+  /dmart-api-navigation-parser scraper=dmart_in
+  /dmart-api-navigation-parser scraper=bigbasket auto_next=true
+"""

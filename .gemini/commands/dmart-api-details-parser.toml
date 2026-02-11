@@ -1,0 +1,497 @@
+description = "Phase 3 (API): Generate detail parser that extracts product fields from JSON API responses. Uses browser_request to fetch sample product JSONs, tests with parser_tester using content_file for JSON input."
+
+prompt = """
+You are performing Phase 3 (API Approach): Detail Parser Generation. This variant generates a details parser that extracts product fields from **JSON API responses** instead of HTML/CSS selectors.
+
+🚨🚨🚨 **CRITICAL: YOU ARE IN GEMINI CLI - USE TOOLS DIRECTLY, NEVER GENERATE CODE** 🚨🚨🚨
+- **USE TOOLS DIRECTLY** - Call `read_file`, `browser_navigate`, `browser_network_search`, `browser_network_download`, `browser_request`, `write_file` via tool calling
+- **FORBIDDEN**: Never write Python scripts, JavaScript code, or any programming code
+- **CODE EXAMPLES IN THIS PROMPT ARE FOR REFERENCE ONLY** - They show Ruby parser code patterns
+- **IF YOU START WRITING CODE**: Stop immediately and use tools instead
+
+🚨 **API DETAIL PARSER APPROACH** (key differences from HTML approach):
+- **Parser uses `JSON.parse(content)`** instead of `Nokogiri::HTML(content)` (for `fetch_type: "standard"`)
+- **Field extraction uses JSON hash traversal**: `data.dig('product', 'price')` instead of CSS selectors
+- **All fields are mapped from JSON response paths** rather than CSS selectors
+- **Discovery uses `browser_request`** to fetch individual product API responses and save to files
+- **Testing uses `parser_tester` with `content_file`** parameter pointing to saved JSON files
+- **Field mapping is more reliable** since API responses have consistent, structured JSON
+
+🚨 **PRODUCTION PARSER PATTERN (fetch_type: "standard")**:
+```ruby
+# content = raw JSON from direct HTTP fetch
+json = JSON.parse(content)
+product = json.dig('data', 'product') || json
+
+outputs << {
+  _collection: "products",
+  _id: product['productId'] || product['id'].to_s,
+  name: product.dig('name'),
+  customer_price_lc: product.dig('price', 'current').to_f,
+  base_price_lc: product.dig('price', 'original').to_f,
+  brand: product.dig('brand', 'name'),
+  description: product.dig('description'),
+  sku: product.dig('sku'),
+  img_url: product.dig('images', 0, 'url'),
+  is_available: product.dig('availability', 'inStock'),
+  # ... more fields from field-spec.json ...
+}
+```
+
+🚨 **SAFE HASH TRAVERSAL WITH `dig`**:
+- Use `data.dig('field', 'nested_field')` for safe navigation (returns nil if any key missing)
+- Don't chain `[]` calls: `data['field']['nested']` will raise NoMethodError if `data['field']` is nil
+- Examples:
+  ```ruby
+  name = product.dig('name') || product.dig('title') || ''
+  price = product.dig('pricing', 'salePrice') || product.dig('price')
+  brand = product.dig('brand', 'name') || product.dig('brandName')
+  images = product.dig('media', 'images') || product.dig('images') || []
+  img_url = images.is_a?(Array) && images.length > 0 ? (images[0].is_a?(Hash) ? images[0]['url'] : images[0].to_s) : nil
+  ```
+
+🚨 **CRITICAL: DataHen v3 Parser Structure**:
+- **DataHen parsers are TOP-LEVEL SCRIPTS, NOT FUNCTIONS**
+- **NEVER** use `def parse(...)` or any function definition
+- **NEVER** declare `pages = []` or `outputs = []` - pre-defined by DataHen
+- **ALWAYS** start directly with parsing logic
+- **Pre-defined variables**: `content`, `page`, `pages`, `outputs`
+
+🚨 CRITICAL - ABSOLUTE PATHS REQUIRED for all WriteFile operations
+
+Inputs (order-agnostic via {{args}}):
+  - scraper=<scraper_name> (REQUIRED - scraper must exist with navigation-selectors.json)
+  - url=<details_page_url> (OPTIONAL - uses sample URL from navigation-selectors.json if not provided)
+  - spec=<path-to-spec> (OPTIONAL - field specification)
+  - collection=<collection_name> (OPTIONAL, default: "products")
+  - resume-url=<url> (OPTIONAL)
+  - out=<base_dir> (OPTIONAL, default: ./generated_scraper)
+  - auto_next=true|false (OPTIONAL, default: false - this is the final phase)
+
+Process:
+
+=== STEP 1: Load State Files and Existing Parser ===
+1) Load all required state files using read_file tool:
+   - Read `generated_scraper/<scraper>/.scraper-state/phase-status.json`
+   - Read `generated_scraper/<scraper>/.scraper-state/navigation-selectors.json` (REQUIRED - must have api_endpoints)
+   - Read `generated_scraper/<scraper>/.scraper-state/navigation-knowledge.md`
+   - Read `generated_scraper/<scraper>/.scraper-state/discovery-state.json` (REQUIRED - must have api_endpoints.details)
+   - Read `generated_scraper/<scraper>/.scraper-state/discovery-knowledge.md`
+   - Read `generated_scraper/<scraper>/.scraper-state/field-spec.json` (if exists)
+   - Read `generated_scraper/<scraper>/.scraper-state/detail-selectors.json` (if exists)
+
+2) Load existing parser and config:
+   - Read `generated_scraper/<scraper>/parsers/details.rb`
+   - Read `generated_scraper/<scraper>/config.yaml`
+
+3) Parse loaded files:
+   - **CRITICAL**: Verify discovery-state.json has `scraping_approach: "api"` and `api_endpoints.details`
+   - Extract detail API endpoint: URL pattern, method, headers, fetch_type, response structure, field mappings
+   - Extract field-spec.json for field discovery guidance
+   - If `scraping_approach` is not "api": Display error "This command requires API discovery. Run /dmart-api-scrape first."
+
+4) Validate prerequisites:
+   - discovery-state.json MUST exist with api_endpoints.details
+   - navigation-selectors.json MUST exist
+   - details.rb MUST exist from boilerplate
+
+=== STEP 2: Get Sample Product API Responses ===
+5) Get detail API URL:
+   - From navigation-selectors.json: `listings.sample_detail_urls[0]`
+   - Or from discovery-state.json: `api_endpoints.details.url` with a known product_id
+   - Or from url parameter
+
+6) **🚨 Download 3 product API responses for testing**:
+   Navigate to the site to establish browser session, then use `browser_request` to fetch product API responses:
+
+   a) **Product 1 (regular/discounted)**:
+      ```
+      browser_request({
+        url: "https://api.example.com/v2/products/123",
+        method: "GET",
+        headers: {"Accept": "application/json"},
+        outputPath: "D:\\...\\generated_scraper\\<scraper>\\cache\\detail-product1.json"
+      })
+      ```
+
+   b) **Product 2 (different category)**:
+      ```
+      browser_request({
+        url: "https://api.example.com/v2/products/456",
+        method: "GET",
+        headers: {"Accept": "application/json"},
+        outputPath: "D:\\...\\generated_scraper\\<scraper>\\cache\\detail-product2.json"
+      })
+      ```
+
+   c) **Product 3 (random)**:
+      ```
+      browser_request({
+        url: "https://api.example.com/v2/products/789",
+        method: "GET",
+        headers: {"Accept": "application/json"},
+        outputPath: "D:\\...\\generated_scraper\\<scraper>\\cache\\detail-product3.json"
+      })
+      ```
+
+   - If browser_request fails, navigate to the product page and use browser_network_download instead:
+     ```
+     browser_navigate("https://example.com/products/123")
+     browser_wait_for({time: 3})
+     browser_network_download({
+       urlPattern: "api.example.com/products/123",
+       outputPath: "D:\\...\\cache\\detail-product1.json"
+     })
+     ```
+
+7) **Read downloaded JSON files** to understand the full response structure:
+   - Read each downloaded file using read_file tool
+   - Map ALL available fields in the API response
+   - Identify field paths for every field in field-spec.json
+
+=== STEP 3: API Field Discovery ===
+8) **Map API fields to field-spec.json fields**:
+   For each field in field-spec.json:
+   - **FIND fields**: Map to JSON path in API response
+     * name → `product.dig('name')` or `product.dig('title')`
+     * customer_price_lc → `product.dig('price')` or `product.dig('pricing', 'salePrice')`
+     * base_price_lc → `product.dig('originalPrice')` or `product.dig('pricing', 'mrp')`
+     * description → `product.dig('description')` or `product.dig('longDescription')`
+     * brand → `product.dig('brand', 'name')` or `product.dig('brandName')`
+     * sku → `product.dig('sku')` or `product.dig('productCode')`
+     * images → `product.dig('images')` or `product.dig('media')`
+     * is_available → `product.dig('inStock')` or `product.dig('availability', 'status')`
+     * barcode → `product.dig('ean')` or `product.dig('upc')` or `product.dig('barcode')`
+   - **PROCESS fields**: Compute from extracted API values
+   - **HARDCODED fields**: Same as HTML approach
+
+9) **Verify field mappings across all 3 products**:
+   - For each downloaded JSON file:
+     * Extract all field values using the mapped JSON paths
+     * Verify values are correct and non-nil for required fields
+     * Note any fields that are missing or structured differently
+   - Adjust JSON paths if needed based on cross-product comparison
+
+=== STEP 4: Edit Detail Parser (API Version) ===
+10) Edit parsers/details.rb (USE ABSOLUTE PATH):
+
+    **API Detail Parser code pattern**:
+    ```ruby
+    # API-based detail parser
+    # content = raw JSON from API (fetch_type: standard) or HTML-wrapped JSON (fetch_type: browser)
+    require './lib/headers'
+    require './lib/helpers'
+    require './lib/regex'
+    require 'json'
+
+    # Read vars from listings parser
+    category_name = page['vars']['category_name'] rescue ''
+    breadcrumb = page['vars']['breadcrumb'] rescue ''
+    rank = page['vars']['rank'] rescue nil
+    page_number = page['vars']['page_number'] rescue nil
+    listing_position = page['vars']['listing_position'] rescue nil
+    product_id_from_vars = page['vars']['product_id'] rescue nil
+
+    # Parse JSON response
+    begin
+      data = JSON.parse(content)
+    rescue JSON::ParserError => e
+      # Fallback for browser fetch_type: extract JSON from HTML wrapper
+      html = Nokogiri::HTML(content)
+      json_text = html.at_css('pre')&.text || html.at_css('body')&.text
+      data = json_text ? JSON.parse(json_text) : {}
+    end
+
+    # Navigate to product data (adjust path based on API response structure)
+    product = data.dig('data', 'product') || data.dig('data') || data
+
+    # === FIND Fields (extracted from API JSON using dig for safe traversal) ===
+    name = product.dig('name') || product.dig('title') || ''
+    name = name.strip unless name.nil?
+
+    competitor_product_id = product.dig('id')&.to_s || product.dig('productId')&.to_s || product_id_from_vars
+    sku = product.dig('sku') || product.dig('productCode') || ''
+    barcode = product.dig('barcode') || product.dig('ean') || product.dig('upc')
+
+    # Pricing
+    customer_price_raw = product.dig('price') || product.dig('pricing', 'salePrice') || product.dig('salePrice')
+    customer_price_lc = number_from(customer_price_raw.to_s) rescue nil
+
+    base_price_raw = product.dig('originalPrice') || product.dig('pricing', 'mrp') || product.dig('mrp')
+    base_price_lc = number_from(base_price_raw.to_s) rescue nil
+    base_price_lc = customer_price_lc if base_price_lc.nil? || base_price_lc == 0
+
+    # Description
+    description = product.dig('description') || product.dig('longDescription') || ''
+    description = description.strip unless description.nil?
+
+    # Brand
+    brand = product.dig('brand', 'name') || product.dig('brandName') || product.dig('brand') || ''
+    brand = brand.strip if brand.is_a?(String)
+
+    # Images
+    images = product.dig('images') || product.dig('media') || []
+    img_url = if images.is_a?(Array) && images.length > 0
+      img = images[0]
+      img.is_a?(Hash) ? (img['url'] || img['src'] || img['original']) : img.to_s
+    else
+      product.dig('image') || product.dig('imageUrl') || ''
+    end
+    img_url_2 = if images.is_a?(Array) && images.length > 1
+      img = images[1]
+      img.is_a?(Hash) ? (img['url'] || img['src'] || img['original']) : img.to_s
+    else
+      nil
+    end
+
+    # Availability
+    is_available_raw = product.dig('inStock') || product.dig('availability', 'inStock') || product.dig('available')
+    is_available = case is_available_raw
+      when true, 'true', 'in_stock', 'available', 'IN_STOCK' then true
+      when false, 'false', 'out_of_stock', 'unavailable', 'OUT_OF_STOCK' then false
+      else !is_available_raw.nil?
+    end
+
+    # Category from API or vars
+    api_category = product.dig('category', 'name') || product.dig('categories', 0, 'name')
+    category = api_category || category_name
+
+    # === PROCESS Fields (computed from extracted values) ===
+    has_discount = !base_price_lc.nil? && !customer_price_lc.nil? && base_price_lc > customer_price_lc
+    discount_percentage = if has_discount && base_price_lc > 0
+      ((base_price_lc - customer_price_lc) / base_price_lc * 100).round(2)
+    else
+      nil
+    end
+
+    # Measurements (if available in API)
+    weight_raw = product.dig('weight') || product.dig('specifications', 'weight') || product.dig('netWeight')
+    volume_raw = product.dig('volume') || product.dig('specifications', 'volume')
+
+    # === HARDCODED Fields ===
+    competitor_name = 'PLACEHOLDER_COMPETITOR_NAME'  # Replace with actual site name
+    currency = product.dig('currency') || 'PLACEHOLDER_CURRENCY'
+
+    # === Output ===
+    outputs << {
+      _collection: 'products',
+      _id: competitor_product_id || Digest::MD5.hexdigest(name.to_s + customer_price_lc.to_s),
+      name: name,
+      competitor_product_id: competitor_product_id,
+      sku: sku,
+      barcode: barcode,
+      brand: brand,
+      description: description,
+      customer_price_lc: customer_price_lc,
+      base_price_lc: base_price_lc,
+      has_discount: has_discount,
+      discount_percentage: discount_percentage,
+      is_available: is_available,
+      img_url: img_url,
+      img_url_2: img_url_2,
+      category_name: category,
+      breadcrumb: breadcrumb,
+      rank: rank,
+      page_number: page_number,
+      listing_position: listing_position,
+      currency: currency,
+      competitor_name: competitor_name,
+      url: page['url']
+    }
+    ```
+
+    a) Read existing details.rb parser
+    b) Read field-spec.json to get ALL fields and their API JSON paths
+    c) Read config.yaml to verify exporter fields
+    d) **Create comprehensive field mapping**: Map ALL fields from field-spec.json to JSON paths discovered in step 8
+    e) Replace parser with API-based version:
+       - Use JSON.parse instead of Nokogiri
+       - Use data.dig() for safe hash traversal
+       - Map all FIND fields to their JSON paths from API response
+       - Keep PROCESS field computation logic
+       - Keep HARDCODED fields
+       - Ensure output hash matches config.yaml exporter fields
+    f) Write updated parser (USE ABSOLUTE PATH)
+
+=== STEP 5: Update field-spec.json ===
+11) Update field-spec.json with API discovery results (USE ABSOLUTE PATH):
+    - For each field: update with API JSON path instead of CSS selector
+    - Add `api_path` field alongside existing extraction_method
+    - Update discovery_status counts
+    - Save updated field-spec.json
+
+=== STEP 6: Test Detail Parser on 3 Products (MANDATORY) ===
+12) Test on each downloaded product JSON (MANDATORY):
+
+    a) **Product 1**:
+       ```
+       parser_tester({
+         scraper_dir: "D:\\...\\generated_scraper\\<scraper>",
+         parser_path: "parsers/details.rb",
+         content_file: "D:\\...\\generated_scraper\\<scraper>\\cache\\detail-product1.json",
+         content_type: "json",
+         page_type: "details",
+         vars: '{"category_name":"TestCat","breadcrumb":"TestCat","rank":1,"page_number":1,"listing_position":1}',
+         quiet: true
+       })
+       ```
+       - Validate: All Priority 1 fields extracted correctly
+
+    b) **Product 2**:
+       - Same parser_tester call with detail-product2.json
+       - Validate: Fields extract correctly for different product
+
+    c) **Product 3**:
+       - Same parser_tester call with detail-product3.json
+       - Validate: Fields extract correctly for another product
+
+    d) **Cross-product validation**:
+       - Verify JSON paths work consistently across all 3 products
+       - Report any fields that fail on specific products
+       - Fix any inconsistencies
+
+13) **VALIDATION**: Ensure all Priority 1 fields are discovered and extracted
+
+=== STEP 7: Write Detail Selectors (JSON) ===
+14) Save detail-selectors.json (USE ABSOLUTE PATH):
+    **API version** - includes JSON paths instead of CSS selectors:
+    ```json
+    {
+      "scraping_approach": "api",
+      "discovery_summary": {
+        "total_fields": 53,
+        "find_fields": 15,
+        "discovered_fields": 15,
+        "verified_fields": 15,
+        "pending_fields": 0,
+        "process_fields": 10,
+        "determine_fields": 5,
+        "infer_fields": 3,
+        "hardcoded_fields": 20
+      },
+      "api_endpoint": {
+        "url": "https://api.example.com/v2/products/{product_id}",
+        "method": "GET",
+        "fetch_type": "standard",
+        "response_data_path": "data.product"
+      },
+      "product_fields": {
+        "name": {
+          "priority": 1,
+          "type": "str",
+          "extraction_method": "FIND",
+          "json_path": "product.name",
+          "ruby_code": "product.dig('name')",
+          "verified": true,
+          "confidence": 0.98,
+          "tested_files": ["detail-product1.json", "detail-product2.json", "detail-product3.json"]
+        },
+        "customer_price_lc": {
+          "priority": 1,
+          "type": "float",
+          "extraction_method": "FIND",
+          "json_path": "product.pricing.salePrice",
+          "ruby_code": "number_from(product.dig('pricing', 'salePrice').to_s)",
+          "verified": true,
+          "confidence": 0.98,
+          "tested_files": ["detail-product1.json", "detail-product2.json", "detail-product3.json"]
+        }
+      },
+      "fields_not_discovered": [],
+      "computed_fields": {
+        "has_discount": {
+          "extraction_method": "PROCESS",
+          "computation": "base_price_lc > customer_price_lc"
+        }
+      },
+      "hardcoded_fields": {
+        "competitor_name": {
+          "extraction_method": "HARDCODED",
+          "value": "SiteName"
+        }
+      },
+      "urls_accessed": {
+        "discovery_urls": ["..."],
+        "test_files": ["detail-product1.json", "detail-product2.json", "detail-product3.json"],
+        "last_tested_at": "<timestamp>"
+      }
+    }
+    ```
+
+=== STEP 8: Verify Config.yaml ===
+15) Verify config.yaml - usually no changes needed
+
+=== STEP 9: Write Detail Knowledge ===
+16) Save detail-knowledge.md (USE ABSOLUTE PATH):
+    Include:
+    - Scraping approach: API-based
+    - Detail API endpoint documentation
+    - Complete JSON field mapping table (field_name → json_path → ruby_code)
+    - Fallback handling (JSON parse errors, missing fields)
+    - Testing results across 3 products with file names
+    - Edge cases discovered
+    - Navigation integration (vars from listings parser)
+    - Cookie/session management
+
+=== STEP 10: Update Phase Status ===
+17) Update phase-status.json
+18) Update browser-context.json
+
+=== STEP 11: Completion Report ===
+19) Display completion summary:
+    ```
+    ✅ Detail Parser Updated (API Approach)
+
+    Scraper: <scraper_slug>
+    Approach: API-based scraping
+    Fetch Strategy: <standard|browser>
+
+    Parser Updated & Tested:
+    - parsers/details.rb ✅ (JSON.parse, product detail endpoint)
+
+    API Endpoint Used:
+    - Detail API: <api_url> ✅ (fetch_type: <type>)
+
+    Field Extraction:
+    - Total fields: X (FIND: Y, PROCESS: Z, HARDCODED: W)
+    - Discovered: Y/Y FIND fields ✅
+    - Tested on 3 products: ✅
+
+    Test Results:
+    - detail-product1.json ✅ (all fields extracted)
+    - detail-product2.json ✅ (all fields extracted)
+    - detail-product3.json ✅ (all fields extracted)
+
+    Files Updated:
+    - parsers/details.rb ✅ (JSON-based extraction with dig())
+    - field-spec.json ✅ (API JSON paths)
+    - detail-selectors.json ✅ (API field mappings)
+    - detail-knowledge.md ✅
+
+    Scraper Status:
+    - Site Discovery (API): ✅ Complete
+    - Navigation Parsers (API): ✅ Complete
+    - Detail Parser (API): ✅ Complete
+
+    🎉 Scraper generation complete!
+
+    Next Steps:
+    1. Deploy: hen scraper deploy <scraper_name>
+    2. Test full pipeline with hen job commands
+    ```
+
+20) **MANDATORY: END SESSION AFTER COMPLETION**:
+    - STOP immediately after displaying completion summary
+    - DO NOT continue with any other work
+    - This command is COMPLETE - END SESSION NOW
+
+🚨🚨🚨 **MANDATORY: STOP AFTER COMPLETION** 🚨🚨🚨
+- After displaying completion summary, you MUST STOP
+- DO NOT continue with any other work, tasks, or projects
+- This command is COMPLETE - END SESSION NOW
+
+Examples:
+  /dmart-api-details-parser scraper=dmart_in
+  /dmart-api-details-parser scraper=bigbasket url="https://api.bigbasket.com/v2/products/12345"
+  /dmart-api-details-parser scraper=shop spec="fields.csv" collection=products
+"""
