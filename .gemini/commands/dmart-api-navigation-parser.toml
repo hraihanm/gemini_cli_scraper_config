@@ -255,7 +255,8 @@ Process:
        content_file: "D:\\...\\generated_scraper\\<scraper>\\cache\\categories-api.json",
        content_type: "json",
        page_type: "categories",
-       quiet: true
+       quiet: true,
+       verify_pages: true
      })
      ```
    - Validate: Parser generates pages with correct category names and API URLs
@@ -362,7 +363,8 @@ Process:
         content_file: "D:\\...\\generated_scraper\\<scraper>\\cache\\listings-api.json",
         content_type: "json",
         page_type: "listings",
-        quiet: true
+        quiet: true,
+        verify_pages: true
       })
       ```
     - Validate: Parser generates detail pages AND pagination pages

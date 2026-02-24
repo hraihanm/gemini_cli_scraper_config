@@ -266,15 +266,30 @@ Process:
       
       ii) **Discover selector for this field**:
           - Use field name to identify what to extract (e.g., "description", "barcode", "type_of_promotion")
-          - Use browser_inspect_element() to reveal real CSS selectors
-          - Use browser_verify_selector() for text fields (names, prices, labels, descriptions)
-          - Use browser_evaluate() for non-text attributes (img src, data-* attributes)
-          - Try multiple strategies if first attempt fails:
+
+          **Step 1 — browser_grep_html (start here, most efficient)**:
+          - Call `browser_grep_html(query: "<visible_text_value_of_the_field>")` using the actual text visible on the page
+            * Example: field "name" → `browser_grep_html(query: "Samsung Galaxy S24")`
+            * Example: field "price" → `browser_grep_html(query: "KSh 89,999")`
+            * Example: field "brand" → `browser_grep_html(query: "Samsung")`
+            * Returns HTML snippets with >>>match<<< markers showing class names, data attributes, and DOM structure
+            * Identify the CSS selector directly from the snippet (e.g., `span.product-price`, `[data-brand]`)
+          - Token-efficient: returns only matching context, not the entire page HTML
+
+          **Step 2 — browser_inspect_element (when you have a ref or grep is ambiguous)**:
+          - If browser_snapshot() gave you a ref for this field, call `browser_inspect_element(ref)` for the exact verified selector
+          - Use when the grep snippet shows multiple candidate classes and you need to confirm the right one
+
+          **Step 3 — Verify**:
+          - Use `browser_verify_selector()` for text fields (names, prices, labels, descriptions)
+          - Use `browser_evaluate()` for non-text attributes (img src, data-* attributes)
+
+          - Try multiple strategies if steps 1-3 fail:
             * Check if field exists in breadcrumb (for brand, category)
             * Check if field exists in product attributes/data attributes
-            * Check if field exists in structured data (JSON-LD, microdata)
+            * `browser_grep_html(query: "ld+json", isRegex: false)` or `browser_grep_html(query: "@type")` to find JSON-LD structured data
             * Check if field exists in visible text with pattern matching
-          - Fallback to browser_view_html() only if targeted inspection fails
+          - Fallback to browser_view_html() only if all targeted approaches fail (high token cost)
       
       iii) **Update field-spec.json immediately after discovery**:
           - Add discovered selector(s) to field.selectors array
