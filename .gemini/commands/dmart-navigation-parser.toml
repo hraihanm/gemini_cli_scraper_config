@@ -279,8 +279,10 @@ Process:
           * Set `categories.needs_browser_fetch` to true/false
           * If button found: Document `categories.button_to_reveal` with selector and puppeteer code
    
-   - browser_inspect_element() to find category link selectors
-   - browser_verify_selector() for category names
+   **Selector discovery workflow**:
+   1. `browser_grep_html(query: "<visible_category_name>")` → see HTML around category links, identify selector pattern (e.g., `a.category-link`, `.nav-item a`)
+   2. `browser_inspect_element(ref)` on a category link ref from browser_snapshot() → get exact verified selector
+   3. `browser_verify_selector()` for category names
    - Discover category link pattern, URL structure
    - **NOTE**: Category ID discovery is disabled - focus only on navigation selectors
 
@@ -484,7 +486,9 @@ Process:
    **Popup Handling Workflow** (execute immediately after navigation) - same as step 8, use popup_handling from discovery-state.json
    
    - **TRACK URL**: Record this URL in navigation-selectors.json under `urls_accessed.listings_discovery`
-   - Discover product link selectors
+   - Discover product link selectors:
+     * Use `browser_grep_html(query: "<visible_product_name>")` to find the product card HTML structure and identify the link selector
+     * Then confirm with `browser_inspect_element(ref)` on a product link ref from browser_snapshot()
    - Analyze pagination pattern (critical - check in priority order):
      * **Strategy 1: Count-Based Calculation** (TOP PRIORITY - check FIRST):
        **CRITICAL**: This is the preferred strategy - try this first before other strategies
@@ -502,7 +506,7 @@ Process:
               }));
             })
             ```
-          - Use `browser_inspect_element()` on visible count text to get exact CSS selector
+          - Use `browser_grep_html(query: "results")` or `browser_grep_html(query: "products")` to find the count element in HTML; then `browser_inspect_element()` if you need the exact selector
           - Common patterns: "Showing 1-24 of 150 results", "150 products", "Total: 150"
           - Record discovered selector in navigation-selectors.json
        
@@ -546,7 +550,7 @@ Process:
           
           iii) **Test Next Button** (if query/path patterns don't work):
                - Look for next button/link in pagination area
-               - Use `browser_inspect_element()` to find next button selector
+               - Use `browser_grep_html(query: "Next")` to see pagination HTML and identify next button selector; confirm with `browser_inspect_element()` if needed
                - Click next button or extract href from next button
                - Analyze next button href to determine pattern:
                  * If href contains `?page=2`: Use query param pattern
@@ -591,7 +595,7 @@ Process:
      
      * **Strategy 2: Next Button** (check SECOND - most common):
        - Look for next button/link in pagination area
-       - Use `browser_inspect_element()` to find next button selector
+       - Use `browser_grep_html(query: "Next")` to see pagination HTML structure and identify next button selector; confirm with `browser_inspect_element()` if needed
        - Common selectors: `.next-page`, `a[aria-label="Next"]`, `.pagination .next`, `a.next`
        - Verify button exists and has href attribute
        - Extract next URL from button href

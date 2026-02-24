@@ -332,7 +332,8 @@ Process:
          content_type: "json",
          page_type: "details",
          vars: '{"category_name":"TestCat","breadcrumb":"TestCat","rank":1,"page_number":1,"listing_position":1}',
-         quiet: true
+         quiet: true,
+         verify_pages: true
        })
        ```
        - Validate: All Priority 1 fields extracted correctly
