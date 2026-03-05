@@ -55,6 +55,15 @@ You are performing Phase 1: Site Discovery for scraper generation using the dmar
 - Common popup patterns: cookie banners, notification overlays, modal dialogs, age verification
 - Always use `browser_snapshot()` after handling popups to verify page is ready
 
+🚨 **EXPENSIVE TOOL JUSTIFICATION** (required before each expensive call):
+Before calling `browser_view_html`, `browser_network_download`, `browser_request`, `parser_tester`, or `datahen_run`, write one line:
+  💭 [tool]: [what I expect to find/confirm] → [why not a cheaper alternative]
+Examples:
+  💭 browser_view_html: need full DOM for category list — browser_grep_html returned no results
+  💭 parser_tester: verifying nil guard fix on customer_price_raw after first test failed
+  💭 datahen_run step: running listings parser to verify pagination vars flow to details
+Always try cheap alternatives first: `browser_grep_html` before `browser_view_html`, `browser_network_search` before `browser_network_download`/`browser_request`
+
 Inputs (order-agnostic via {{args}}):
   - url=<site_url> (REQUIRED - target website URL) - USE THIS EXACT URL ONLY
   - name=<scraper_name> | --scraper <scraper_name> (REQUIRED)
@@ -622,6 +631,45 @@ Process:
      "last_phase": "site_discovery",
      "last_activity": "<timestamp>",
      "scraper_name": "<scraper_slug>"
+   }
+   ```
+
+=== STEP 9b: Write Session Audit ===
+18b) Save session-audit-html_scrape.json (USE ABSOLUTE PATH):
+   **Purpose**: Compact record of this session for the `/dmart-analyze-phase` improvement loop.
+   Path: `generated_scraper/<scraper>/.scraper-state/session-audit-html_scrape.json`
+   ```json
+   {
+     "phase": "html_scrape",
+     "scraper": "<scraper_slug>",
+     "completed_at": "<ISO timestamp>",
+     "tool_call_counts": {
+       "browser_view_html": 0,
+       "browser_network_download": 0,
+       "browser_request": 0,
+       "parser_tester": 0,
+       "datahen_run": 0,
+       "browser_grep_html": 0,
+       "browser_network_search": 0
+     },
+     "expensive_tool_log": [
+       {
+         "tool": "<tool_name>",
+         "step": "<step description>",
+         "reason": "<justification written before the call>",
+         "was_necessary": true,
+         "cheaper_alternative_tried": "<tool name or null>"
+       }
+     ],
+     "unexpected_situations": [
+       "<anything that deviated from expected behavior>"
+     ],
+     "popup_handling": "<description of any popup/banner handling required>",
+     "parser_test_iterations": 0,
+     "parser_errors": ["<error and how it was fixed>"],
+     "improvement_suggestions": [
+       "<concrete suggestion for improving this TOML or tool usage>"
+     ]
    }
    ```
 
