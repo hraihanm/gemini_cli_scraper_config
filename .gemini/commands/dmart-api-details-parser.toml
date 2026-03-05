@@ -10,14 +10,15 @@ You are performing Phase 3 (API Approach): Detail Parser Generation. This varian
 - **IF YOU START WRITING CODE**: Stop immediately and use tools instead
 
 🚨 **API DETAIL PARSER APPROACH** (key differences from HTML approach):
-- **Parser uses `JSON.parse(content)`** instead of `Nokogiri::HTML(content)` (for `fetch_type: "standard"`)
+- **ALWAYS use `fetch_type: "standard"`** — Browser returns XML/HTML-wrapped content, not raw JSON. Standard fetch returns the exact API response.
+- **Parser uses `JSON.parse(content)`** — content is raw JSON from direct HTTP fetch
 - **Field extraction uses JSON hash traversal**: `data.dig('product', 'price')` instead of CSS selectors
 - **All fields are mapped from JSON response paths** rather than CSS selectors
 - **Discovery uses `browser_request`** to fetch individual product API responses and save to files
 - **Testing uses `parser_tester` with `content_file`** parameter pointing to saved JSON files
 - **Field mapping is more reliable** since API responses have consistent, structured JSON
 
-🚨 **PRODUCTION PARSER PATTERN (fetch_type: "standard")**:
+🚨 **PRODUCTION PARSER PATTERN** (fetch_type: "standard" required):
 ```ruby
 # content = raw JSON from direct HTTP fetch
 json = JSON.parse(content)
@@ -86,7 +87,8 @@ Process:
 
 3) Parse loaded files:
    - **CRITICAL**: Verify discovery-state.json has `scraping_approach: "api"` and `api_endpoints.details`
-   - Extract detail API endpoint: URL pattern, method, headers, fetch_type, response structure, field mappings
+   - Extract detail API endpoint: URL pattern, method, headers, response structure, field mappings
+   - **fetch_type MUST be "standard"** — browser returns XML/HTML-wrapped content, not raw JSON
    - Extract field-spec.json for field discovery guidance
    - If `scraping_approach` is not "api": Display error "This command requires API discovery. Run /dmart-api-scrape first."
 
@@ -173,33 +175,43 @@ Process:
    - Adjust JSON paths if needed based on cross-product comparison
 
 === STEP 4: Edit Detail Parser (API Version) ===
+
+🚨 **MANDATORY: ALL 53 FIELDS MUST APPEAR IN THE OUTPUT HASH**:
+- Every field in field-spec.json MUST have an entry in the `outputs <<` hash
+- Fields that cannot be extracted from the API MUST be set to `nil` explicitly — NEVER omit them
+- Use the canonical output hash template in this step as your checklist
+- **CRITICAL field name mapping** (use these exact names):
+  * `currency_code_lc` (NOT `currency`)
+  * `rank_in_listing` (NOT `rank` or `listing_position`)
+  * `category` (NOT `category_name`)
+  * `is_promoted` (NOT `is_discounted`) — set equal to `has_discount`
+  * `scraped_at_timestamp` — use `Time.parse(page['fetched_at']).strftime('%Y-%m-%d %H:%M:%S')`
+  * `crawled_source` — hardcoded `'WEB'`
+
 10) Edit parsers/details.rb (USE ABSOLUTE PATH):
 
-    **API Detail Parser code pattern**:
+    **API Detail Parser code pattern** (fetch_type: "standard" required):
     ```ruby
     # API-based detail parser
-    # content = raw JSON from API (fetch_type: standard) or HTML-wrapped JSON (fetch_type: browser)
+    # content = raw JSON from API (fetch_type: standard — browser returns XML/HTML, not raw JSON)
     require './lib/headers'
     require './lib/helpers'
     require './lib/regex'
     require 'json'
 
     # Read vars from listings parser
-    category_name = page['vars']['category_name'] rescue ''
-    breadcrumb = page['vars']['breadcrumb'] rescue ''
-    rank = page['vars']['rank'] rescue nil
-    page_number = page['vars']['page_number'] rescue nil
-    listing_position = page['vars']['listing_position'] rescue nil
-    product_id_from_vars = page['vars']['product_id'] rescue nil
+    vars = page['vars'] || {}
+    category_name = vars['category_name'].to_s
+    breadcrumb = vars['breadcrumb'].to_s
+    rank_in_listing = vars['rank'] || vars['listing_position']
+    page_number = vars['page_number'] || vars['page']
+    product_id_from_vars = vars['product_id']
 
-    # Parse JSON response
+    # Parse JSON response (content is raw JSON from standard fetch)
     begin
       data = JSON.parse(content)
     rescue JSON::ParserError => e
-      # Fallback for browser fetch_type: extract JSON from HTML wrapper
-      html = Nokogiri::HTML(content)
-      json_text = html.at_css('pre')&.text || html.at_css('body')&.text
-      data = json_text ? JSON.parse(json_text) : {}
+      raise "Failed to parse API response as JSON: #{e.message}"
     end
 
     # Navigate to product data (adjust path based on API response structure)
@@ -255,48 +267,110 @@ Process:
     # Category from API or vars
     api_category = product.dig('category', 'name') || product.dig('categories', 0, 'name')
     category = api_category || category_name
+    sub_category = product.dig('categories', 1, 'name') || nil
+    category_id = product.dig('category', 'id')&.to_s || product.dig('categories', 0, 'id')&.to_s || nil
+
+    # Country of origin
+    country_of_origin = product.dig('countryOfOrigin') || product.dig('country_of_origin') || nil
 
     # === PROCESS Fields (computed from extracted values) ===
     has_discount = !base_price_lc.nil? && !customer_price_lc.nil? && base_price_lc > customer_price_lc
     discount_percentage = if has_discount && base_price_lc > 0
-      ((base_price_lc - customer_price_lc) / base_price_lc * 100).round(2)
+      ((base_price_lc - customer_price_lc) / base_price_lc * 100).round(7)
     else
       nil
     end
 
-    # Measurements (if available in API)
-    weight_raw = product.dig('weight') || product.dig('specifications', 'weight') || product.dig('netWeight')
-    volume_raw = product.dig('volume') || product.dig('specifications', 'volume')
+    # Measurements (extracted from product name using MeasurementExtractor)
+    uom = MeasurementExtractor.extract_uom(name.to_s)
+    size_std = uom && uom[:size] ? uom[:size].to_f : nil
+    size_unit_std = uom && uom[:unit] ? uom[:unit].downcase : nil
+    product_pieces = MeasurementExtractor.extract_pieces(name.to_s) || 1
 
-    # === HARDCODED Fields ===
-    competitor_name = 'PLACEHOLDER_COMPETITOR_NAME'  # Replace with actual site name
-    currency = product.dig('currency') || 'PLACEHOLDER_CURRENCY'
+    # === HARDCODED / INFER Fields (set correct values per site) ===
+    competitor_name = 'PLACEHOLDER_COMPETITOR_NAME'   # e.g., 'ICA', 'Naivas'
+    competitor_type = 'PLACEHOLDER_COMPETITOR_TYPE'   # e.g., 'local_store', 'dmart'
+    store_name = nil    # hardcoded store name or nil
+    store_id = nil      # hardcoded store id or nil
+    country_iso = 'PLACEHOLDER_COUNTRY_ISO'   # 2-letter code, e.g., 'SE', 'KE'
+    language = 'PLACEHOLDER_LANGUAGE'         # 3-letter code, e.g., 'SWE', 'ENG'
+    currency_code_lc = product.dig('currency') || 'PLACEHOLDER_CURRENCY'  # e.g., 'SEK'
 
-    # === Output ===
+    # === Fields not available via API — initialize to nil ===
+    is_private_label = nil   # DETERMINE: set if brand logic is known
+    type_of_promotion = nil  # FIND: nil unless promotions API field exists
+    promo_attributes = nil   # FIND: nil unless promotions API field exists
+    item_attributes = nil    # FIND: nil unless item attributes API field exists
+    item_identifiers = barcode ? JSON.generate({ 'barcode' => barcode.to_s }) : nil
+    variants = nil           # FIND: nil unless variants API field exists
+    allergens = nil          # FIND: nil unless allergens API field exists
+    nutrition_facts = nil    # FIND: nil unless nutrition API field exists
+    ingredients = nil        # FIND: nil unless ingredients API field exists
+    dimensions = nil         # FIND: nil unless dimensions API field exists
+    img_url_3 = if images.is_a?(Array) && images.length > 2
+      img = images[2]; img.is_a?(Hash) ? (img['url'] || img['src']) : img.to_s
+    end
+    img_url_4 = if images.is_a?(Array) && images.length > 3
+      img = images[3]; img.is_a?(Hash) ? (img['url'] || img['src']) : img.to_s
+    end
+    latitude = nil
+    longitude = nil
+    reviews = nil
+    store_reviews = nil
+
+    # === Output — ALL 53 fields from field-spec.json (nil if not available) ===
     outputs << {
       _collection: 'products',
       _id: competitor_product_id || Digest::MD5.hexdigest(name.to_s + customer_price_lc.to_s),
-      name: name,
+      competitor_name: competitor_name,
+      competitor_type: competitor_type,
+      store_name: store_name,
+      store_id: store_id,
+      country_iso: country_iso,
+      language: language,
+      currency_code_lc: currency_code_lc,
+      scraped_at_timestamp: Time.parse(page['fetched_at']).strftime('%Y-%m-%d %H:%M:%S'),
       competitor_product_id: competitor_product_id,
-      sku: sku,
-      barcode: barcode,
+      name: name,
       brand: brand,
-      description: description,
+      category_id: category_id,
+      category: category,
+      sub_category: sub_category,
       customer_price_lc: customer_price_lc,
       base_price_lc: base_price_lc,
       has_discount: has_discount,
       discount_percentage: discount_percentage,
-      is_available: is_available,
+      rank_in_listing: rank_in_listing,
+      page_number: page_number,
+      product_pieces: product_pieces,
+      size_std: size_std,
+      size_unit_std: size_unit_std,
+      description: description,
       img_url: img_url,
       img_url_2: img_url_2,
-      category_name: category,
-      breadcrumb: breadcrumb,
-      rank: rank,
-      page_number: page_number,
-      listing_position: listing_position,
-      currency: currency,
-      competitor_name: competitor_name,
-      url: page['url']
+      img_url_3: img_url_3,
+      img_url_4: img_url_4,
+      barcode: barcode,
+      sku: sku,
+      url: page['url'],
+      is_available: is_available,
+      crawled_source: 'WEB',
+      is_promoted: has_discount,
+      is_private_label: is_private_label,
+      type_of_promotion: type_of_promotion,
+      promo_attributes: promo_attributes,
+      item_attributes: item_attributes,
+      item_identifiers: item_identifiers,
+      country_of_origin: country_of_origin,
+      variants: variants,
+      allergens: allergens,
+      nutrition_facts: nutrition_facts,
+      ingredients: ingredients,
+      dimensions: dimensions,
+      latitude: latitude,
+      longitude: longitude,
+      reviews: reviews,
+      store_reviews: store_reviews
     }
     ```
 
@@ -445,13 +519,13 @@ Process:
 
     Scraper: <scraper_slug>
     Approach: API-based scraping
-    Fetch Strategy: <standard|browser>
+    Fetch Strategy: standard (required — browser returns XML/HTML, not raw JSON)
 
     Parser Updated & Tested:
     - parsers/details.rb ✅ (JSON.parse, product detail endpoint)
 
     API Endpoint Used:
-    - Detail API: <api_url> ✅ (fetch_type: <type>)
+    - Detail API: <api_url> ✅ (fetch_type: standard)
 
     Field Extraction:
     - Total fields: X (FIND: Y, PROCESS: Z, HARDCODED: W)

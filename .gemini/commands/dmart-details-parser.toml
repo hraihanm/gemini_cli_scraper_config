@@ -406,6 +406,11 @@ Process:
 === STEP 4: Edit Detail Parser ===
 🚨 **REMINDER**: You will edit Ruby parser code here - that's the ONLY code you write. Use WriteFile tool to save it.
 
+🚨 **MANDATORY: ALL 53 FIELDS MUST APPEAR IN THE OUTPUT HASH**:
+- Every field in field-spec.json MUST have an entry in the `outputs <<` hash
+- Fields not found on the page MUST be set to `nil` explicitly — NEVER omit them
+- Use the CANONICAL OUTPUT HASH in step 11f as your checklist
+
 11) Edit parsers/details.rb (USE ABSOLUTE PATH):
    **CRITICAL**: Edit existing parser file instead of creating new one
    
@@ -471,15 +476,86 @@ Process:
           - Example: `competitor_name = "SanRoque"` (from field.hardcoded_value or site-specific)
    
    f) **Update output hash to include ALL fields**:
-      **CRITICAL**: Output hash MUST include ALL fields from config.yaml exporter
-      
-      - Read config.yaml exporters section to get list of all required fields
-      - For each field in exporter:
-        * Check if field exists in output hash
-        * If missing: ADD field to output hash
-        * Use discovered value or nil/default
+      **CRITICAL**: Output hash MUST include ALL 53 fields from field-spec.json — not just config.yaml exporter fields
+
+      🚨 **MANDATORY FIELD NAMES** (use these exact Ruby symbols):
+      - `currency_code_lc` (NOT `currency`)
+      - `rank_in_listing` (NOT `rank` or `listing_position`)
+      - `category` (NOT `category_name`)
+      - `is_promoted` (NOT `is_discounted`) — set equal to `has_discount`
+      - `scraped_at_timestamp` — `Time.parse(page['fetched_at']).strftime('%Y-%m-%d %H:%M:%S')`
+      - `crawled_source` — hardcoded `'WEB'`
+
+      🚨 **CANONICAL OUTPUT HASH — use this as your checklist for all 53 fields**:
+      ```ruby
+      outputs << {
+        _collection: collection_name,
+        _id: competitor_product_id || Digest::MD5.hexdigest(name.to_s + customer_price_lc.to_s),
+        # HARDCODED / INFER
+        competitor_name: competitor_name,
+        competitor_type: competitor_type,
+        store_name: store_name,
+        store_id: store_id,
+        country_iso: country_iso,
+        language: language,
+        currency_code_lc: currency_code_lc,
+        scraped_at_timestamp: Time.parse(page['fetched_at']).strftime('%Y-%m-%d %H:%M:%S'),
+        # FIND
+        competitor_product_id: competitor_product_id,
+        name: name,
+        brand: brand,
+        category_id: category_id,
+        category: category,
+        sub_category: sub_category,
+        customer_price_lc: customer_price_lc,
+        base_price_lc: base_price_lc,
+        # DETERMINE / PROCESS
+        has_discount: has_discount,
+        discount_percentage: discount_percentage,
+        # From vars
+        rank_in_listing: rank_in_listing,
+        page_number: page_number,
+        # PROCESS (MeasurementExtractor)
+        product_pieces: product_pieces,
+        size_std: size_std,
+        size_unit_std: size_unit_std,
+        # FIND (nil if not on page)
+        description: description,
+        img_url: img_url,
+        img_url_2: img_url_2,
+        img_url_3: img_url_3,
+        img_url_4: img_url_4,
+        barcode: barcode,
+        sku: sku,
+        url: page['url'],
+        is_available: is_available,
+        # HARDCODED
+        crawled_source: 'WEB',
+        # DETERMINE
+        is_promoted: has_discount,
+        is_private_label: is_private_label,
+        # FIND (nil if not on page)
+        type_of_promotion: type_of_promotion,
+        promo_attributes: promo_attributes,
+        item_attributes: item_attributes,
+        item_identifiers: item_identifiers,
+        country_of_origin: country_of_origin,
+        variants: variants,
+        allergens: allergens,
+        nutrition_facts: nutrition_facts,
+        ingredients: ingredients,
+        dimensions: dimensions,
+        # null fields
+        latitude: nil,
+        longitude: nil,
+        reviews: nil,
+        store_reviews: nil
+      }
+      ```
+
+      - Fields not found on the page MUST still appear in the hash as `nil`
+      - Every variable used above MUST be declared before the output hash (use `nil` default if not extracted)
       - Ensure field names match exactly (case-sensitive)
-      - Ensure all fields from field-spec.json that are in exporter are included
    
    g) **Replace PLACEHOLDER strings**:
       - Find ALL remaining PLACEHOLDER strings in parser code
@@ -668,6 +744,75 @@ Process:
       - "Discount product validation: base_price_lc extraction ✅"
       - "Non-discount product validation: base_price_lc fallback ✅"
       - List any missing fields (if any)
+
+=== STEP 5b: Full Pipeline Integration Test ===
+**PURPOSE**: `parser_tester` tests details.rb in isolation. This step runs the complete pipeline (seed → categories → listings → details) to verify that vars (category_name, breadcrumb, rank) flow correctly from navigation parsers into the detail parser, and that outputs are collected properly.
+
+12b) Run full pipeline integration test using datahen_run:
+   **NOTE**: `delay: 0` keeps it fast. Use small counts — goal is validation, not full crawl.
+
+   a) Reset local state (clears queue and outputs, preserves HTTP cache):
+      ```javascript
+      datahen_run({
+        scraper_dir: "<absolute_path>/generated_scraper/<scraper>",
+        command: "reset"
+      })
+      ```
+
+   b) Seed and run full pipeline (count: 2 per stage):
+      ```javascript
+      // Seed
+      datahen_run({
+        scraper_dir: "<absolute_path>/generated_scraper/<scraper>",
+        command: "seed"
+      })
+      // Navigation parsers (adjust page_types based on discovery-state.json)
+      datahen_run({
+        scraper_dir: "<absolute_path>/generated_scraper/<scraper>",
+        command: "step", page_type: "categories", count: 2, delay: 0
+      })
+      // Include subcategories step only if has_subcategories == true
+      datahen_run({
+        scraper_dir: "<absolute_path>/generated_scraper/<scraper>",
+        command: "step", page_type: "subcategories", count: 2, delay: 0
+      })
+      datahen_run({
+        scraper_dir: "<absolute_path>/generated_scraper/<scraper>",
+        command: "step", page_type: "listings", count: 2, delay: 0
+      })
+      // Details parser
+      datahen_run({
+        scraper_dir: "<absolute_path>/generated_scraper/<scraper>",
+        command: "step", page_type: "details", count: 3, delay: 0
+      })
+      ```
+
+   c) Inspect collected outputs:
+      ```javascript
+      datahen_run({
+        scraper_dir: "<absolute_path>/generated_scraper/<scraper>",
+        command: "outputs", collection: "products", limit: 3
+      })
+      ```
+
+   d) Validate integration test results:
+      - **PASS criteria** (all must be true):
+        * No `parsing_failed` pages in the pipeline
+        * Products appear in the `outputs` collection
+        * Output records contain category_name, breadcrumb, rank (from vars — NOT nil)
+        * Priority 1 fields (name, price, sku, etc.) are populated in outputs
+      - **FAIL criteria** (diagnose before proceeding):
+        * `parsing_failed` details pages → run `datahen_run({ command: "pages", status_filter: "parsing_failed", limit: 5 })`, read error, fix parser
+        * Outputs missing category_name/breadcrumb/rank → check listings parser vars hash
+        * Empty outputs after details step → check details parser `outputs <<` block
+        * Priority 1 fields nil → selector mismatch; re-run `parser_tester` on that product for isolation
+
+   e) If integration test fails: Fix the relevant parser → reset → re-run from step 12b-a
+
+   f) Note integration test outcome for inclusion in detail-selectors.json (next step):
+      - "Pipeline integration test: PASSED / FAILED"
+      - Note any parser fixes made during integration test
+      - Note which fields were confirmed from vars vs extracted from HTML
 
 === STEP 6: Write Detail Selectors (JSON) ===
 **CRITICAL**: Use ABSOLUTE PATH for WriteFile operation
