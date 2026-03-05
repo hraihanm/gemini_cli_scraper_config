@@ -313,10 +313,10 @@
     },
     {
       "name": "barcode",
-      "type": "int",
+      "type": "str",
       "extraction_method": "FIND",
       "priority": 2,
-      "notes": "FIND - if any",
+      "notes": "FIND - if any. Type is 'int into str': the value is numeric but must be stored as a string. Example: barcode = '8888030066041'",
       "selectors": [],
       "verified": false,
       "discovered": false,
@@ -365,7 +365,7 @@
       "type": "str",
       "extraction_method": "HARDCODED",
       "priority": 3,
-      "notes": "hardcoded: `WEB`",
+      "notes": "HARDCODED: 'WEB' for website scrapers, 'APP' for mobile app scrapers. Use 'WEB' unless the scraper targets a mobile app API.",
       "hardcoded_value": "WEB",
       "selectors": [],
       "verified": false,
@@ -378,8 +378,8 @@
       "type": "boolean",
       "extraction_method": "DETERMINE",
       "priority": 2,
-      "notes": "DETERMINE - true if it has discount",
-      "computation": "has_discount",
+      "notes": "DETERMINE - true for ANY form of promotion: banner, swimlane, top-of-page placement, bigger picture, mix-match, tiered pricing, OR strikethrough discount. Default fallback: set equal to has_discount if no other promotion signal is detectable. Strikethrough discount is NOT the only trigger.",
+      "computation": "has_discount (minimum default — look for other promotion signals first)",
       "selectors": [],
       "verified": false,
       "discovered": false,
@@ -403,7 +403,18 @@
       "type": "str",
       "extraction_method": "FIND",
       "priority": 3,
-      "notes": "FIND - if any. Format: `{\"promo_detail\":\"'Any 2 @ $9.95'\",\"free_item\":\"\"}`",
+      "notes": "FIND - if any. JSON string. Each string value is wrapped in single quotes. Multiple values comma-separated inside single quotes. Empty values use empty string not \"''\". Examples: {\"promo_detail\":\"'Any 2 @ $9.95'\",\"free_item\":\"\"} or {\"promo_detail\":\"'10% off', 'BestSeller'\"} or {\"description\":\"'Spend $138, get $8 off', 'Buy 1 item @ $0.90 Off'\"}",
+      "format_spec": {
+        "type": "json_string",
+        "value_wrapping": "single_quotes",
+        "empty_value": "\"\"",
+        "never_use": "\"''\"",
+        "examples": [
+          "{\"promo_detail\":\"'Any 2 @ $9.95'\",\"free_item\":\"\"}",
+          "{\"promo_detail\":\"'10% off', 'BestSeller'\"}",
+          "{\"description\":\"'Spend $138, get free item', 'Spend $138, get $8 off'\"}"
+        ]
+      },
       "selectors": [],
       "verified": false,
       "discovered": false,
@@ -450,9 +461,19 @@
     {
       "name": "reviews",
       "type": "str",
-      "extraction_method": null,
+      "extraction_method": "FIND",
       "priority": 4,
-      "notes": "null",
+      "notes": "FIND - if site shows product reviews. JSON string. If the site has no reviews feature at all: nil. If the site has reviews but product shows none: {\"num_total_reviews\":null,\"avg_rating\":null}. If values present: {\"num_total_reviews\":32,\"avg_rating\":4.2}. Numbers are NOT wrapped in single quotes.",
+      "format_spec": {
+        "type": "json_string",
+        "value_wrapping": "none (numbers are bare, not quoted)",
+        "examples": [
+          "{\"num_total_reviews\":113,\"avg_rating\":4.9}",
+          "{\"num_total_reviews\":null,\"avg_rating\":null}",
+          "{\"num_total_reviews\":-1,\"avg_rating\":0}"
+        ],
+        "when_nil": "site has no reviews feature at all"
+      },
       "selectors": [],
       "verified": false,
       "discovered": false,
@@ -462,9 +483,18 @@
     {
       "name": "store_reviews",
       "type": "str",
-      "extraction_method": null,
+      "extraction_method": "FIND",
       "priority": 4,
-      "notes": "null",
+      "notes": "FIND - if site shows store/seller reviews (distinct from product reviews). Same JSON string format as reviews. If not available: nil.",
+      "format_spec": {
+        "type": "json_string",
+        "value_wrapping": "none (numbers are bare, not quoted)",
+        "examples": [
+          "{\"num_total_reviews\":45,\"avg_rating\":4.1}",
+          "{\"num_total_reviews\":null,\"avg_rating\":null}"
+        ],
+        "when_nil": "site has no store reviews feature"
+      },
       "selectors": [],
       "verified": false,
       "discovered": false,
@@ -476,7 +506,19 @@
       "type": "str",
       "extraction_method": "FIND",
       "priority": 3,
-      "notes": "FIND - if any",
+      "notes": "FIND - if any. JSON string. Captures product badges, dietary labels, tags, or differentiator attributes (vegan, halal, bio, fairtrade, glutenfree, etc.). Each string value wrapped in single quotes. Empty values use empty string not \"''\". Keys are category labels (dietary attributes, tags, item badge, cuisine, etc.).",
+      "format_spec": {
+        "type": "json_string",
+        "value_wrapping": "single_quotes",
+        "empty_value": "\"\"",
+        "never_use": "\"''\"",
+        "examples": [
+          "{\"dietary attributes\":\"\",\"tags\":\"'New'\"}",
+          "{\"dietary attributes\":\"'Halal','Healthier Choice'\",\"tags\":\"\"}",
+          "{\"cuisine\":\"'Bakery & Baking Supplies'\"}",
+          "{\"item badge\":\"'Free_Delivery', 'BestSeller'\"}"
+        ]
+      },
       "selectors": [],
       "verified": false,
       "discovered": false,
@@ -488,8 +530,18 @@
       "type": "str",
       "extraction_method": "INFER",
       "priority": 3,
-      "notes": "INFER - usually from barcode of ean if exist. Format: `{\"barcode\":\"'8888030066041','8888030300282'\"}` or `{\"barcode\":\"'20916118286'\",\"ean\":\"'123'\"}`",
-      "computation": "JSON format from barcode/ean",
+      "notes": "INFER - build from available identifiers (barcode, EAN, GTIN, UPC). JSON string. Each identifier value wrapped in single quotes. Multiple values for same key comma-separated inside single quotes. Empty values use empty string not \"''\".",
+      "format_spec": {
+        "type": "json_string",
+        "value_wrapping": "single_quotes",
+        "empty_value": "\"\"",
+        "examples": [
+          "{\"barcode\":\"'8888030066041','8888030300282'\"}",
+          "{\"barcode\":\"'20916118286'\",\"GTIN\":\"\"}",
+          "{\"barcode\":\"'8888200708030'\"}"
+        ]
+      },
+      "computation": "JSON format from barcode/ean/GTIN",
       "selectors": [],
       "verified": false,
       "discovered": false,
@@ -513,7 +565,7 @@
       "type": "str",
       "extraction_method": "FIND",
       "priority": 4,
-      "notes": "FIND - if any",
+      "notes": "FIND - if any. Captures product option modifiers/variants (size, color, etc.). Unlike other struct fields, capture the raw string value as-is from the source — do NOT apply single-quote wrapping. Only applicable when the source exposes variant data. nil if not available.",
       "selectors": [],
       "verified": false,
       "discovered": false,

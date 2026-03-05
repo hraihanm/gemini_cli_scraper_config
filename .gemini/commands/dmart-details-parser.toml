@@ -93,6 +93,7 @@ Process:
    - Read `generated_scraper/<scraper>/.scraper-state/discovery-knowledge.md` (if exists)
    - Read `generated_scraper/<scraper>/.scraper-state/discovery-state.json` (if exists)
    - Read `generated_scraper/<scraper>/.scraper-state/field-spec.json` (if exists)
+     **NOTE**: Fields with a `format_spec` key have mandatory output format rules — follow them exactly when writing parser code.
    - Read `generated_scraper/<scraper>/.scraper-state/detail-selectors.json` (if exists)
    - Read `generated_scraper/<scraper>/.scraper-state/detail-knowledge.md` (if exists)
    
@@ -414,6 +415,77 @@ Process:
 
 === STEP 4: Edit Detail Parser ===
 🚨 **REMINDER**: You will edit Ruby parser code here - that's the ONLY code you write. Use WriteFile tool to save it.
+
+🚨 **STRUCT FIELDS FORMAT GUIDE** — 5 fields use a special JSON-string format:
+
+**Rule: single-quote wrap string values; empty string `""` for missing (NEVER `"''"`).**
+
+```ruby
+# --- promo_attributes ---
+# Collect raw promo strings from HTML (badges, labels, offer text)
+promo_list = []
+promo_list << html.at_css('.promo-badge')&.text&.strip
+promo_list << html.at_css('.offer-label')&.text&.strip
+promo_list = promo_list.compact.reject(&:empty?)
+promo_attributes = if promo_list.any?
+  JSON.generate({ 'promo_detail' => promo_list.map { |v| "'#{v}'" }.join(', ') })
+else
+  nil
+end
+# e.g. {"promo_detail":"'Any 2 @ $9.95'"}  or  {"promo_detail":"'10% off', 'BestSeller'"}
+
+# --- reviews ---
+# Only set if the site actually shows reviews; nil if no reviews feature exists at all
+total_reviews_text = html.at_css('.review-count')&.text&.strip
+avg_rating_text    = html.at_css('.rating-value')&.text&.strip
+if total_reviews_text || avg_rating_text
+  reviews = JSON.generate({
+    'num_total_reviews' => total_reviews_text ? total_reviews_text.to_i : nil,
+    'avg_rating'        => avg_rating_text    ? avg_rating_text.to_f    : nil
+  })
+else
+  reviews = nil  # site has no reviews feature
+end
+# Numbers are NOT single-quoted: {"num_total_reviews":113,"avg_rating":4.9}
+
+# --- store_reviews --- same format as reviews ---
+store_reviews = nil  # set like reviews if site has store-level ratings
+
+# --- item_attributes ---
+# Collect badge/tag/dietary labels from HTML
+tags    = html.css('.product-tag').map { |t| t.text.strip }.reject(&:empty?)
+dietary = html.css('.dietary-badge').map { |d| d.text.strip }.reject(&:empty?)
+item_attributes = if tags.any? || dietary.any?
+  hash = {}
+  hash['tags']               = tags.any?    ? tags.map    { |t| "'#{t}'" }.join(', ') : ''
+  hash['dietary attributes'] = dietary.any? ? dietary.map { |d| "'#{d}'" }.join(', ') : ''
+  JSON.generate(hash)
+else
+  nil
+end
+# e.g. {"tags":"'New','BestSeller'","dietary attributes":"'Halal'"}
+
+# --- item_identifiers ---
+# Build from barcode / EAN visible on page or in structured data
+item_identifiers = if barcode || ean
+  hash = {}
+  hash['barcode'] = "'#{barcode}'" if barcode
+  hash['GTIN']    = ean ? "'#{ean}'" : ''
+  JSON.generate(hash)
+else
+  nil
+end
+# e.g. {"barcode":"'8888030066041'","GTIN":""}
+
+# --- is_promoted ---
+# Check for ANY promotion signal first; fall back to has_discount
+promo_badge = html.at_css('.promo-badge, .sponsored-label, .offer-banner')
+is_promoted = !promo_badge.nil? ? true : has_discount
+```
+
+**DMART vs DLOC**: DLOC scrapers include all 53 fields. DMART scrapers only use fields 1-42
+(set allergens, nutrition_facts, ingredients, dimensions, img_url_2/3/4 to nil for DMART).
+Check the scraper name or config.yaml — "dloc" in the name/project means DLOC.
 
 🚨 **MANDATORY: ALL 53 FIELDS MUST APPEAR IN THE OUTPUT HASH**:
 - Every field in field-spec.json MUST have an entry in the `outputs <<` hash
