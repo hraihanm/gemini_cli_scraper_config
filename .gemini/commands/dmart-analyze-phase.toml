@@ -1,0 +1,161 @@
+description = "Analyze session audit files from a generated scraper and suggest TOML prompt improvements. Token-efficient: reads only compact audit + parser files, not conversation history."
+
+prompt = """
+You are analyzing session audit files from completed scraper generation phases to suggest improvements to the TOML workflow prompts.
+
+🚨🚨🚨 **CRITICAL: YOU ARE IN GEMINI CLI - USE TOOLS DIRECTLY, NEVER GENERATE CODE** 🚨🚨🚨
+- **USE TOOLS DIRECTLY** - Call `read_file`, `write_file` via tool calling
+- **FORBIDDEN**: Never write Python scripts, JavaScript code, or any programming code
+- **IF YOU START WRITING CODE**: Stop immediately and use tools instead
+
+🚨 **TOKEN-EFFICIENT ANALYSIS — read only compact files**:
+- Read `session-audit-*.json` files (2-5KB each) — NOT conversation history
+- Read generated parser files (5-20KB) — to verify output quality
+- Read `field-spec.json` and `detail-selectors.json` — as ground truth
+- DO NOT read any HTML files, JSON cache files, or network response files
+
+Inputs (order-agnostic via {{args}}):
+  - scraper=<scraper_name> (REQUIRED)
+  - phase=<phase_name> (OPTIONAL — analyze one phase: api_scrape | html_scrape | api_navigation | html_navigation | api_details | html_details; default: all)
+  - out=<base_dir> (OPTIONAL, default: ./generated_scraper)
+
+Process:
+
+=== STEP 1: Load Audit Files ===
+1) Read all available session audit files for the scraper (CALL read_file for each):
+   - `generated_scraper/<scraper>/.scraper-state/session-audit-html_scrape.json` (if exists)
+   - `generated_scraper/<scraper>/.scraper-state/session-audit-api_scrape.json` (if exists)
+   - `generated_scraper/<scraper>/.scraper-state/session-audit-html_navigation.json` (if exists)
+   - `generated_scraper/<scraper>/.scraper-state/session-audit-api_navigation.json` (if exists)
+   - `generated_scraper/<scraper>/.scraper-state/session-audit-html_details.json` (if exists)
+   - `generated_scraper/<scraper>/.scraper-state/session-audit-api_details.json` (if exists)
+
+   If `phase` parameter is provided, only load the matching file.
+   If no audit files exist: Display "No session audit files found. Run a scraper phase first."
+
+2) Read generated parser files to verify output quality (CALL read_file for each):
+   - `generated_scraper/<scraper>/parsers/details.rb`
+   - `generated_scraper/<scraper>/parsers/listings.rb`
+   - `generated_scraper/<scraper>/parsers/categories.rb`
+
+3) Read state files as ground truth:
+   - `generated_scraper/<scraper>/.scraper-state/field-spec.json`
+   - `generated_scraper/<scraper>/.scraper-state/detail-selectors.json` (if exists)
+
+=== STEP 2: Analyze Tool Usage ===
+4) For each audit file loaded, analyze:
+
+   a) **Expensive tool overuse**:
+      - `browser_view_html` called more than 2 times → flag as potential optimization
+      - `browser_network_download` + `browser_request` combined > 6 calls → review if all were needed
+      - `parser_tester` > 5 iterations → indicates repeated parser errors; note what kept failing
+
+   b) **Unnecessary expensive calls** (`was_necessary: false`):
+      - Note the tool, step, and reason
+      - Suggest which cheaper alternative should have been used
+
+   c) **Missing cheaper-first pattern**:
+      - `browser_view_html` called with `cheaper_alternative_tried: null` → should have tried `browser_grep_html` first
+      - `browser_network_download` called with `cheaper_alternative_tried: null` → should have tried `browser_network_search` first
+
+   d) **Repeated parser errors**:
+      - Same error type appearing multiple times in `parser_errors` → template code pattern is wrong
+      - Note exact error and suggest fix to the TOML code example
+
+   e) **Frequently hard fields**:
+      - Fields appearing in `fields_hard_to_find` → the TOML field mapping section may need that path added as a fallback example
+      - Fields in `fields_set_to_nil` that appear across multiple scrapers → may need better discovery guidance in TOML
+
+   f) **Unexpected situations**:
+      - Patterns in `unexpected_situations` that recur → add handling guidance to TOML
+
+=== STEP 3: Analyze Parser Quality ===
+5) Inspect details.rb output hash:
+   - Count fields present vs 53 expected from field-spec.json
+   - Check for wrong field names: `currency` (should be `currency_code_lc`), `rank` (should be `rank_in_listing`), `category_name` (should be `category`)
+   - Check for missing `nil` fields (fields omitted instead of set to nil)
+   - Check for missing `scraped_at_timestamp`, `crawled_source`, `is_promoted`
+
+6) Inspect navigation parser vars:
+   - Verify listings.rb passes `rank_in_listing` (not `rank`) to details
+   - Verify `page_number` is passed
+   - Verify `category_name` and `breadcrumb` are passed
+
+=== STEP 4: Generate Improvement Report ===
+7) Write improvement-report.md (USE ABSOLUTE PATH):
+   Path: `generated_scraper/<scraper>/.scraper-state/improvement-report.md`
+
+   Structure:
+   ```markdown
+   # Phase Improvement Report — <scraper>
+   Generated: <timestamp>
+   Phases analyzed: <list>
+
+   ## Tool Usage Summary
+   | Tool | Total Calls | Unnecessary | Recommendation |
+   |------|-------------|-------------|----------------|
+   | browser_view_html | X | Y | ... |
+   | browser_network_download | X | Y | ... |
+   | browser_request | X | Y | ... |
+   | parser_tester | X | — | ... |
+   | datahen_run | X | — | ... |
+   | browser_grep_html | X | — | (preferred) |
+   | browser_network_search | X | — | (preferred) |
+
+   ## Issues Found
+
+   ### [Issue title — e.g. "browser_view_html called without trying browser_grep_html first"]
+   - **Phase**: [phase name]
+   - **Step**: [step description]
+   - **Observation**: [what happened]
+   - **Suggested TOML change**: [specific text to add or modify in the TOML]
+   - **File**: [which .toml file to edit]
+
+   (repeat for each issue)
+
+   ## Parser Quality Check
+   - details.rb fields present: X/53
+   - Missing fields: [list, or "none"]
+   - Wrong field names: [list, or "none"]
+   - Nil fields correctly included: [yes/no]
+
+   ## Recurring Patterns Across Sessions
+   (only if multiple audit files exist)
+   - Fields consistently hard to find: [list]
+   - Errors that recur: [list]
+
+   ## Recommendations (prioritized by impact)
+   1. [Highest impact change with specific TOML edit]
+   2. ...
+   ```
+
+8) Display summary of findings to user:
+   - Show the improvement-report.md content
+   - Highlight top 3 actionable recommendations
+
+=== STEP 5: Completion ===
+9) Display completion message:
+   ```
+   Analysis complete.
+
+   Scraper: <scraper_slug>
+   Phases analyzed: <list>
+
+   Report saved: generated_scraper/<scraper>/.scraper-state/improvement-report.md
+
+   Top recommendations:
+   1. [recommendation 1]
+   2. [recommendation 2]
+   3. [recommendation 3]
+   ```
+
+🚨🚨🚨 **MANDATORY: STOP AFTER COMPLETION** 🚨🚨🚨
+- After displaying completion message, you MUST STOP
+- DO NOT continue with any other work
+- This command is COMPLETE - END SESSION NOW
+
+Examples:
+  /dmart-analyze-phase scraper=ica_se
+  /dmart-analyze-phase scraper=naivas_online phase=html_details
+  /dmart-analyze-phase scraper=lider_cl phase=api_scrape
+"""

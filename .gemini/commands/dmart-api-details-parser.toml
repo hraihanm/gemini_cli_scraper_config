@@ -60,6 +60,15 @@ outputs << {
 
 🚨 CRITICAL - ABSOLUTE PATHS REQUIRED for all WriteFile operations
 
+🚨 **EXPENSIVE TOOL JUSTIFICATION** (required before each expensive call):
+Before calling `browser_view_html`, `browser_network_download`, `browser_request`, `parser_tester`, or `datahen_run`, write one line:
+  💭 [tool]: [what I expect to find/confirm] → [why not a cheaper alternative]
+Examples:
+  💭 browser_request: fetching product_id=12345 JSON to examine field structure — not in network capture yet
+  💭 parser_tester: testing details.rb with product1.json — verifying all 53 fields extracted correctly
+  💭 browser_network_download: saving detail product JSON — URL confirmed via browser_network_search
+Always try cheap alternatives first: `browser_grep_html` before `browser_view_html`, `browser_network_search` before `browser_network_download`/`browser_request`
+
 Inputs (order-agnostic via {{args}}):
   - scraper=<scraper_name> (REQUIRED - scraper must exist with navigation-selectors.json)
   - url=<details_page_url> (OPTIONAL - uses sample URL from navigation-selectors.json if not provided)
@@ -511,6 +520,48 @@ Process:
 === STEP 10: Update Phase Status ===
 17) Update phase-status.json
 18) Update browser-context.json
+
+=== STEP 10b: Write Session Audit ===
+18b) Save session-audit-api_details.json (USE ABSOLUTE PATH):
+   **Purpose**: Compact record of this session for the `/dmart-analyze-phase` improvement loop.
+   Path: `generated_scraper/<scraper>/.scraper-state/session-audit-api_details.json`
+   ```json
+   {
+     "phase": "api_details",
+     "scraper": "<scraper_slug>",
+     "completed_at": "<ISO timestamp>",
+     "tool_call_counts": {
+       "browser_view_html": 0,
+       "browser_network_download": 0,
+       "browser_request": 0,
+       "parser_tester": 0,
+       "datahen_run": 0,
+       "browser_grep_html": 0,
+       "browser_network_search": 0
+     },
+     "expensive_tool_log": [
+       {
+         "tool": "<tool_name>",
+         "step": "<step description>",
+         "reason": "<justification written before the call>",
+         "was_necessary": true,
+         "cheaper_alternative_tried": "<tool name or null>"
+       }
+     ],
+     "unexpected_situations": [
+       "<anything that deviated from expected behavior>"
+     ],
+     "fields_hard_to_find": [
+       {"field": "<field_name>", "reason": "<why it was hard or unavailable>"}
+     ],
+     "fields_set_to_nil": ["<list of fields that had no value in the API>"],
+     "parser_test_iterations": 0,
+     "parser_errors": ["<error and how it was fixed>"],
+     "improvement_suggestions": [
+       "<concrete suggestion for improving this TOML or tool usage>"
+     ]
+   }
+   ```
 
 === STEP 11: Completion Report ===
 19) Display completion summary:

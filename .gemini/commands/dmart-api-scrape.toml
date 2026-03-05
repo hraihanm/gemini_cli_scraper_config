@@ -21,27 +21,24 @@ You are performing Phase 1 (API Approach): Site Discovery with API Endpoint Dete
   - `browser_request` - makes arbitrary HTTP requests from the browser context (inherits cookies/session)
 - **Workflow**: Navigate to page → let JavaScript load data → `browser_network_search({query: "product_name"})` → identify API endpoints → `browser_network_download` to save responses → verify with `browser_request`
 
-🚨 **TWO PRODUCTION API PATTERNS TO IDENTIFY**:
-The agent must determine which fetch strategy the site requires:
+🚨 **API FETCH STRATEGY: ALWAYS USE `fetch_type: "standard"`**:
+For API agents, **MUST use `fetch_type: "standard"`** (direct HTTP fetch). Do NOT use `fetch_type: "browser"` for API endpoints.
 
-**Pattern A: `fetch_type: "standard"` (direct HTTP)**
+**Why standard fetch is required**:
+- **Browser returns XML/HTML-wrapped content** — When Chromium navigates to an API URL, it renders the response as a document. JSON APIs get wrapped in HTML; XML APIs return XML. Parsers expect raw JSON, not HTML/XML wrappers.
+- **Standard fetch returns raw response** — Direct HTTP fetch returns the exact API response body (JSON or XML) as received, so `JSON.parse(content)` works correctly.
+- **Consistent parser logic** — All API parsers use `JSON.parse(content)` and JSON path traversal; no HTML/XML extraction needed.
+
+**Pattern: `fetch_type: "standard"` (REQUIRED for API endpoints)**
 - DataHen fetches the API URL directly via HTTP (no browser needed)
 - `content` = raw JSON string → parser uses `JSON.parse(content)` directly
 - Requires passing cookies/headers explicitly in page entry
-- Example: `pages << { url: api_url, fetch_type: "standard", headers: { 'Cookie' => cookie }, ... }`
-- Best for: Simple REST APIs with stable authentication
+- Example: `pages << { url: api_url, fetch_type: "standard", headers: { 'Cookie' => cookie, 'Accept' => 'application/json' }, ... }`
 
-**Pattern B: `fetch_type: "browser"` (Chromium renders)**
-- Chromium navigates to the API URL
-- For JSON: `content` = HTML-wrapped JSON → parser must extract from HTML wrapper
-- For XML: `content` = HTML-wrapped XML → parser uses `Nokogiri::HTML(content)` → extract XML → `Nokogiri::XML(xml)`
-- Example: `pages << { url: api_url, fetch_type: "browser", driver: { name: "test", stealth: true }, ... }`
-- Best for: APIs requiring complex auth, CORS restrictions, or JavaScript-set cookies
-
-**Key decision factors**:
-- Does the API require cookies set by JavaScript? → Pattern B (browser) or Pattern A with cookie passing
-- Does the API have CORS restrictions? → Pattern B (browser)
-- Is the API a simple REST endpoint with static auth? → Pattern A (standard)
+**Cookie/auth handling with standard fetch**:
+- Initial seeder uses `fetch_type: "browser"` to load homepage and capture cookies
+- Pass cookies to API pages via `vars` or `headers: { 'Cookie' => cookie }`
+- API parsers receive raw JSON in `content`
 
 🚨 **COOKIE/SESSION MANAGEMENT**:
 - Initial browser fetch captures cookies via `page['response_cookie']`
@@ -62,6 +59,15 @@ The agent must determine which fetch strategy the site requires:
 
 🚨 CRITICAL - ABSOLUTE PATHS REQUIRED:
 - **ALL WriteFile operations MUST use ABSOLUTE PATHS** - Relative paths will fail
+
+🚨 **EXPENSIVE TOOL JUSTIFICATION** (required before each expensive call):
+Before calling `browser_view_html`, `browser_network_download`, `browser_request`, `parser_tester`, or `datahen_run`, write one line:
+  💭 [tool]: [what I expect to find/confirm] → [why not a cheaper alternative]
+Examples:
+  💭 browser_view_html: need full DOM for category list — browser_grep_html returned no results
+  💭 browser_request: fetching categories JSON for store_id=1003594 — not yet in network capture
+  💭 browser_network_download: saving listings API response — matched URL found via browser_network_search
+Always try cheap alternatives first: `browser_grep_html` before `browser_view_html`, `browser_network_search` before `browser_network_download`/`browser_request`
 
 Inputs (order-agnostic via {{args}}):
   - url=<site_url> (REQUIRED - target website URL)
@@ -165,13 +171,13 @@ Process:
         ```
       - This confirms the API call works with the browser's cookies/session
       - Compare with the captured response to ensure consistency
-      - **If browser_request fails but browser_network_download works**: the API likely requires JavaScript context → use `fetch_type: "browser"`
-      - **If browser_request succeeds**: the API can likely be called directly → `fetch_type: "standard"` is possible (but still test without cookies)
+      - **API endpoints MUST use `fetch_type: "standard"`** — browser returns XML/HTML, not raw JSON
+      - If browser_request fails: ensure cookies/headers are passed; pass them to subsequent standard fetches via vars
 
-   f) **Determine fetch strategy** for each endpoint:
-      - Test if API works with `fetch_type: "standard"` (direct HTTP): Try `browser_request` without cookies
-      - Test if API requires cookies: Try with and without `Cookie` header
-      - Document: which fetch_type to use, what headers/cookies are required
+   f) **Set fetch_type to "standard" for all API endpoints**:
+      - API agents MUST use `fetch_type: "standard"` — browser returns XML/HTML-wrapped content, not raw JSON
+      - Test if API requires cookies: Try `browser_request` with and without `Cookie` header
+      - Document: headers/cookies required for each endpoint
 
    g) **Map API response structure**:
       For each endpoint, document (from downloaded files):
@@ -216,7 +222,7 @@ Process:
       },
       "api_endpoints": {
         "base_url": "https://api.example.com/v2",
-        "fetch_strategy": "standard or browser",
+        "fetch_strategy": "standard",
         "requires_cookies": true,
         "cookie_source": "initial browser fetch of homepage",
         "categories": {
@@ -345,6 +351,45 @@ Process:
 17) Update phase-status.json
 18) Save browser-context.json
 
+=== STEP 9b: Write Session Audit ===
+18b) Save session-audit-api_scrape.json (USE ABSOLUTE PATH):
+   **Purpose**: Compact record of this session for the `/dmart-analyze-phase` improvement loop.
+   Path: `generated_scraper/<scraper>/.scraper-state/session-audit-api_scrape.json`
+   ```json
+   {
+     "phase": "api_scrape",
+     "scraper": "<scraper_slug>",
+     "completed_at": "<ISO timestamp>",
+     "tool_call_counts": {
+       "browser_view_html": 0,
+       "browser_network_download": 0,
+       "browser_request": 0,
+       "parser_tester": 0,
+       "datahen_run": 0,
+       "browser_grep_html": 0,
+       "browser_network_search": 0
+     },
+     "expensive_tool_log": [
+       {
+         "tool": "<tool_name>",
+         "step": "<step description>",
+         "reason": "<justification written before the call>",
+         "was_necessary": true,
+         "cheaper_alternative_tried": "<tool name or null>"
+       }
+     ],
+     "unexpected_situations": [
+       "<anything that deviated from expected behavior>"
+     ],
+     "api_endpoints_found": ["<list of discovered API endpoint URLs>"],
+     "parser_test_iterations": 0,
+     "parser_errors": ["<error and how it was fixed>"],
+     "improvement_suggestions": [
+       "<concrete suggestion for improving this TOML or tool usage>"
+     ]
+   }
+   ```
+
 === STEP 10: Completion Report & Auto-Chaining ===
 19) Display completion summary:
     ```
@@ -353,7 +398,7 @@ Process:
     Scraper: <scraper_slug>
     Site: <site_url>
     Approach: API-based scraping
-    Fetch Strategy: <standard|browser>
+    Fetch Strategy: standard (required — browser returns XML/HTML, not raw JSON)
 
     API Endpoints Discovered:
     - Categories API: <url> ✅ (fetch_type: <type>)

@@ -64,6 +64,15 @@ You are performing Phase 2: Navigation Parser Generation using the dmart_dloc_bo
 - Common popup patterns: cookie banners, notification overlays, modal dialogs, age verification
 - Always use `browser_snapshot()` after handling popups to verify page is ready
 
+🚨 **EXPENSIVE TOOL JUSTIFICATION** (required before each expensive call):
+Before calling `browser_view_html`, `browser_network_download`, `browser_request`, `parser_tester`, or `datahen_run`, write one line:
+  💭 [tool]: [what I expect to find/confirm] → [why not a cheaper alternative]
+Examples:
+  💭 browser_view_html: need full DOM to find pagination selector — browser_grep_html matched multiple candidates
+  💭 parser_tester: testing categories.rb — verifying category URL extraction after PLACEHOLDER replaced
+  💭 datahen_run step: running categories parser to confirm URLs enqueue correctly
+Always try cheap alternatives first: `browser_grep_html` before `browser_view_html`, `browser_network_search` before `browser_network_download`/`browser_request`
+
 Inputs (order-agnostic via {{args}}):
   - scraper=<scraper_name> (REQUIRED - scraper must exist with discovery-state.json)
   - resume-url=<url> (OPTIONAL - resume browser from this URL)
@@ -786,6 +795,77 @@ Process:
    }
    ```
 
+=== STEP 5b: Pipeline Smoke Test ===
+**PURPOSE**: Verify the full navigation pipeline chains correctly end-to-end. `parser_tester` tests individual parsers in isolation — this step tests that parsers actually hand off to each other (categories enqueue listings, listings enqueue details, vars flow through correctly).
+
+25b) Run pipeline smoke test using datahen_run:
+   **NOTE**: `delay: 0` skips artificial HTTP delay — keep it fast during development
+
+   a) Reset local state (clears queue and outputs, preserves HTTP cache):
+      ```javascript
+      datahen_run({
+        scraper_dir: "<absolute_path>/generated_scraper/<scraper>",
+        command: "reset"
+      })
+      ```
+
+   b) Seed the scraper (runs seeder.rb, populates initial queue):
+      ```javascript
+      datahen_run({
+        scraper_dir: "<absolute_path>/generated_scraper/<scraper>",
+        command: "seed"
+      })
+      ```
+      - Verify: Queue should contain the entry page_type (e.g., "categories") after seed
+
+   c) Step through each navigation parser (count: 2 keeps it fast):
+      ```javascript
+      // Step categories
+      datahen_run({
+        scraper_dir: "<absolute_path>/generated_scraper/<scraper>",
+        command: "step", page_type: "categories", count: 2, delay: 0
+      })
+      // Step subcategories (only if has_subcategories == true from discovery-state.json)
+      datahen_run({
+        scraper_dir: "<absolute_path>/generated_scraper/<scraper>",
+        command: "step", page_type: "subcategories", count: 2, delay: 0
+      })
+      // Step listings
+      datahen_run({
+        scraper_dir: "<absolute_path>/generated_scraper/<scraper>",
+        command: "step", page_type: "listings", count: 2, delay: 0
+      })
+      ```
+
+   d) Check queue state after pipeline run:
+      ```javascript
+      datahen_run({
+        scraper_dir: "<absolute_path>/generated_scraper/<scraper>",
+        command: "status"
+      })
+      // Show pages waiting in queue — should include "details" page_type
+      datahen_run({
+        scraper_dir: "<absolute_path>/generated_scraper/<scraper>",
+        command: "pages", status_filter: "to_fetch", limit: 5
+      })
+      ```
+
+   e) Validate pipeline results:
+      - **PASS criteria** (all must be true):
+        * No `parsing_failed` pages for any navigation parser
+        * After listings step: `details` page_type pages appear in `to_fetch` queue
+        * Queued detail pages contain vars (category_name, breadcrumb, rank, page_number)
+      - **FAIL criteria** (if any, diagnose before proceeding):
+        * `parsing_failed` pages → run `datahen_run({ command: "pages", status_filter: "parsing_failed", limit: 5 })`, read error, fix parser, re-run from step 25b-a
+        * No detail pages in queue after listings step → listings parser not calling `save_pages` correctly
+        * Detail pages missing vars → check vars hash in listings parser `pages <<` block
+
+   f) If smoke test fails: Fix parser → reset → re-seed → re-step → re-check (loop until pass)
+
+   g) Record smoke test outcome for inclusion in navigation-knowledge.md (next step):
+      - Note: "Pipeline smoke test: PASSED / FAILED"
+      - Note any parser fixes made during smoke test
+
 === STEP 6: Verify Config.yaml ===
 **CRITICAL**: Config.yaml already exists from boilerplate - verify only, no changes needed
 
@@ -936,6 +1016,47 @@ Process:
      "last_phase": "navigation_discovery",
      "last_activity": "<timestamp>",
      "scraper_name": "<scraper_slug>"
+   }
+   ```
+
+=== STEP 8b: Write Session Audit ===
+28b) Save session-audit-html_navigation.json (USE ABSOLUTE PATH):
+   **Purpose**: Compact record of this session for the `/dmart-analyze-phase` improvement loop.
+   Path: `generated_scraper/<scraper>/.scraper-state/session-audit-html_navigation.json`
+   ```json
+   {
+     "phase": "html_navigation",
+     "scraper": "<scraper_slug>",
+     "completed_at": "<ISO timestamp>",
+     "tool_call_counts": {
+       "browser_view_html": 0,
+       "browser_network_download": 0,
+       "browser_request": 0,
+       "parser_tester": 0,
+       "datahen_run": 0,
+       "browser_grep_html": 0,
+       "browser_network_search": 0
+     },
+     "expensive_tool_log": [
+       {
+         "tool": "<tool_name>",
+         "step": "<step description>",
+         "reason": "<justification written before the call>",
+         "was_necessary": true,
+         "cheaper_alternative_tried": "<tool name or null>"
+       }
+     ],
+     "unexpected_situations": [
+       "<anything that deviated from expected behavior>"
+     ],
+     "popup_handling": "<description of any popup/banner handling required>",
+     "pagination_pattern": "<description of pagination discovered>",
+     "vars_passed_to_details": ["<list of vars keys passed to detail pages>"],
+     "parser_test_iterations": 0,
+     "parser_errors": ["<error and how it was fixed>"],
+     "improvement_suggestions": [
+       "<concrete suggestion for improving this TOML or tool usage>"
+     ]
    }
    ```
 

@@ -57,6 +57,15 @@ You are performing Phase 3: Detail Parser Generation using the dmart_dloc_boiler
 - Common popup patterns: cookie banners, notification overlays, modal dialogs, age verification
 - Always use `browser_snapshot()` after handling popups to verify page is ready
 
+🚨 **EXPENSIVE TOOL JUSTIFICATION** (required before each expensive call):
+Before calling `browser_view_html`, `browser_network_download`, `browser_request`, `parser_tester`, or `datahen_run`, write one line:
+  💭 [tool]: [what I expect to find/confirm] → [why not a cheaper alternative]
+Examples:
+  💭 browser_view_html: need full DOM for description field — browser_grep_html matched too broadly
+  💭 parser_tester: testing details.rb — verifying all 53 fields present after adding nil defaults
+  💭 datahen_run step: running full pipeline to verify vars (category_name, rank) flow into details
+Always try cheap alternatives first: `browser_grep_html` before `browser_view_html`, `browser_network_search` before `browser_network_download`/`browser_request`
+
 Inputs (order-agnostic via {{args}}):
   - scraper=<scraper_name> (REQUIRED - scraper must exist with navigation-selectors.json)
   - url=<details_page_url> (OPTIONAL - uses sample URL from navigation-selectors.json if not provided)
@@ -1184,6 +1193,49 @@ Process:
      "last_phase": "detail_discovery",
      "last_activity": "<timestamp>",
      "scraper_name": "<scraper_slug>"
+   }
+   ```
+
+=== STEP 9b: Write Session Audit ===
+17b) Save session-audit-html_details.json (USE ABSOLUTE PATH):
+   **Purpose**: Compact record of this session for the `/dmart-analyze-phase` improvement loop.
+   Path: `generated_scraper/<scraper>/.scraper-state/session-audit-html_details.json`
+   ```json
+   {
+     "phase": "html_details",
+     "scraper": "<scraper_slug>",
+     "completed_at": "<ISO timestamp>",
+     "tool_call_counts": {
+       "browser_view_html": 0,
+       "browser_network_download": 0,
+       "browser_request": 0,
+       "parser_tester": 0,
+       "datahen_run": 0,
+       "browser_grep_html": 0,
+       "browser_network_search": 0
+     },
+     "expensive_tool_log": [
+       {
+         "tool": "<tool_name>",
+         "step": "<step description>",
+         "reason": "<justification written before the call>",
+         "was_necessary": true,
+         "cheaper_alternative_tried": "<tool name or null>"
+       }
+     ],
+     "unexpected_situations": [
+       "<anything that deviated from expected behavior>"
+     ],
+     "popup_handling": "<description of any popup/banner handling required>",
+     "fields_hard_to_find": [
+       {"field": "<field_name>", "reason": "<why it was hard or not on page>"}
+     ],
+     "fields_set_to_nil": ["<list of fields not found on the page>"],
+     "parser_test_iterations": 0,
+     "parser_errors": ["<error and how it was fixed>"],
+     "improvement_suggestions": [
+       "<concrete suggestion for improving this TOML or tool usage>"
+     ]
    }
    ```
 
