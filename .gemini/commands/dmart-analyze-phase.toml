@@ -46,9 +46,12 @@ Process:
 4) For each audit file loaded, analyze:
 
    a) **Expensive tool overuse**:
-      - `browser_view_html` called more than 2 times → flag as potential optimization
+      - `browser_view_html` called more than 2 times → flag as potential optimization (most expensive tool — dumps entire page HTML)
       - `browser_network_download` + `browser_request` combined > 6 calls → review if all were needed
-      - `parser_tester` > 5 iterations → indicates repeated parser errors; note what kept failing
+      - `browser_network_replay` > 4 calls → review if all endpoints needed re-downloading
+      - `datahen_run` > 3 step calls → indicates repeated pipeline failures; note what kept failing
+      - `browser_extract_json_ld` called 0 times on HTML detail phase → flag (should always be tried first)
+      - `browser_detect_pagination` called 0 times on HTML navigation phase → flag (should always be tried first)
 
    b) **Unnecessary expensive calls** (`was_necessary: false`):
       - Note the tool, step, and reason
@@ -94,13 +97,19 @@ Process:
    ## Tool Usage Summary
    | Tool | Total Calls | Unnecessary | Recommendation |
    |------|-------------|-------------|----------------|
-   | browser_view_html | X | Y | ... |
-   | browser_network_download | X | Y | ... |
+   | browser_view_html | X | Y | most expensive — use last resort only |
+   | browser_network_download | X | Y | prefer browser_network_replay |
+   | browser_network_replay | X | — | shortcut for download |
    | browser_request | X | Y | ... |
-   | parser_tester | X | — | ... |
    | datahen_run | X | — | ... |
-   | browser_grep_html | X | — | (preferred) |
-   | browser_network_search | X | — | (preferred) |
+   | parser_tester | X | — | not expensive, use freely |
+   | browser_grep_html | X | — | preferred for selector discovery |
+   | browser_network_search | X | — | preferred before downloading |
+   | browser_extract_json_ld | X | — | use first on detail pages |
+   | browser_count_selector | X | — | preferred over browser_evaluate counts |
+   | browser_extract_images | X | — | preferred for image gallery fields |
+   | browser_detect_pagination | X | — | use first on listing pages |
+   | scraper_output_validator | X | — | use after parser_tester |
 
    ## Issues Found
 
