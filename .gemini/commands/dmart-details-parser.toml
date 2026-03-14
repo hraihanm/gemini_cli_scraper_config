@@ -263,9 +263,12 @@ Process:
        Many modern e-commerce sites embed complete schema.org `Product` data in JSON-LD.
        Extracting it once covers name, price, brand, description, images, availability, SKU, GTIN in one shot.
 
-       - Run: `browser_grep_html(query: "@type")`
-       - If a `Product` schema is found (look for `"@type": "Product"` or `"@type":"Product"`):
-         * Also search for `"@graph"` format: `browser_grep_html(query: "@graph")`
+       - Run: `browser_extract_json_ld({ type: "Product" })`
+       - If found (found: true):
+         * The `data` object contains the parsed JSON-LD. `fields_available` lists discoverable fields.
+         * `script_tag_selector` gives you the exact CSS selector to use in Ruby (e.g., `script[type="application/ld+json"]`).
+         * For each field in `fields_available` that maps to one of the 53 output fields, mark it as "discovered via JSON-LD".
+         * Also check for `"@graph"` format if needed: `browser_grep_html(query: "@graph")`
          * Document the full JSON-LD structure in detail-knowledge.md
          * For every FIND field that maps to a JSON-LD key, write the Ruby extraction as:
            ```ruby
@@ -294,9 +297,10 @@ Process:
            customer_price_lc = json_ld_price&.to_f
            ```
          * Mark those fields as discovered in field-spec.json (no CSS selector needed)
-         * For fields NOT covered by JSON-LD, proceed to CSS selector discovery below
+         * For each JSON-LD field found, use it as PRIMARY source and CSS selector as fallback only.
+         * For fields NOT covered by JSON-LD, proceed to CSS selector discovery below (step ii)
 
-       - If NO JSON-LD found: proceed directly to CSS selector discovery for all fields
+       - If not found (found: false): proceed directly to CSS selector discovery for all fields
 
    a0b) **Meta tag fallbacks (Priority 2 — for img_url and name only)**:
        Even without JSON-LD, Open Graph tags are a reliable fallback for key fields:
@@ -307,6 +311,20 @@ Process:
        - Use `og_image` as fallback when primary CSS selector for img_url is nil
        - Use `og_title` as fallback when primary CSS selector for name is nil
        - Write Ruby code as: `img_url = primary_img_css_result || og_image`
+
+   a0c) **Image gallery discovery (img_url, img_url_2, additional_images)**:
+       For image fields, use a dedicated tool instead of multiple browser_evaluate calls:
+       - First try JSON-LD: `json_ld_image` already extracted in step a0 (if available) — use as img_url primary source
+       - Then try OG meta: `og_image` (see a0b above) — use as fallback
+       - For gallery/additional images: use `browser_extract_images({ container_selector: "<gallery container CSS selector>" })`
+         * Run `browser_snapshot()` to identify the gallery container ref
+         * Run `browser_inspect_element(ref)` to get its CSS selector
+         * Then call: `browser_extract_images({ container_selector: "<discovered CSS selector>" })`
+         * Result contains:
+           - `primary_url`: Use for img_url (if JSON-LD/OG not available)
+           - `images`: Array of all image URLs — use for img_url_2, img_url_3, additional_images
+           - `lazy_load_pattern`: Tells you which data attribute the site uses (data-src, data-lazy, etc.)
+       - Use `browser_extract_images` instead of multiple `browser_evaluate` calls for different data-src variants
 
    a) Load and validate field-spec.json:
       - Read field-spec.json (already loaded in step 1)
@@ -340,10 +358,19 @@ Process:
           **Step 2 — browser_inspect_element (when you have a ref or grep is ambiguous)**:
           - If browser_snapshot() gave you a ref for this field, call `browser_inspect_element(ref)` for the exact verified selector
           - Use when the grep snippet shows multiple candidate classes and you need to confirm the right one
+          - **BATCH INSPECTION**: When you have multiple element refs to inspect, use batch mode to inspect them all in one call:
+            ```
+            browser_inspect_element({
+              element: "product name", ref: "e42",
+              batch: [{ element: "price", ref: "e67" }, { element: "brand", ref: "e91" }]
+            })
+            ```
+            This returns CSS selectors for all elements in one call — use batch mode whenever inspecting more than one ref.
 
           **Step 3 — Verify**:
           - Use `browser_verify_selector()` for text fields (names, prices, labels, descriptions)
-          - Use `browser_evaluate()` for non-text attributes (img src, data-* attributes)
+          - Use `browser_verify_selector(element, selector, expected, attribute: "src")` for img src, href, and data-* attributes — **do NOT use `browser_evaluate` for attribute verification**
+          - Use `browser_evaluate()` only for complex JavaScript-based extraction (not for simple attribute reads)
 
           - Try multiple strategies if steps 1-3 fail:
             * Check if field exists in breadcrumb (for brand, category)
@@ -794,40 +821,41 @@ Check the scraper name or config.yaml — "dloc" in the name/project means DLOC.
       - If sample_detail_urls has fewer than 3 URLs: Use available URLs and note limitation
       - **Store test URLs**: Keep list of 3 URLs for testing
    
-   b) **Test Product 1 (WITH discount)**:
-      - Navigate to first test URL (product with discount)
-      - **Handle popups**: Use browser_screenshot() and browser_snapshot() to check for cookies/notifications, then browser_click() to dismiss them
-      - Test with parser_tester:
-        ```javascript
-        parser_tester({
-          scraper_dir: "<absolute_path>/generated_scraper/<scraper>",
-          parser_path: "parsers/details.rb",
-          page_type: "details",
-          auto_download: true,
-          vars: '{"category_name":"Electronics","breadcrumb":"Electronics","rank":1,"page_number":1}',
-          quiet: false
-        })
-        ```
-      - **Validate**: Check that base_price_lc is present and different from customer_price_lc
-      - **TRACK URL**: Record tested URL in detail-selectors.json under `urls_accessed.test_urls`
-      - If test fails: Analyze errors, refine selectors if needed
-   
-   c) **Test Product 2 (WITHOUT discount)**:
-      - Navigate to second test URL (product without discount)
-      - **Handle popups**: Use same popup handling strategy
-      - Test with parser_tester (same configuration as step 12b)
-      - **Validate**: Check that base_price_lc is either absent, nil, or equals customer_price_lc
-      - **TRACK URL**: Record tested URL in detail-selectors.json under `urls_accessed.test_urls`
-      - If test fails: Analyze errors, refine selectors if needed
-   
-   d) **Test Product 3 (Random product)**:
-      - Navigate to third test URL (random product)
-      - **Handle popups**: Use same popup handling strategy
-      - Test with parser_tester (same configuration as step 12b)
-      - **Validate**: Check that all Priority 1 fields are extracted correctly
-      - **TRACK URL**: Record tested URL in detail-selectors.json under `urls_accessed.test_urls`
-      - If test fails: Analyze errors, refine selectors if needed
-   
+   b) **Download HTML for all 3 test products**:
+      - Navigate to each test URL (handle popups as needed)
+      - Use `auto_download: true` OR save HTML files for offline testing
+      - **If using saved HTML files**: Store paths as product1_file, product2_file, product3_file
+
+   c) **Test all 3 products in a single call using test_files**:
+      ```javascript
+      parser_tester({
+        scraper_dir: "<absolute_path>/generated_scraper/<scraper>",
+        parser_path: "parsers/details.rb",
+        quiet: true,
+        test_files: [
+          { content_file: "<absolute_path>/cache/product1.html", label: "product 1 (with discount)" },
+          { content_file: "<absolute_path>/cache/product2.html", label: "product 2 (no discount)" },
+          { content_file: "<absolute_path>/cache/product3.html", label: "product 3 (random)" }
+        ]
+      })
+      ```
+      The result includes per-file status and a cross-file summary showing which fields are consistently nil.
+      - **Alternative** (if HTML files not pre-saved): Navigate to each URL and use `auto_download: true` with individual calls
+      - **Validate Product 1**: base_price_lc present and different from customer_price_lc
+      - **Validate Product 2**: base_price_lc absent, nil, or equals customer_price_lc
+      - **Validate Product 3**: All Priority 1 fields extracted correctly
+      - **TRACK URLs**: Record all tested URLs in detail-selectors.json under `urls_accessed.test_urls`
+      - If any test fails: Analyze errors, refine selectors, re-run with `quiet: false` for debugging
+
+   d) **After successful multi-file test, run scraper_output_validator**:
+      ```javascript
+      scraper_output_validator({
+        scraper_dir: "<absolute_path>/generated_scraper/<scraper>",
+        outputs_json: "<paste outputs array from parser_tester result>"
+      })
+      ```
+      This verifies all 53 required fields are present in the output. Fix any missing fields before proceeding.
+
    e) **Multi-product validation summary**:
       - Count successful tests: X/3 products tested successfully
       - Verify selectors work across different product types:

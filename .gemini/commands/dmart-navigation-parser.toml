@@ -498,12 +498,48 @@ Process:
    - Discover product link selectors:
      * Use `browser_grep_html(query: "<visible_product_name>")` to find the product card HTML structure and identify the link selector
      * Then confirm with `browser_inspect_element(ref)` on a product link ref from browser_snapshot()
+     * **BATCH INSPECTION**: When inspecting multiple navigation elements (category links, product links, pagination), use batch mode to inspect them all at once:
+       ```
+       browser_inspect_element({
+         element: "first product link", ref: "e42",
+         batch: [
+           { element: "second product link", ref: "e67" },
+           { element: "next page button", ref: "e91" }
+         ]
+       })
+       ```
    - Analyze pagination pattern (critical - check in priority order):
+
+     **PAGINATION DETECTION SHORTCUT — run FIRST before manual strategy probing**:
+     ```
+     browser_detect_pagination({ current_url: "<current listing page URL>" })
+     ```
+     This tool checks 12+ count-element patterns, 8+ next-button patterns, and URL structure automatically.
+     - If strategy: "count_based" → use `count_selector` and `url_pattern` from the result (skip to recording in step e)
+     - If strategy: "next_button" → use `next_button_selector` from the result (skip to Strategy 2)
+     - If strategy: "url_pattern" → use `url_pattern` from the result
+     - If strategy: "unknown" → fall back to manual Strategy 1–5 probing below
+
+     Only proceed to the manual strategies below if `browser_detect_pagination` returns strategy: "unknown".
+
      * **Strategy 1: Count-Based Calculation** (TOP PRIORITY - check FIRST):
        **CRITICAL**: This is the preferred strategy - try this first before other strategies
-       
+
        a) **Discover product count selector**:
-          - Use `browser_evaluate()` to find count elements:
+          - Use `browser_grep_html(query: "results")` or `browser_grep_html(query: "products")` to find the count element in HTML; then `browser_inspect_element()` if you need the exact selector
+          - Common patterns: "Showing 1-24 of 150 results", "150 products", "Total: 150"
+          - **To verify a count selector, use `browser_count_selector` instead of `browser_evaluate`**:
+            ```
+            browser_count_selector({ selector: ".results-count", expected_min: 1 })
+            ```
+            This is simpler than `browser_evaluate(() => document.querySelectorAll('.results-count').length)`.
+          - For multi-page validation (A6), test the selector on a second page:
+            ```
+            browser_navigate("<second category URL>")
+            browser_count_selector({ selector: "<product item selector>", expected_min: 1 })
+            ```
+            If count >= 1 on both pages, mark selector as verified with high confidence.
+          - Fallback: Use `browser_evaluate()` to scan for count elements if `browser_grep_html` doesn't locate them:
             ```javascript
             browser_evaluate(() => {
               const countElements = document.querySelectorAll('[class*="count"], [class*="total"], [class*="results"], [class*="product-count"], [id*="count"], [id*="total"], p.result-count, .result-count');
@@ -515,8 +551,6 @@ Process:
               }));
             })
             ```
-          - Use `browser_grep_html(query: "results")` or `browser_grep_html(query: "products")` to find the count element in HTML; then `browser_inspect_element()` if you need the exact selector
-          - Common patterns: "Showing 1-24 of 150 results", "150 products", "Total: 150"
           - Record discovered selector in navigation-selectors.json
        
        b) **Extract count using regex patterns**:
@@ -531,13 +565,11 @@ Process:
        
        c) **Calculate products per page**:
           - Count products on current page using discovered product link selector
-          - Use `browser_evaluate()` to count product elements:
-            ```javascript
-            browser_evaluate(() => {
-              const products = document.querySelectorAll('PLACEHOLDER_PRODUCT_LINK_SELECTOR');
-              return products.length;
-            })
+          - Use `browser_count_selector` to count product elements (preferred over `browser_evaluate`):
             ```
+            browser_count_selector({ selector: "PLACEHOLDER_PRODUCT_LINK_SELECTOR", expected_min: 1 })
+            ```
+          - Fallback: `browser_evaluate(() => document.querySelectorAll('SELECTOR').length)`
           - Record products_per_page in navigation-selectors.json
        
        d) **Discover pagination pattern** (test how next pages are generated):

@@ -195,8 +195,21 @@ Process:
         }
         ```
 
-   d) **🚨 Download sample API responses using browser_network_download**:
-      For each discovered API endpoint, download the response body:
+   d) **🚨 Download sample API responses**:
+      For each discovered API endpoint, download the response body.
+
+      **NETWORK REPLAY SHORTCUT** — Instead of `browser_network_search` + `browser_network_download` (2 calls), use `browser_network_replay` to find and re-download in one call:
+        ```
+        browser_network_replay({
+          url_pattern: "api.example.com/categories",
+          output_path: "D:\\path\\to\\generated_scraper\\<scraper>\\cache\\categories-api.json",
+          use_captured_headers: true
+        })
+        ```
+      This replays the request using the same headers (auth tokens, cookies) captured from the browser session.
+      Use this for each API endpoint you need to save (categories, listings, product details, etc.).
+
+      Fallback (if `browser_network_replay` is not available):
         ```
         browser_network_download({
           urlPattern: "api.example.com/categories",
