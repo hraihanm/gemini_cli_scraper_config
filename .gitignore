@@ -8,5 +8,5 @@ conversations/*
 .gemini/.env
 .windsurf/*
 z_other/*
-.gemini/.env
 slides/*
+node_modules/
