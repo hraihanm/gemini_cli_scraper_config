@@ -256,7 +256,58 @@ Process:
 9) Discover selectors for each field (browser-first workflow):
    **CRITICAL**: Systematically discover ALL FIND fields from field-spec.json in priority order
    **CRITICAL**: Do NOT skip fields - iterate through ALL FIND fields regardless of whether they're "common" or not
-   
+
+   **🚨 PRE-CHECK: JSON-LD + Meta Tags (do this BEFORE per-field CSS selector discovery)**
+
+   a0) **JSON-LD structured data check (Priority 1 — most reliable)**:
+       Many modern e-commerce sites embed complete schema.org `Product` data in JSON-LD.
+       Extracting it once covers name, price, brand, description, images, availability, SKU, GTIN in one shot.
+
+       - Run: `browser_grep_html(query: "@type")`
+       - If a `Product` schema is found (look for `"@type": "Product"` or `"@type":"Product"`):
+         * Also search for `"@graph"` format: `browser_grep_html(query: "@graph")`
+         * Document the full JSON-LD structure in detail-knowledge.md
+         * For every FIND field that maps to a JSON-LD key, write the Ruby extraction as:
+           ```ruby
+           require 'json'
+           json_ld = html.css('script[type="application/ld+json"]').lazy.map { |s|
+             begin
+               parsed = JSON.parse(s.text)
+               parsed.is_a?(Hash) && parsed['@graph'].is_a?(Array) ?
+                 parsed['@graph'].find { |i| i['@type'] == 'Product' } :
+                 (parsed['@type'] == 'Product' ? parsed : nil)
+             rescue JSON::ParserError; nil end
+           }.find(&:itself)
+
+           # Example field extractions from JSON-LD:
+           name        = json_ld&.dig('name')&.strip
+           description = json_ld&.dig('description')&.strip
+           brand       = json_ld&.dig('brand', 'name') || json_ld&.dig('brand')
+           sku         = json_ld&.dig('sku')
+           barcode     = json_ld&.dig('gtin13') || json_ld&.dig('gtin8') || json_ld&.dig('gtin')
+           img_url     = json_ld&.dig('image').then { |i| i.is_a?(Array) ? i[0] : i }
+           # Availability: schema.org uses URLs like "https://schema.org/InStock"
+           json_ld_avail = json_ld&.dig('offers', 'availability') || json_ld&.dig('offers', 0, 'availability')
+           is_available  = json_ld_avail&.include?('InStock') if json_ld_avail
+           # Price: offers.price (single offer) or offers[0].price (multiple)
+           json_ld_price = json_ld&.dig('offers', 'price') || json_ld&.dig('offers', 0, 'price')
+           customer_price_lc = json_ld_price&.to_f
+           ```
+         * Mark those fields as discovered in field-spec.json (no CSS selector needed)
+         * For fields NOT covered by JSON-LD, proceed to CSS selector discovery below
+
+       - If NO JSON-LD found: proceed directly to CSS selector discovery for all fields
+
+   a0b) **Meta tag fallbacks (Priority 2 — for img_url and name only)**:
+       Even without JSON-LD, Open Graph tags are a reliable fallback for key fields:
+       ```ruby
+       og_image = html.at_css('meta[property="og:image"]')&.[]('content')
+       og_title = html.at_css('meta[property="og:title"]')&.[]('content')&.strip
+       ```
+       - Use `og_image` as fallback when primary CSS selector for img_url is nil
+       - Use `og_title` as fallback when primary CSS selector for name is nil
+       - Write Ruby code as: `img_url = primary_img_css_result || og_image`
+
    a) Load and validate field-spec.json:
       - Read field-spec.json (already loaded in step 1)
       - Verify structure: fields array, discovery_status object

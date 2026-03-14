@@ -147,6 +147,54 @@ Process:
       - Identify pagination parameters (page, offset, limit, cursor)
       - Identify category/product ID patterns in URLs
 
+   c1) **🚨 GraphQL detection** (Shopify, custom React/Next.js storefronts):
+      - Search for GraphQL endpoints:
+        ```
+        browser_network_search({
+          query: "graphql",
+          searchIn: ["url"],
+          maxResults: 5
+        })
+        ```
+      - If POST requests to `/graphql` or `/api/graphql` are found:
+        * Download a sample request body with browser_network_download
+        * Document: operationName, variables structure (especially `first`, `after` for cursor pagination)
+        * Note: GraphQL uses cursor-based pagination (`pageInfo.hasNextPage` + `pageInfo.endCursor`), NOT offset/page-number
+        * Set `graphql_detected: true` in discovery-state.json under `api_endpoints`
+        * Document the full query string (may be Base64-encoded in some implementations)
+      - If no GraphQL found: set `graphql_detected: false` and continue with REST detection
+
+   c2) **🚨 Auth token / Bearer token capture**:
+      - Search for Authorization headers in network requests:
+        ```
+        browser_network_search({
+          query: "Authorization",
+          searchIn: ["requestHeaders"],
+          maxResults: 10,
+          contextChars: 300
+        })
+        ```
+      - Also search for common API key headers:
+        ```
+        browser_network_search({
+          query: "x-api-key",
+          searchIn: ["requestHeaders"],
+          maxResults: 5
+        })
+        ```
+      - If static Bearer token found: hardcode in `lib/headers.rb` as `API_TOKEN` constant
+      - If dynamic Bearer token found (changes per session): document that seeder must capture it via browser fetch and pass via vars
+      - If no auth required: document as `auth_required: false`
+      - Add `auth` section to discovery-state.json:
+        ```json
+        "auth": {
+          "type": "none|cookie|bearer_static|bearer_dynamic|api_key",
+          "header_name": "Authorization",
+          "token_value": "<static token or DYNAMIC>",
+          "capture_strategy": "none|seeder_browser_fetch|hardcoded"
+        }
+        ```
+
    d) **🚨 Download sample API responses using browser_network_download**:
       For each discovered API endpoint, download the response body:
         ```
@@ -185,6 +233,10 @@ Process:
       - Key fields: where product name, price, image, etc. live in the JSON
       - Pagination: total_count / per_page = total_pages, loop `(2..total_pages)`
       - Total count: field path in response metadata
+      - **Pagination type** (critical for Phase 2):
+        * Offset/page-number: `?page=2`, `?offset=24` → queue all pages upfront
+        * Cursor-based: `pageInfo.endCursor` + `pageInfo.hasNextPage` → must chain pages one at a time
+        * Set `pagination_type: "offset"|"cursor"` in discovery-state.json listings endpoint
 
 10) **Navigate through site to trigger more API calls**:
     - Click on a category to trigger category listing API

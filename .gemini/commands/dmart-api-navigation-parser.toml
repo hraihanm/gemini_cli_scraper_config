@@ -268,7 +268,10 @@ Process:
     total_count = data.dig('data', 'total') || data.dig('meta', 'total_count') || 0
     per_page = products.length
 
-    # Queue ALL remaining pages upfront (on page 1 only)
+    # -----------------------------------------------------------------------
+    # Pagination Strategy A: Offset / Page-Number (queue ALL pages upfront)
+    # Use when: discovery-state.json pagination_type == "offset"
+    # -----------------------------------------------------------------------
     if current_page == 1 && per_page > 0
       total_pages = (total_count.to_f / per_page).ceil
       (2..total_pages).each do |pg|
@@ -284,11 +287,51 @@ Process:
             category_name: category_name,
             category_id: category_id,
             breadcrumb: breadcrumb,
-            page: pg
+            page: pg,
+            seen_ids: seen_ids  # carry deduplication state across pages
           }
         }
       end
     end
+
+    # -----------------------------------------------------------------------
+    # Pagination Strategy B: Cursor-Based (chain pages one at a time)
+    # Use when: discovery-state.json pagination_type == "cursor" (GraphQL / modern REST)
+    # Pattern: pageInfo.hasNextPage + pageInfo.endCursor
+    # Cannot queue all pages upfront — must follow cursor chain
+    # -----------------------------------------------------------------------
+    # next_cursor = data.dig('pageInfo', 'endCursor') ||
+    #               data.dig('data', 'pageInfo', 'endCursor') ||
+    #               data.dig('meta', 'nextCursor')
+    # has_next = data.dig('pageInfo', 'hasNextPage') == true || !next_cursor.nil?
+    #
+    # if has_next && next_cursor
+    #   # For GraphQL: POST with updated variables
+    #   pages << {
+    #     url: URLs::API_BASE_URL + '/graphql',
+    #     page_type: 'listings',
+    #     method: 'POST',
+    #     fetch_type: 'standard',
+    #     headers: { 'Content-Type' => 'application/json', 'Cookie' => cookie },
+    #     body: { operationName: 'PLACEHOLDER_OPERATION',
+    #             variables: { after: next_cursor, first: per_page, categoryId: category_id },
+    #             query: 'PLACEHOLDER_GRAPHQL_QUERY' }.to_json,
+    #     vars: vars.merge('cursor' => next_cursor, 'page' => current_page + 1)
+    #   }
+    #   # For REST cursor: GET with cursor param
+    #   # pages << {
+    #   #   url: "#{URLs::API_BASE_URL}/categories/#{category_id}/products?after=#{next_cursor}",
+    #   #   page_type: 'listings', fetch_type: 'standard',
+    #   #   headers: { 'Cookie' => cookie },
+    #   #   vars: vars.merge('cursor' => next_cursor, 'page' => current_page + 1)
+    #   # }
+    # end
+
+    # Deduplication guard — some APIs return overlapping products across pages
+    # (common with cursor pagination and some offset-based APIs)
+    seen_ids = (page['vars']['seen_ids'] || [])
+    products = products.reject { |p| seen_ids.include?((p['id'] || p['sku']).to_s) }
+    seen_ids += products.map { |p| (p['id'] || p['sku']).to_s }
 
     # Generate detail pages for each product
     products.each_with_index do |product, index|
