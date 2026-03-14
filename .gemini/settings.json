@@ -2,7 +2,17 @@
   "mcpServers": {
     "playwright-mod": {
       "command": "npx",
-      "args": ["D:\\DataHen\\projects\\playwright-mcp-mod", "--caps", "vision"]
+      "args": [
+        "D:\\DataHen\\projects\\playwright-mcp-mod",
+        "--caps",
+        "vision"
+      ]
+    }
+  },
+  "context": {
+    "fileFiltering": {
+      "respectGitIgnore": false,
+      "respectGeminiIgnore": false
     }
   }
 }
