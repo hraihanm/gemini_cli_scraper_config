@@ -3,7 +3,7 @@
 # ============================================================================
 # Details Parser - DataHen v3 Boilerplate
 # ============================================================================
-# 
+#
 # PURPOSE: Extract product data from detail pages and output to products collection.
 #          This is the final stage of the scraping pipeline.
 #
@@ -69,7 +69,7 @@ sku = text_of(sku_element)
 # Discovery: Use browser_evaluate() for data attributes
 # Note: Prefer data-product-id attribute, fallback to SKU, then generate hash
 competitor_product_id_element = html.at_css('PLACEHOLDER')
-competitor_product_id = competitor_product_id_element&.[]('data-product-id') || 
+competitor_product_id = competitor_product_id_element&.[]('data-product-id') ||
                          competitor_product_id_element&.text&.strip ||
                          sku ||
                          Digest::MD5.hexdigest("#{name}#{page['url']}")
@@ -184,7 +184,7 @@ end
 # PLACEHOLDER: Replace with discovered primary image selector
 # Example: html.at_css('.product-image img')&.[]('src') or html.at_css('#main-image')&.[]('data-src')
 # Discovery: Use browser_evaluate() for image src attributes (NOT browser_verify_selector)
-img_url = html.at_css('PLACEHOLDER')&.[]('src') || 
+img_url = html.at_css('PLACEHOLDER')&.[]('src') ||
           html.at_css('PLACEHOLDER')&.[]('data-src')
 
 # PLACEHOLDER: Replace with discovered secondary image selector (if exists)
@@ -215,9 +215,13 @@ is_promoted = has_discount
 
 # Private label detection (SITE-SPECIFIC: Update brand patterns)
 # PLACEHOLDER: Update regex pattern to match your site's private label brands
+# Example: for Fairprice site, there are private label brands like "Fairprice" and "Fairprice Select"
 is_private_label = true
 if brand
-  is_private_label = !brand.match(/\APLACEHOLDER_BRAND_PATTERN\z/i)
+  is_private_label = !brand.match(/PLACEHOLDER_PRIVATE_LABEL_PATTERN/i)
+end
+if is_private_label
+  is_private_label = false if name.include?(/PLACEHOLDER_PRIVATE_LABEL_PATTERN/i)
 end
 is_private_label = true if brand.nil? || brand.empty?
 
@@ -315,7 +319,7 @@ output = {
   # Collection and ID (REQUIRED)
   _collection: "products",
   _id: competitor_product_id,
-  
+
   # Site Information (UPDATE THESE VALUES)
   competitor_name: "PLACEHOLDER_COMPETITOR_NAME", # Update with site name
   competitor_type: "local_store", # "dmart" for DMART or "local_store" for DLOC
@@ -325,23 +329,23 @@ output = {
   language: "PLACEHOLDER_LANGUAGE_CODE", # Three letter code (e.g., "SPA", "ENG")
   currency_code_lc: "PLACEHOLDER_CURRENCY_CODE", # Three letter code (e.g., "PYG", "USD")
   scraped_at_timestamp: Time.parse(page['fetched_at']).strftime('%Y-%m-%d %H:%M:%S'),
-  
+
   # Product Identification
   competitor_product_id: competitor_product_id,
   name: name,
   brand: brand,
-  
+
   # Category Information
   category_id: category_id,
   category: category,
   sub_category: sub_category,
-  
+
   # Pricing Information
   customer_price_lc: customer_price_lc.to_s, # Convert to string for CSV export
   base_price_lc: base_price_lc.to_s, # Convert to string for CSV export
   has_discount: has_discount,
   discount_percentage: discount_percentage,
-  
+
   # Product Details
   rank_in_listing: rank_in_listing,
   product_pieces: product_pieces,
@@ -353,7 +357,7 @@ output = {
   sku: sku,
   url: page['url'],
   is_available: is_available,
-  
+
   # Metadata
   crawled_source: "WEB",
   is_promoted: is_promoted,
