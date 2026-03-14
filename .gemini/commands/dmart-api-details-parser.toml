@@ -61,11 +61,10 @@ outputs << {
 🚨 CRITICAL - ABSOLUTE PATHS REQUIRED for all WriteFile operations
 
 🚨 **EXPENSIVE TOOL JUSTIFICATION** (required before each expensive call):
-Before calling `browser_view_html`, `browser_network_download`, `browser_request`, `parser_tester`, or `datahen_run`, write one line:
+Before calling `browser_view_html`, `browser_network_download`, `browser_request`, or `datahen_run`, write one line:
   💭 [tool]: [what I expect to find/confirm] → [why not a cheaper alternative]
 Examples:
   💭 browser_request: fetching product_id=12345 JSON to examine field structure — not in network capture yet
-  💭 parser_tester: testing details.rb with product1.json — verifying all 53 fields extracted correctly
   💭 browser_network_download: saving detail product JSON — URL confirmed via browser_network_search
 Always try cheap alternatives first: `browser_grep_html` before `browser_view_html`, `browser_network_search` before `browser_network_download`/`browser_request`
 
@@ -608,11 +607,17 @@ Check the scraper name or config.yaml — "dloc" in the name/project means DLOC.
      "tool_call_counts": {
        "browser_view_html": 0,
        "browser_network_download": 0,
+       "browser_network_replay": 0,
        "browser_request": 0,
-       "parser_tester": 0,
        "datahen_run": 0,
+       "parser_tester": 0,
        "browser_grep_html": 0,
-       "browser_network_search": 0
+       "browser_network_search": 0,
+       "browser_extract_json_ld": 0,
+       "browser_count_selector": 0,
+       "browser_extract_images": 0,
+       "browser_detect_pagination": 0,
+       "scraper_output_validator": 0
      },
      "expensive_tool_log": [
        {

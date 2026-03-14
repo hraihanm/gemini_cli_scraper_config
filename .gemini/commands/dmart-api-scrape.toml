@@ -61,7 +61,7 @@ For API agents, **MUST use `fetch_type: "standard"`** (direct HTTP fetch). Do NO
 - **ALL WriteFile operations MUST use ABSOLUTE PATHS** - Relative paths will fail
 
 🚨 **EXPENSIVE TOOL JUSTIFICATION** (required before each expensive call):
-Before calling `browser_view_html`, `browser_network_download`, `browser_request`, `parser_tester`, or `datahen_run`, write one line:
+Before calling `browser_view_html`, `browser_network_download`, `browser_request`, or `datahen_run`, write one line:
   💭 [tool]: [what I expect to find/confirm] → [why not a cheaper alternative]
 Examples:
   💭 browser_view_html: need full DOM for category list — browser_grep_html returned no results
@@ -428,11 +428,17 @@ Process:
      "tool_call_counts": {
        "browser_view_html": 0,
        "browser_network_download": 0,
+       "browser_network_replay": 0,
        "browser_request": 0,
-       "parser_tester": 0,
        "datahen_run": 0,
+       "parser_tester": 0,
        "browser_grep_html": 0,
-       "browser_network_search": 0
+       "browser_network_search": 0,
+       "browser_extract_json_ld": 0,
+       "browser_count_selector": 0,
+       "browser_extract_images": 0,
+       "browser_detect_pagination": 0,
+       "scraper_output_validator": 0
      },
      "expensive_tool_log": [
        {
