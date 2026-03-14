@@ -772,6 +772,54 @@ puts outputs.to_json
 - Always provide human-readable element descriptions for tool permissions
 - Combine browser analysis with DataHen CLI testing for optimal results
 
+#### Available Browser Tools (Complete List)
+
+**Discovery Tools:**
+- `browser_snapshot()` — Capture page structure and element refs
+- `browser_inspect_element(element, ref)` — Get real CSS selector from a Playwright ref. Supports `batch` array for multiple elements in one call.
+- `browser_verify_selector(element, selector, expected)` — Verify CSS selector matches expected text. Supports `attribute` param for non-text verification (e.g., img src, href, data-*). Supports `batch` array for multiple verifications in one call.
+- `browser_grep_html(query, isRegex?, contextChars?, maxMatches?)` — Search page HTML for text/patterns with context snippets. Best for selector discovery.
+- `browser_view_html()` — Dump full page HTML (high token cost, last resort only)
+- `browser_evaluate(function)` — Run JavaScript in browser context
+- `browser_count_selector(selector, expected_min?, expected_max?)` — Count DOM matches for a CSS selector. Use instead of `browser_evaluate` for count checks.
+- `browser_extract_json_ld(type?)` — Extract and parse all `<script type="application/ld+json">` blocks. Returns parsed data, available fields list, and script tag selector. Use this BEFORE CSS selector discovery for detail pages.
+- `browser_extract_images(container_selector, limit?)` — Extract all image URLs from a gallery container, handling src/data-src/srcset/data-lazy/data-original/background-image patterns automatically. Use instead of multiple `browser_evaluate` calls for image fields.
+- `browser_detect_pagination(current_url)` — Auto-detect pagination strategy (count-based, next-button, URL-pattern). Use at the start of navigation parser work instead of manually probing strategies.
+
+**Network Tools:**
+- `browser_network_requests_simplified()` — Filtered network request list (excludes analytics/images)
+- `browser_network_search(query, searchIn?)` — Search network request URLs, bodies, or headers
+- `browser_network_download(urlPattern, outputPath)` — Save a captured network response to file
+- `browser_network_replay(url_pattern, output_path, method?, use_captured_headers?, is_regex?)` — Find a request in network log and replay it, saving the response. Use instead of `browser_network_search` + `browser_network_download` pairs for API workflows.
+
+**Testing Tools:**
+- `parser_tester(scraper_dir, parser_path, ...)` — Test DataHen parsers. Supports `test_files` array for multi-file testing in one call. Set `quiet: true` for confirmatory runs, `quiet: false` for debugging.
+- `scraper_output_validator(scraper_dir, outputs_json)` — Validate parser output against config.yaml field list. Use after parser_tester to check all fields are present.
+
+#### Z1 — `browser_verify_selector` attribute verification
+
+`browser_verify_selector` supports an `attribute` parameter for verifying non-text fields:
+```json
+{ "element": "product image", "selector": "img.product-image", "expected": "https://", "attribute": "src" }
+```
+**Use this instead of `browser_evaluate` for img src, href, and data-* attribute verification.** The old rule "use `browser_evaluate` for images, URLs, data attributes" is replaced by this.
+
+#### Z2 — Batch mode for inspector tools
+
+Both `browser_inspect_element` and `browser_verify_selector` support a `batch` array to inspect or verify multiple elements in one call:
+```json
+{
+  "element": "product name",
+  "ref": "e42",
+  "batch": [
+    { "element": "price", "ref": "e67" },
+    { "element": "brand", "ref": "e91" },
+    { "element": "sku", "ref": "e103" }
+  ]
+}
+```
+**Use batch mode whenever inspecting more than one element in the same page area.** This reduces tool calls from N to 1.
+
 #### Network Request Analysis with browser_network_requests_simplified
 
 **CRITICAL**: Use `browser_network_requests_simplified()` instead of `browser_network_requests()` for pagination and API discovery:
