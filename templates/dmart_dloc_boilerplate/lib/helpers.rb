@@ -1,7 +1,7 @@
 # ============================================================================
 # Helper Functions - DataHen v3 Boilerplate
 # ============================================================================
-# 
+#
 # PURPOSE: Common utility functions used across parser files for data extraction.
 #
 # USAGE:
