@@ -86,6 +86,25 @@ Prioritized steps with effort + risk estimates.
 HTML pipeline: `/dmart-scrape` → `/dmart-navigation-parser` → `/dmart-details-parser`
 API pipeline: `/dmart-api-scrape` → `/dmart-api-navigation-parser` → `/dmart-api-details-parser`
 
+### Playwright MCP Mod
+
+Gemini CLI uses **Playwright MCP Mod** as its browser automation tool — a custom fork of Microsoft's Playwright MCP with additional tools for scraping workflows.
+
+- **Location:** `D:\DataHen\projects\playwright-mcp-mod`
+- **Setup reference:** `README - Playwrgiht MCP Mod.md` (in this repo)
+- **Build command:** `cd /d/DataHen/projects/playwright-mcp-mod && npm run build`
+
+Custom tools added on top of standard Playwright MCP:
+- `browser_grep_html` — grep page HTML with context snippets (preferred for selector discovery)
+- `browser_view_html` — full sanitized page HTML (last resort — high token cost)
+- `browser_inspect_element` — get exact CSS selector from a snapshot ref
+- `browser_verify_selector` — confirm selector matches expected text
+- `browser_network_search` — grep network request URLs, headers, and response bodies
+- `browser_network_download` — save a network response body to a file
+- `browser_network_requests_simplified` — filtered network request list
+- `browser_request` — make arbitrary HTTP requests from the browser context (inherits cookies)
+- `parser_tester` — test DataHen parsers against HTML/JSON/XML content
+
 ### Browser Tool Protocols (HTML scraping)
 
 - Selector discovery order: `browser_grep_html()` → `browser_inspect_element()` → `browser_verify_selector()` or `browser_evaluate()`
