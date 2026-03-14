@@ -373,6 +373,14 @@ Check the scraper name or config.yaml — "dloc" in the name/project means DLOC.
     currency_code_lc = product.dig('currency') || 'PLACEHOLDER_CURRENCY'  # e.g., 'SEK'
 
     # === Fields not available via API — initialize to nil ===
+    # 🚨 LAST RESORT: If critical fields (description, brand, images) are consistently nil
+    # across all 3 test products, fall back to fetching the HTML product page and extracting
+    # from JSON-LD structured data:
+    #   html_page_url = product.dig('url') || product.dig('slug')
+    #   # Queue HTML page fetch — parse JSON-LD in a separate html_details page type
+    #   # OR use browser_request to fetch the HTML page and parse it inline for testing
+    # Only do this if the API truly does not provide the field — JSON-LD fallback adds
+    # significant complexity (second fetch per product) so exhaust API fields first.
     is_private_label = nil   # DETERMINE: set if brand logic is known
     type_of_promotion = nil  # FIND: nil unless promotions API field exists
     promo_attributes = nil   # FIND: nil unless promotions API field exists

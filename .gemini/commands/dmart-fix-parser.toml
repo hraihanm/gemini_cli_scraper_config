@@ -1,0 +1,480 @@
+description = "Maintenance: Diagnose and fix scraper parser failures or QA-reported field issues. Accepts structured args or free-form QA feedback. Exports auth token, inspects failed pages via browser_grep_html, fixes parsers locally, deploys."
+
+prompt = """
+You are performing Scraper Maintenance for a DataHen scraper. This command handles two scenarios: (1) fixing pages stuck in parsing_failed or fetching_failed status, and (2) investigating QA-reported output quality issues. This command is COMPLETELY INDEPENDENT - reads no conversation history, extracts all context from {{args}}.
+
+🚨🚨🚨 **CRITICAL: YOU ARE IN GEMINI CLI - USE TOOLS DIRECTLY, NEVER GENERATE CODE** 🚨🚨🚨
+- **STOP**: If you are about to write `import os`, `import json`, `print()`, `def `, or any Python/JavaScript code, STOP IMMEDIATELY
+- **YOU ARE AN AI ASSISTANT IN GEMINI CLI** - You have direct access to MCP tools via tool calling
+- **USE TOOLS DIRECTLY** - Call tools like `read_file`, `browser_navigate`, `parser_tester`, `write_file`, `run_terminal_cmd` using the tool interface
+- **FORBIDDEN**: Never write Python scripts, JavaScript code, or any programming code
+- **CODE EXAMPLES IN THIS PROMPT ARE FOR REFERENCE ONLY** - They show tool call patterns, NOT code to write
+- **YOU ARE THE EXECUTOR** - Execute actions directly using tools, don't write code that executes actions
+
+Inputs — {{args}} can be structured key=value args, free-form text (QA report, error logs), or a mix of both:
+
+  Structured key=value args:
+  - scraper=<scraper_name>        (REQUIRED - DataHen scraper name, e.g., naivas_online)
+  - project=<dht_alias>           (OPTIONAL - dht project alias for token export, e.g., dhero)
+  - mode=parse_fail|fetch_fail|qa (OPTIONAL, default: parse_fail)
+  - parser=categories|subcategories|listings|details (OPTIONAL - focus on one parser)
+  - gid=<gid>                     (OPTIONAL - jump directly to a known failing GID)
+  - field=<field_name>            (OPTIONAL - qa mode: which field is wrong, e.g., price)
+  - product=<id_or_url>           (OPTIONAL - qa mode: the affected product)
+  - limit=<N>                     (OPTIONAL, default: 5 - max failing pages to examine)
+
+  Free-form text (QA reports, error paste, descriptions):
+  - You may receive paragraphs of feedback. Extract scraper name, field names, product IDs/URLs, error descriptions, GIDs from the text.
+  - Example: "naivas is showing KSh 0 for all laptop prices" → scraper=naivas_online, field=price, mode=qa
+
+Process:
+
+🚨 **BEFORE YOU START**: Remember - USE TOOLS DIRECTLY, DO NOT WRITE CODE.
+
+=== STEP 0: Parse Input & Confirm Understanding ===
+
+1) Parse {{args}} — try structured extraction first, then scan free-form text:
+
+   a) Structured extraction (look for key=value patterns):
+      - scraper=..., project=..., mode=..., parser=..., gid=..., field=..., product=..., limit=...
+
+   b) Free-form extraction (scan remaining text for):
+      - Scraper/site name: "naivas", "naivas.online", "jumia", "dmart" → map to scraper slug
+      - Field names: "price", "product name", "images", "barcode", "brand", "SKU"
+      - Error clues: "getting nil", "wrong price", "missing images", "parse error", "0 value"
+      - Product identifiers: URLs, IDs, product names with issues
+      - GIDs: alphanumeric hashes like "naivas.online-abc123def456"
+      - Page types implied: "listings", "details", "categories"
+
+   c) Apply defaults for anything not found:
+      - mode: parse_fail
+      - limit: 5
+
+2) If `scraper` cannot be determined from either structured args or free-form text:
+   Ask ALL missing info at once in a SINGLE message (do NOT ask one-by-one):
+   ```
+   I need a few details to proceed:
+   1. **Scraper name**: Which DataHen scraper are we fixing? (e.g., naivas_online)
+   2. **dht project alias**: For `dht <alias>` token export (e.g., dhero) — skip if DATAHEN_TOKEN is already exported
+   3. **Mode**: parse_fail (pages stuck in parsing_failed), fetch_fail (fetching_failed), or qa (field quality issue reported by QA)?
+   4. **Additional context**: Which parser, field, or product is affected? (paste any QA feedback here)
+   ```
+   Wait for the user's response before proceeding.
+
+3) Display confirmed understanding before starting work:
+   ```
+   📋 Maintenance task:
+   - Scraper:      <scraper>
+   - Auth:         dht <project>  (or: using existing DATAHEN_TOKEN)
+   - Mode:         <mode>
+   - Focus parser: <parser or "all parsers">
+   - Focus field:  <field or "not specified">
+   - Page limit:   <limit>
+   - Context:      <one-line summary of free-form input if any>
+   Proceeding...
+   ```
+
+=== STEP 1: Auth & Setup ===
+
+4) Export DataHen access token (if project provided):
+   Run `dht <project>` to output token. Capture the token value and use it inline for all subsequent `hen` commands:
+   ```bash
+   dht <project>
+   ```
+   - The output likely contains `export DATAHEN_TOKEN=<value>` or just the token value
+   - For all subsequent `hen` commands, set the token inline: `DATAHEN_TOKEN=<token> hen scraper show <scraper>`
+   - **If project not provided**: Assume DATAHEN_TOKEN is already in environment, proceed without prefix
+
+5) Verify connection:
+   ```bash
+   DATAHEN_TOKEN=<token> hen scraper show <scraper>
+   ```
+   - If error "scraper not found" or "unauthorized": report to user and stop
+   - If success: continue
+
+6) Read local scraper files to understand current state:
+   - Read `generated_scraper/<scraper>/config.yaml`
+   - Read `generated_scraper/<scraper>/parsers/categories.rb`
+   - Read `generated_scraper/<scraper>/parsers/subcategories.rb` (if exists)
+   - Read `generated_scraper/<scraper>/parsers/listings.rb`
+   - Read `generated_scraper/<scraper>/parsers/details.rb`
+   - Read `generated_scraper/<scraper>/lib/helpers.rb`
+   - Note which parsers exist and what selectors they currently use
+
+6b) Create maintenance snapshot of current parsers BEFORE making any changes:
+    **PURPOSE**: Preserves the pre-fix state so you can diff what changed and roll back if needed.
+
+    a) Create the scraper_maintenance directory structure:
+       ```bash
+       mkdir -p scraper_maintenance/<scraper>/parsers
+       mkdir -p scraper_maintenance/<scraper>/lib
+       ```
+
+    b) Copy all parser and lib files into the snapshot:
+       ```bash
+       cp generated_scraper/<scraper>/parsers/categories.rb   scraper_maintenance/<scraper>/parsers/
+       cp generated_scraper/<scraper>/parsers/listings.rb     scraper_maintenance/<scraper>/parsers/
+       cp generated_scraper/<scraper>/parsers/details.rb      scraper_maintenance/<scraper>/parsers/
+       cp generated_scraper/<scraper>/lib/helpers.rb          scraper_maintenance/<scraper>/lib/
+       cp generated_scraper/<scraper>/lib/regex.rb            scraper_maintenance/<scraper>/lib/
+       ```
+       Also copy subcategories.rb if it exists:
+       ```bash
+       cp generated_scraper/<scraper>/parsers/subcategories.rb scraper_maintenance/<scraper>/parsers/ 2>/dev/null || true
+       ```
+
+    c) Write a maintenance session context file:
+       Write `scraper_maintenance/<scraper>/session.md` (USE ABSOLUTE PATH) with:
+       ```markdown
+       # Maintenance Session — <scraper>
+
+       **Date**: <timestamp>
+       **Mode**: <mode>
+       **Triggered by**: <summary of input — error type or QA feedback one-liner>
+
+       ## Pre-fix parser state
+       Snapshot saved at: scraper_maintenance/<scraper>/parsers/
+
+       ## Changes made
+       (fill in after fixing)
+
+       ## Result
+       (fill in after testing)
+       ```
+
+    d) Confirm snapshot created:
+       - List files in `scraper_maintenance/<scraper>/parsers/` to verify copy succeeded
+       - If copy failed: report error and stop (do not proceed without a backup)
+
+=== STEP 2: Diagnose (parse_fail / fetch_fail mode) ===
+**Skip to STEP 2b if mode=qa**
+
+7) Check job stats:
+   ```bash
+   DATAHEN_TOKEN=<token> hen scraper stats <scraper>
+   ```
+   - Note: parsing_failed count, fetching_failed count, parsed, total pages
+   - Identify severity and which status to focus on based on `mode`
+
+8) Check job log for Ruby errors:
+   ```bash
+   DATAHEN_TOKEN=<token> hen scraper log <scraper>
+   ```
+   - Look for: NoMethodError, NoSuchSelector, undefined method on nil, regex errors, etc.
+   - Extract GIDs mentioned in errors (if any)
+   - Identify which parser file and line number is throwing the error
+   - Note: the log often shows the parser file path (e.g., `parsers/details.rb:42`)
+
+9) Summarize diagnosis before proceeding:
+   - Which parser is failing? (categories / listings / details)
+   - What type of error? (nil reference / selector changed / regex failure / encoding issue)
+   - How many pages are affected?
+   - Any GIDs visible in the log?
+
+=== STEP 2b: Diagnose (qa mode) ===
+**Only for mode=qa — skip to STEP 3 if mode=parse_fail or fetch_fail**
+
+7b) Discover available output collections:
+    ```bash
+    DATAHEN_TOKEN=<token> hen scraper output collection <scraper>
+    ```
+    - Lists all collections and their record counts (e.g., "products: 12,340")
+    - Use this to confirm the collection name before querying
+
+7c) Query outputs to find the affected record(s):
+
+    **IMPORTANT: correct CLI syntax**
+    ```bash
+    hen scraper output list <scraper_name> --collection <collection_name> --query '<json_query>'
+    ```
+    - `--collection` is required (no default)
+    - `--query` is optional but recommended to narrow results
+    - **There is NO `--limit` flag** — use a specific query to reduce result size
+    - With a query, DataHen returns max 3 pages of results (MongoDB-style)
+
+    **Query by product ID** (most precise):
+    ```bash
+    DATAHEN_TOKEN=<token> hen scraper output list <scraper> --collection products --query '{"_id":"<product_id>"}'
+    ```
+
+    **Query by name (partial match using $regex)**:
+    ```bash
+    DATAHEN_TOKEN=<token> hen scraper output list <scraper> --collection products --query '{"name":{"$regex":"<product_name_keyword>"}}'
+    ```
+
+    **Query by URL**:
+    ```bash
+    DATAHEN_TOKEN=<token> hen scraper output list <scraper> --collection products --query '{"url":{"$regex":"<url_slug>"}}'
+    ```
+
+    **Query by field value (find products where price is 0)**:
+    ```bash
+    DATAHEN_TOKEN=<token> hen scraper output list <scraper> --collection products --query '{"<field_name>":{"$eq":0}}'
+    ```
+
+    **Query by multiple conditions** (price is 0 AND in a category):
+    ```bash
+    DATAHEN_TOKEN=<token> hen scraper output list <scraper> --collection products --query '{"<field>":{"$eq":0},"category_name":{"$regex":"<category>"}}'
+    ```
+
+    **Supported MongoDB-style operators**: `$eq`, `$ne`, `$gt`, `$lt`, `$regex`, `$orderby`
+
+    Extract from results:
+    - `_gid`: the page GID that generated this output (use this for page inspection in STEP 4)
+    - `_job_id`: the job that produced it
+    - Current (wrong) field values — note what value is wrong and what it should be
+
+8b) Understand the QA issue from extracted context:
+    - Which field is wrong? (from `field` param or QA text)
+    - What is the current (wrong) value in the output record?
+    - What should it be? (if stated in QA feedback)
+    - Which parser handles this field? (check config.yaml page_type routing + local parser code)
+
+=== STEP 3: Collect GIDs to Investigate ===
+
+9) Collect up to `limit` GIDs:
+
+   **If `gid` parameter provided**: Use that GID directly, skip to STEP 4.
+
+   **If mode=parse_fail**:
+   ```bash
+   DATAHEN_TOKEN=<token> hen scraper page list <scraper>
+   ```
+   - Filter results for pages with parsing_failed status
+   - If `parser` specified: also filter by the matching page_type
+   - Take up to `limit` GIDs
+
+   **If mode=fetch_fail**:
+   ```bash
+   DATAHEN_TOKEN=<token> hen scraper page list <scraper>
+   ```
+   - Filter results for pages with fetching_failed status
+   - Take up to `limit` GIDs
+
+   **If mode=qa**:
+   - Primary GID: from step 7b (_gid of the bad output)
+   - Also collect 2-3 additional GIDs of the same page_type to confirm fix works broadly
+
+=== STEP 4: Per-Page Inspection Loop ===
+**Repeat for each GID from STEP 3**
+
+10) Get the page-level error log:
+    ```bash
+    DATAHEN_TOKEN=<token> hen scraper page log <scraper> <gid>
+    ```
+    - Extract the exact Ruby error: message, file, line number
+    - Example: "undefined method 'text' for nil:NilClass (parsers/details.rb:42)"
+    - This tells you: selector at line 42 returned nil — element not found or structure changed
+
+11) Get the cached page content URL:
+    ```bash
+    DATAHEN_TOKEN=<token> hen scraper page content <scraper> <gid>
+    ```
+    **For fetching_failed pages, use failedcontent instead:**
+    ```bash
+    DATAHEN_TOKEN=<token> hen scraper page failedcontent <scraper> <gid>
+    ```
+    - This returns a preview URL (e.g., "https://fetch.datahen.com/public/global_pages/preview/...")
+    - The preview URL shows the exact HTML that DataHen cached when the page was fetched
+
+12) Navigate to the preview URL and inspect the HTML:
+    a) Navigate to the preview URL:
+       browser_navigate(<preview_url>)
+
+    b) Search for the broken selector using browser_grep_html:
+
+       **Strategy 1 — search for expected text value** (start here):
+       ```javascript
+       browser_grep_html({ query: "<expected_visible_text_of_the_field>" })
+       ```
+       Example: if price is nil, grep for "KSh" or "99,999" to find the real price container.
+       Example: if name is nil, grep for the product name text to find the element wrapping it.
+
+       **Strategy 2 — search for the old selector class** (verify if it still exists):
+       ```javascript
+       browser_grep_html({ query: "<old_class_name>", isRegex: false })
+       ```
+       Example: if parser uses `.product-price`, grep for "product-price" to check if class was renamed.
+
+       **Strategy 3 — search for JSON-LD / structured data** (often has clean field values):
+       ```javascript
+       browser_grep_html({ query: "application/ld\\+json", isRegex: true })
+       ```
+
+       **Strategy 4 — search for data attributes** (SKU, price, ID often in data-*):
+       ```javascript
+       browser_grep_html({ query: "data-price|data-sku|data-id", isRegex: true })
+       ```
+
+    c) Interpret grep results:
+       - Identify the correct current CSS selector for the field
+       - What changed: class renamed? element restructured? value moved to data attribute?
+       - Note the new selector to use in the fix
+
+13) Cross-reference with local parser code (loaded in step 6):
+    - Find the line in the parser that handles this field
+    - Confirm the mismatch: parser uses old selector, page now uses different selector
+    - Note the fix needed
+
+=== STEP 5: Fix Parser ===
+
+14) Edit the failing parser file(s) (USE ABSOLUTE PATH):
+    - Replace broken selector(s) with the correct selector discovered in STEP 4
+    - If field structure changed (e.g., text → data attribute): update extraction logic
+    - Nil guard pattern: `html.at_css('selector')&.text&.strip` (use `&.` safe navigation)
+    - If multiple parsers need fixing: fix all of them
+    - **CRITICAL**: Preserve all other working code
+    - **CRITICAL**: DataHen parsers are top-level scripts — never add def parse() wrappers
+
+15) Common fix patterns:
+    - Selector renamed: `html.at_css('.old-price')` → `html.at_css('.current-price')`
+    - Moved to data attribute: `html.at_css('.price')&.text` → `html.at_css('[data-price]')&.[]('data-price')`
+    - Moved to JSON-LD: parse `<script type="application/ld+json">` with `JSON.parse()`
+    - Image src changed: `img['src']` → `img['data-src']` (lazy loading)
+    - Wrapped in extra element: `.product-price` → `.product-price .price-value`
+
+15b) Update session.md with changes made (USE ABSOLUTE PATH):
+    Append to `scraper_maintenance/<scraper>/session.md`:
+    ```markdown
+    ## Changes made
+    - Parser: parsers/<parser>.rb
+    - Field: <field_name>
+    - Old selector: `<old_selector>`
+    - New selector: `<new_selector>`
+    - Reason: <e.g., "class renamed in site update", "value moved to data attribute">
+    ```
+
+=== STEP 6: Test Fix Locally ===
+
+16) Test the fixed parser against the failing page (still in browser from step 12):
+    ```javascript
+    parser_tester({
+      scraper_dir: "<absolute_path>/generated_scraper/<scraper>",
+      parser_path: "parsers/<parser>.rb",
+      page_type: "<page_type>",
+      auto_download: true,
+      vars: '{"category_name":"<category>","breadcrumb":"<breadcrumb>","rank":1,"page_number":1}',
+      quiet: false
+    })
+    ```
+    - Verify: previously failing field now extracts correctly
+    - Verify: no new errors introduced
+    - If test still fails: return to STEP 4 for more inspection
+
+17) Test against 2-3 additional pages for robustness:
+    - Navigate to a different product/listing of the same page_type
+    - Run parser_tester with auto_download: true
+    - Confirm fix works across different pages, not just the specific failing GID
+    - Especially test: products with and without optional fields (e.g., discounted vs non-discounted)
+
+=== STEP 7: Deploy ===
+
+18) Commit changes locally:
+    ```bash
+    cd generated_scraper/<scraper> && git add parsers/<parser>.rb && git commit -m "fix(<parser>): update <field_name> selector"
+    git push
+    ```
+
+19) Deploy to DataHen:
+    ```bash
+    DATAHEN_TOKEN=<token> hen scraper deploy <scraper>
+    ```
+    - Confirm deployment succeeded (no errors)
+
+=== STEP 8: Cleanup & Resume ===
+
+20) Clear old failed pages so they can be re-processed:
+
+    For parsing_failed: move all to limbo then reset to re-parse
+    ```bash
+    DATAHEN_TOKEN=<token> hen scraper page limbo <scraper> --status parsing_failed
+    ```
+    Then reset specific GIDs for re-parsing (if job is still active):
+    ```bash
+    DATAHEN_TOKEN=<token> hen scraper page reset <scraper> <gid>
+    ```
+
+    For fetching_failed:
+    ```bash
+    DATAHEN_TOKEN=<token> hen scraper page limbo <scraper> --status fetching_failed
+    ```
+
+    **Note**: If the job has already finished, a new job start may be more appropriate than resetting pages.
+
+21) Check stats post-deploy to confirm improvement:
+    ```bash
+    DATAHEN_TOKEN=<token> hen scraper stats <scraper>
+    ```
+    - parsing_failed count should be zero or significantly reduced after re-processing
+
+=== STEP 9: Completion Report ===
+
+22) Display completion summary:
+    ```
+    ✅ Scraper Maintenance Complete
+
+    Scraper:  <scraper>
+    Mode:     <mode>
+
+    Diagnosis:
+    - Error:            <error message>
+    - Affected parser:  parsers/<parser>.rb (line <N>)
+    - Pages affected:   <count>
+
+    Fix Applied:
+    - Field:        <field_name>
+    - Old selector: <old_selector>
+    - New selector: <new_selector>
+
+    Testing:
+    - Tested against <N> pages ✅
+
+    Deployed:
+    - Commit: fix(<parser>): update <field_name> selector
+    - hen scraper deploy: ✅
+
+    Cleanup:
+    - Failed pages moved to limbo: <count>
+    - Pages reset for re-parsing: <count>
+
+    Snapshot:
+    - Pre-fix parsers saved to: scraper_maintenance/<scraper>/parsers/
+    - Session log: scraper_maintenance/<scraper>/session.md
+
+    Next: Monitor `hen scraper stats <scraper>` to confirm fix in production.
+    ```
+
+22b) Update session.md with final result (USE ABSOLUTE PATH):
+    Append to `scraper_maintenance/<scraper>/session.md`:
+    ```markdown
+    ## Result
+    - Status: FIXED ✅
+    - Deployed at: <timestamp>
+    - Tested against: <N> pages
+    - Failed pages cleared: <count>
+    ```
+
+Examples:
+  # Fix parsing failures (default mode)
+  /dmart-fix-parser scraper=naivas_online project=dhero
+
+  # Fix only the details parser
+  /dmart-fix-parser scraper=naivas_online project=dhero parser=details
+
+  # Jump directly to a known failing GID
+  /dmart-fix-parser scraper=naivas_online project=dhero gid=naivas.online-abc123def456
+
+  # QA feedback — structured
+  /dmart-fix-parser scraper=naivas_online project=dhero mode=qa field=price product=78234
+
+  # QA feedback — paste the full QA report after the command (free-form)
+  /dmart-fix-parser scraper=naivas_online project=dhero mode=qa
+  The laptops category is showing KSh 0 for all prices. Checked 3 products:
+  - HP Pavilion (ID: 78234): price shows as 0, should be KSh 89,999
+  - Dell XPS (ID: 78891): price shows as 0, should be KSh 129,999
+  Also, product images are missing for the electronics category — img_url is null.
+  These were working last week before the site update on 2026-02-20.
+
+  # Just call it — AI will ask for all missing info at once
+  /dmart-fix-parser
+"""
