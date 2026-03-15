@@ -26,6 +26,18 @@ Add the MCP server to your `.gemini/settings.json` so Gemini CLI can load the Pl
 }
 ```
 
+Environment setup
+-----------------
+Create your local env file from the example, then fill in your real values:
+
+```powershell
+Copy-Item .gemini/.env.example .gemini/.env
+```
+
+Update `.gemini/.env` with:
+- `GEMINI_MODEL` (model name to run)
+- `GEMINI_API_KEY` (your real API key; never commit this file)
+
 Quick start
 -----------
 Run these commands in order (adjust arguments to your target site). Use `auto_next=true` if you want the next command to run automatically after the current one finishes:
