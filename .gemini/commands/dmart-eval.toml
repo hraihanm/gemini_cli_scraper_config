@@ -1,0 +1,56 @@
+description = "Run eval fixtures for a generated scraper parser and get a score report."
+
+[[steps]]
+description = "Run evals"
+prompt = """
+Run the eval fixtures for the current scraper's details parser.
+
+## What to do
+
+1. Identify the current scraper directory (absolute path in generated_scraper/).
+
+2. Call scraper_run_evals:
+   scraper_run_evals({
+     scraper_dir: "<absolute_scraper_dir>",
+     parser_path: "parsers/details.rb"
+   })
+
+3. Read the score report carefully:
+   - ❌ Always-nil fields → these need fixing immediately. Go to the browser, find the selector/JSON-LD field, fix the parser, re-run evals.
+   - ⚠️ Sometimes-nil fields → these may be page-specific (product out of stock, no brand, no discount, etc.) or a real bug. Investigate each.
+   - Failed fixture checks → a previously-passing assertion now fails. Investigate the specific field.
+
+4. If no evals directory exists, create fixtures first:
+   a. Navigate to 3 different product pages on the target site (browser_navigate)
+   b. For each page, save the HTML:
+      browser_network_download({ urlPattern: "<product page url>", outputPath: "<scraper_dir>/evals/<test_name>/input.html" })
+      OR use auto-download from parser_tester.
+   c. Run the parser on each saved HTML file via parser_tester to see what fields are extracted.
+   d. Write expected.json for each fixture with the key fields to assert:
+      {
+        "name": "__non_nil__",
+        "customer_price_lc": "__non_nil__",
+        "currency_code_lc": "<expected currency>",
+        "img_url": "__non_nil__",
+        "brand": "<expected brand if consistent>"
+      }
+   e. Run scraper_run_evals again.
+
+5. Report the overall score and any fields that need fixing.
+
+## expected.json matcher syntax
+- "__non_nil__" → field must be present and non-null
+- "__nil__"     → field must be null
+- "__numeric__" → field must be a number
+- "exact value" → exact string match
+- 299.99        → numeric match within 1% tolerance
+
+## Fix loop
+If always-nil fields are found:
+1. browser_navigate to one of the fixture source pages
+2. browser_grep_html(query: "@type") — check if JSON-LD is present
+3. browser_grep_html(query: "<field visible text on page>") — find the CSS selector
+4. Fix the parser
+5. parser_tester({ test_files: [...all fixture input files...] }) — quick multi-file check
+6. scraper_run_evals — final regression check
+"""
