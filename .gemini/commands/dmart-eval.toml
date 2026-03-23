@@ -1,7 +1,5 @@
 description = "Run eval fixtures for a generated scraper parser and get a score report."
 
-[[steps]]
-description = "Run evals"
 prompt = """
 Run the eval fixtures for the current scraper's details parser.
 
