@@ -81,10 +81,21 @@ Prioritized steps with effort + risk estimates.
 - **WriteFile operations require absolute paths** — relative paths will fail
 - State files, parser files, and knowledge files must all use absolute paths
 
-### Gemini CLI Commands (three-phase workflows)
+### Gemini CLI Commands
 
-HTML pipeline: `/dmart-scrape` → `/dmart-navigation-parser` → `/dmart-details-parser`
-API pipeline: `/dmart-api-scrape` → `/dmart-api-navigation-parser` → `/dmart-api-details-parser`
+**Generic commands (project= param selects profile from `profiles/`):**
+- HTML pipeline: `/scrape` → `/navigation-parser` → `/details-parser`
+- API pipeline: `/api-scrape` → `/api-navigation-parser` → `/api-details-parser`
+- Extra phases: `/restaurant-details-parser` → `/menu-parser` (dhero)
+
+**Project aliases (shorthand — project is hardcoded):**
+- dmart: `/dmart-scrape` → `/dmart-navigation-parser` → `/dmart-details-parser`
+- dhero: `/dhero-scrape` → `/dhero-navigation-parser` → `/dhero-restaurant-details` → `/dhero-menu-parser`
+- API: `/dmart-api-scrape` → `/dmart-api-navigation-parser` → `/dmart-api-details-parser`
+
+**Pipeline configuration:** `profiles/<project>.toml` defines the pipeline array.
+**Workflow docs:** `docs/workflows/phases/` — one file per phase type.
+**Shared rules:** `docs/shared/` — agent-rules-gemini.md, datahen-conventions.md, selector-discovery.md, output-hash-rules.md
 
 ### Playwright MCP Mod
 

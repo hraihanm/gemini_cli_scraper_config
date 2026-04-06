@@ -1,0 +1,76 @@
+description = "Phase 2: Navigation parser generation. Generic command — works for any project. Usage: /navigation-parser scraper=<name> [project=dmart-dloc|dhero|...] [resume-url=<url>] [out=<dir>] [auto_next=true]"
+
+prompt = """
+You are executing Phase 2: Navigation Parser Generation. This command is COMPLETELY INDEPENDENT — reads discovery state files and the project profile, edits parser files, writes findings, and completes. No conversation history needed.
+
+🚨🚨🚨 **CRITICAL: YOU ARE IN GEMINI CLI - USE TOOLS DIRECTLY, NEVER GENERATE CODE** 🚨🚨🚨
+- **STOP**: If you are about to write `import os`, `import json`, `print()`, `def `, or any Python/JavaScript code, STOP IMMEDIATELY
+- **YOU ARE AN AI ASSISTANT IN GEMINI CLI** — You have direct access to MCP tools via tool calling
+- **USE TOOLS DIRECTLY** — Call tools like `read_file`, `browser_navigate`, `parser_tester`, `write_file` using the tool interface
+- **FORBIDDEN**: Never write Python scripts, JavaScript code, or any programming code
+- **FORBIDDEN**: Never use `import`, `print()`, `def `, `class `, or any code syntax
+- **CODE EXAMPLES ARE FOR REFERENCE ONLY** — They show tool call patterns, NOT code to write
+- **IF YOU START WRITING CODE**: Stop immediately and use tools instead
+
+🚨 **CRITICAL: NEVER CALL BROWSER TOOLS VIA SHELL** 🚨
+- Browser tools are MCP tools — call them DIRECTLY as tool calls
+- `run_terminal_cmd` is ONLY for auto-chaining at the very end
+
+🚨 CRITICAL - ABSOLUTE PATHS REQUIRED FOR ALL WRITEFILE OPERATIONS 🚨
+
+🚨 CRITICAL - STOP AFTER COMPLETION (if auto_next=false) — DO NOT start new work 🚨
+
+---
+
+## YOUR TASK
+
+**Step 1 — Parse args**
+
+Parse {{args}}:
+- `scraper=<scraper_name>` (REQUIRED)
+- `project=<profile_name>` (OPTIONAL, default: `dmart-dloc`)
+- `resume-url=<url>` (OPTIONAL)
+- `out=<base_dir>` (OPTIONAL, default from profile)
+- `auto_next=true|false` (OPTIONAL, default: false)
+
+**Step 2 — Read shared rules**
+
+Read `docs/shared/agent-rules-gemini.md` using `read_file` tool.
+
+**Step 3 — Read DataHen conventions**
+
+Read `docs/shared/datahen-conventions.md` using `read_file` tool.
+
+**Step 4 — Read selector discovery protocol**
+
+Read `docs/shared/selector-discovery.md` using `read_file` tool.
+
+**Step 5 — Read project profile**
+
+Read `profiles/<project>.toml` using `read_file` tool.
+
+Extract:
+- `boilerplate.parsers` — list of parser files (navigation parsers = all except the last one)
+- `pipeline.phases` — find phase at index 1 (`navigation-parser`), note `workflow` path and NEXT phase (index 2)
+
+**Step 6 — Read workflow doc**
+
+Read the workflow document at `pipeline.phases[1].workflow` using `read_file` tool.
+
+This is currently: `docs/workflows/phases/02-navigation-parser.md`
+
+**Step 7 — Execute workflow**
+
+Follow every step in that workflow doc exactly.
+
+Substitute throughout:
+- `{output_dir}` → from args `out` or profile `defaults.output_dir`
+- `{project}` → from args `project`
+- `<next_phase_from_profile>` → `pipeline.phases[2].phase` from profile
+
+**Step 8 — Auto-chain (if auto_next=true)**
+
+Follow the auto-chain execution steps from `docs/shared/agent-rules-gemini.md`.
+
+Next command: `/<pipeline.phases[2].phase> scraper=<scraper> project=<project> auto_next=true`
+"""

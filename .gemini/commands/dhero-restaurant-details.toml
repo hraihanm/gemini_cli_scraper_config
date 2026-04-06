@@ -1,7 +1,7 @@
-description = "Alias: /navigation-parser for dmart-dloc project. Usage: /dmart-navigation-parser scraper=<name> [resume-url=<url>] [out=<dir>] [auto_next=true]"
+description = "Alias: /restaurant-details-parser for dhero project. Usage: /dhero-restaurant-details scraper=<name> [url=<restaurant_url>] [auto_next=true]"
 
 prompt = """
-This is a project alias. You are running /navigation-parser with project=dmart-dloc.
+This is a project alias. You are running /restaurant-details-parser with project=dhero.
 
 🚨🚨🚨 **CRITICAL: YOU ARE IN GEMINI CLI - USE TOOLS DIRECTLY, NEVER GENERATE CODE** 🚨🚨🚨
 - **STOP**: If you are about to write `import os`, `import json`, `print()`, `def `, or any Python/JavaScript code, STOP IMMEDIATELY
@@ -18,19 +18,20 @@ This is a project alias. You are running /navigation-parser with project=dmart-d
 
 ## YOUR TASK
 
-Parse {{args}} — same inputs as /navigation-parser plus project is fixed to `dmart-dloc`:
+Parse {{args}}:
 - `scraper=<scraper_name>` (REQUIRED)
+- `url=<restaurant_detail_url>` (OPTIONAL)
 - `resume-url=<url>` (OPTIONAL)
 - `out=<base_dir>` (OPTIONAL)
 - `auto_next=true|false` (OPTIONAL, default: false)
 
-Execute the full /navigation-parser workflow with `project=dmart-dloc`:
+Execute the /restaurant-details-parser workflow with `project=dhero`:
 
 1. Read `docs/shared/agent-rules-gemini.md`
 2. Read `docs/shared/datahen-conventions.md`
 3. Read `docs/shared/selector-discovery.md`
-4. Read `profiles/dmart-dloc.toml`
-5. Read `docs/workflows/phases/02-navigation-parser.md`
-6. Follow every step in the workflow doc exactly, using dmart-dloc profile values
-7. Auto-chain to details-parser if auto_next=true (next phase from profile)
+4. Read `profiles/dhero.toml`
+5. Read `docs/workflows/phases/03-restaurant-details.md`
+6. Follow every step in the workflow doc exactly
+7. Auto-chain to menu-parser if auto_next=true
 """
