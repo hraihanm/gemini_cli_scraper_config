@@ -1,0 +1,61 @@
+[project]
+name         = "dmart-dloc"
+display_name = "D-Mart D-LOC"
+
+[template]
+boilerplate_dir      = "templates/dmart_dloc_boilerplate"
+copy_command_windows = 'xcopy /E /I /Y templates\dmart_dloc_boilerplate generated_scraper\{scraper}'
+copy_command_unix    = "cp -r templates/dmart_dloc_boilerplate generated_scraper/{scraper}"
+
+[boilerplate]
+seeder_rb   = "seeder/seeder.rb"
+headers_rb  = "lib/headers.rb"
+config_yaml = "config.yaml"
+parsers     = [
+  "parsers/categories.rb",
+  "parsers/subcategories.rb",
+  "parsers/listings.rb",
+  "parsers/details.rb",
+]
+
+[defaults]
+field_spec = "spec_full.json"
+output_dir = "./generated_scraper"
+
+# HTML scraping pipeline
+[[pipeline.phases]]
+phase    = "scrape"
+workflow = "docs/workflows/phases/01-site-discovery.md"
+label    = "Phase 1: Site Discovery"
+command  = "scrape"
+
+[[pipeline.phases]]
+phase    = "navigation-parser"
+workflow = "docs/workflows/phases/02-navigation-parser.md"
+label    = "Phase 2: Navigation Parser"
+command  = "navigation-parser"
+
+[[pipeline.phases]]
+phase    = "details-parser"
+workflow = "docs/workflows/phases/03-details-parser.md"
+label    = "Phase 3: Details Parser"
+command  = "details-parser"
+
+# API scraping pipeline
+[[api_pipeline.phases]]
+phase    = "api-scrape"
+workflow = "docs/workflows/phases/api-01-scrape.md"
+label    = "API Phase 1: API Scrape"
+command  = "api-scrape"
+
+[[api_pipeline.phases]]
+phase    = "api-navigation-parser"
+workflow = "docs/workflows/phases/api-02-navigation.md"
+label    = "API Phase 2: API Navigation Parser"
+command  = "api-navigation-parser"
+
+[[api_pipeline.phases]]
+phase    = "api-details-parser"
+workflow = "docs/workflows/phases/api-03-details.md"
+label    = "API Phase 3: API Details Parser"
+command  = "api-details-parser"

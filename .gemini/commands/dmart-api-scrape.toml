@@ -46,6 +46,12 @@ For API agents, **MUST use `fetch_type: "standard"`** (direct HTTP fetch). Do NO
 - In parsers, read cookies: `cookie = page['vars']['cookie'] rescue page['response_cookie']`
 - Or set directly on page entry: `cookie: cookie_string`
 
+🚨 **CRITICAL: NEVER CALL BROWSER TOOLS VIA SHELL** 🚨:
+- Browser tools (`browser_navigate`, `browser_snapshot`, `browser_grep_html`, `browser_network_search`, etc.) are **MCP tools** — call them **directly** as tool calls
+- **WRONG** ❌: `run_terminal_cmd("gemini -y -i 'browser_navigate(...); browser_snapshot()'")`
+- **RIGHT** ✅: Call `browser_navigate({ url: "..." })` directly as a tool
+- `run_terminal_cmd` / shell is **ONLY** for auto-chaining at the very end. Never for browser actions.
+
 🚨 **CRITICAL AUTO-CHAINING EXECUTION RULE**:
 - **MANDATORY**: If `auto_next=true` parameter is provided in `{{args}}`, you MUST execute the next command automatically
 

@@ -1,0 +1,77 @@
+description = "Phase 1: Site discovery and boilerplate initialization. Generic command — works for any project. Usage: /scrape url=<url> name=<scraper> [project=dmart-dloc|dhero|...] [spec=<path>] [out=<dir>] [auto_next=true]"
+
+prompt = """
+You are executing Phase 1: Site Discovery for scraper generation. This command is COMPLETELY INDEPENDENT — it reads no conversation history, only state files and the project profile.
+
+🚨🚨🚨 **CRITICAL: YOU ARE IN GEMINI CLI - USE TOOLS DIRECTLY, NEVER GENERATE CODE** 🚨🚨🚨
+- **STOP**: If you are about to write `import os`, `import json`, `print()`, `def `, or any Python/JavaScript code, STOP IMMEDIATELY
+- **YOU ARE AN AI ASSISTANT IN GEMINI CLI** — You have direct access to MCP tools via tool calling
+- **USE TOOLS DIRECTLY** — Call tools like `read_file`, `browser_navigate`, `parser_tester`, `write_file` using the tool interface
+- **FORBIDDEN**: Never write Python scripts, JavaScript code, or any programming code
+- **FORBIDDEN**: Never use `import`, `print()`, `def `, `class `, or any code syntax
+- **CODE EXAMPLES ARE FOR REFERENCE ONLY** — They show tool call patterns, NOT code to write
+- **IF YOU START WRITING CODE**: Stop immediately and use tools instead
+
+🚨 **CRITICAL: NEVER CALL BROWSER TOOLS VIA SHELL** 🚨
+- Browser tools are MCP tools — call them DIRECTLY as tool calls
+- `run_terminal_cmd` is ONLY for auto-chaining at the very end
+
+🚨 CRITICAL - ABSOLUTE PATHS REQUIRED FOR ALL WRITEFILE OPERATIONS 🚨
+
+🚨 CRITICAL - STOP AFTER COMPLETION (if auto_next=false) — DO NOT start new work 🚨
+
+---
+
+## YOUR TASK
+
+**Step 1 — Parse args**
+
+Parse {{args}}:
+- `url=<site_url>` (REQUIRED) — USE THIS EXACT URL ONLY
+- `name=<scraper_name>` (REQUIRED)
+- `project=<profile_name>` (OPTIONAL, default: `dmart-dloc`)
+- `spec=<path>` (OPTIONAL)
+- `out=<base_dir>` (OPTIONAL)
+- `auto_next=true|false` (OPTIONAL, default: false)
+
+**Step 2 — Read shared rules**
+
+Read `docs/shared/agent-rules-gemini.md` using `read_file` tool. Internalize the CRITICAL rules, browser tool rules, absolute path rules, expensive tool justification rules, auto-chain rules.
+
+**Step 3 — Read DataHen conventions**
+
+Read `docs/shared/datahen-conventions.md` using `read_file` tool.
+
+**Step 4 — Read project profile**
+
+Read `profiles/<project>.toml` using `read_file` tool (use the `project` value from args, default `dmart-dloc`).
+
+Extract:
+- `template` section (boilerplate_dir, copy commands)
+- `boilerplate` section (parser files list, seeder_rb, headers_rb)
+- `defaults` section (field_spec, output_dir)
+- `pipeline.phases` array — find phase at index 0 (`scrape`), note the `workflow` path and the NEXT phase (index 1)
+
+**Step 5 — Read workflow doc**
+
+Read the workflow document path you found in `pipeline.phases[0].workflow` using `read_file` tool.
+
+This is currently: `docs/workflows/phases/01-site-discovery.md`
+
+**Step 6 — Execute workflow**
+
+Follow every step in that workflow doc exactly.
+
+Substitute throughout:
+- `{boilerplate_dir}` → from profile `template.boilerplate_dir`
+- `{scraper}` → from args `name`
+- `{output_dir}` → from args `out` or profile `defaults.output_dir`
+- `{project}` → from args `project`
+- `<next_phase_from_profile>` → `pipeline.phases[1].phase` from profile
+
+**Step 7 — Auto-chain (if auto_next=true)**
+
+Follow the auto-chain execution steps from `docs/shared/agent-rules-gemini.md`.
+
+Next command: `/<pipeline.phases[1].phase> scraper=<name> project=<project> auto_next=true`
+"""

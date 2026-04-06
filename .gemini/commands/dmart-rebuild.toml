@@ -1,0 +1,362 @@
+description = "Rebuild an existing scraper against a live site. Reads existing parsers as context, navigates the site, updates whatever changed (selectors, logic, API paths). No re-discovery of things that still work."
+
+prompt = """
+You are rebuilding an existing DataHen scraper. The scraper was working before — the website has since changed and you need to update it. Read the existing parsers to understand what they do, navigate the live site, and fix what broke. Change selectors, logic, API paths — whatever is needed to make the parser work again.
+
+🚨🚨🚨 **CRITICAL: YOU ARE IN GEMINI CLI - USE TOOLS DIRECTLY, NEVER GENERATE CODE** 🚨🚨🚨
+- **USE TOOLS DIRECTLY** — Call `read_file`, `write_file`, `browser_navigate`, browser tools, `parser_tester` via tool calling
+- **FORBIDDEN**: Never write Python scripts, JavaScript code, or any programming code
+- **CODE EXAMPLES IN THIS PROMPT ARE FOR REFERENCE ONLY** — They show Ruby parser patterns, not code you should write
+- **IF YOU START WRITING CODE**: Stop immediately and use tools instead
+
+🚨 **CRITICAL: NEVER CALL BROWSER TOOLS VIA SHELL** 🚨:
+- Browser tools are MCP tools — call them directly as tool calls
+- **WRONG** ❌: `run_terminal_cmd("gemini -y -i 'browser_navigate(...)'")`
+- **RIGHT** ✅: Call `browser_navigate({ url: "..." })` directly as a tool
+
+🚨 **CRITICAL: DataHen v3 Parser Structure**:
+- Parsers are TOP-LEVEL SCRIPTS — never wrap in `def parse(...)` or any function
+- NEVER declare `pages = []` or `outputs = []` — pre-defined by DataHen
+- Pre-defined variables: `content`, `page`, `pages`, `outputs`
+
+🚨 CRITICAL - ABSOLUTE PATHS REQUIRED:
+- ALL WriteFile operations MUST use ABSOLUTE PATHS — relative paths will fail
+
+🚨🚨🚨 **REBUILD CONSTRAINTS — WHAT YOU MUST NEVER CHANGE** 🚨🚨🚨
+
+You are fixing extraction code, NOT redesigning the scraper. The output schema and hardcoded metadata are frozen.
+
+**FROZEN — never modify these during a rebuild:**
+
+1. **Output field names** — must exactly match `config.yaml` exporters fields.
+   - Read config.yaml first. Every field name in the output hash must come from that list.
+   - NEVER rename a field (e.g. `country_iso` → `country` is FORBIDDEN)
+   - NEVER add fields not in config.yaml
+   - NEVER remove fields — set to `nil` if not extractable
+
+2. **Hardcoded metadata** — read these from the EXISTING parser and copy them verbatim:
+   - `competitor_name`, `competitor_type`, `store_name`, `store_id`
+   - `country_iso`, `language`, `currency_code_lc`
+   - These are business facts, not selectors — they do not change when a website redesigns
+
+3. **Timestamp formula** — always:
+   ```ruby
+   scraped_at_timestamp: Time.parse(page['fetched_at']).strftime('%Y-%m-%d %H:%M:%S')
+   ```
+   NEVER use `Time.now` — DataHen provides `page['fetched_at']` for reproducibility.
+
+4. **Canonical constants** — never change:
+   - `crawled_source: 'WEB'`
+   - `_collection` name (from config.yaml)
+
+5. **Struct field formats** (from field-spec.json `format_spec`) — do not change the JSON shape of:
+   - `promo_attributes`, `reviews`, `store_reviews`, `item_attributes`, `item_identifiers`
+
+**WHAT YOU CAN CHANGE:**
+- CSS selectors, JSON dig paths, API endpoint patterns
+- Extraction logic (how a field is found, fallback chains)
+- Conditional logic that broke due to site changes
+- Ruby helper calls for price/UOM parsing
+
+**Verification step**: After writing updated parser, scan the output hash and confirm:
+- Every field name matches config.yaml exactly (do a side-by-side check)
+- competitor_name, country_iso, currency_code_lc are identical to the original parser
+- scraped_at_timestamp uses `page['fetched_at']`
+
+🚨 **EXPENSIVE TOOL JUSTIFICATION** (required before each expensive call):
+Before calling `browser_view_html`, `browser_network_download`, `browser_request`, or `datahen_run`, write one line:
+  💭 [tool]: [what I expect to find/confirm] → [why not a cheaper alternative]
+Always try cheap alternatives first: `browser_grep_html` before `browser_view_html`, `browser_network_search` before `browser_network_download`/`browser_request`
+
+Inputs (order-agnostic via {{args}}):
+  - scraper=<scraper_name> (REQUIRED — must exist in generated_scraper/)
+  - spec=<path-to-field-spec> (RECOMMENDED — path to the canonical field spec file, e.g., field-spec.json or spec_general_sample.csv)
+    * If provided: This is the authoritative field list. Parse it and use it to validate the output hash.
+    * If not provided: Fall back to the existing .scraper-state/field-spec.json inside the scraper directory.
+    * The spec file is typically in the project home directory, not inside the scraper folder.
+    * Same spec file used when originally building the scraper with /dmart-scrape or /dmart-details-parser.
+  - phase=details|navigation|all (OPTIONAL, default: details)
+    * details     — rebuild parsers/details.rb only
+    * navigation  — rebuild parsers/categories.rb + parsers/listings.rb
+    * all         — rebuild all parsers
+  - url=<override_url> (OPTIONAL — override the site URL from discovery-state.json)
+  - out=<base_dir> (OPTIONAL, default: ./generated_scraper)
+
+Process:
+
+=== STEP 1: Load Context ===
+
+1) Determine scraper directory:
+   - scraper_dir = `<out>/{{args.scraper}}` (default out = ./generated_scraper)
+
+1b) **Read field spec and config.yaml — establish frozen schema** (USE ABSOLUTE PATHS):
+
+   a) Load the field spec (canonical 53-field definition):
+      - If `spec` param provided: read that file (absolute path or relative to workspace root)
+        * CSV format: parse header row for field names
+        * JSON format: parse field name list or object keys
+        * This file is typically in the project home directory (same one used when the scraper was first built)
+      - If no `spec` param: read `<scraper_dir>/.scraper-state/field-spec.json`
+      - Write down the complete field list explicitly — these are the ONLY field names allowed in the output hash
+
+   b) Read `<scraper_dir>/config.yaml`:
+      - Confirm the exporters field list matches the spec (they should agree)
+      - Note `_collection` name from exporters[0].collection
+      - If there is any conflict between spec and config.yaml, the spec takes precedence
+
+1c) **Read existing parser(s) and extract frozen hardcoded values** before any site navigation:
+   - Read `<scraper_dir>/parsers/details.rb` (and listings/categories if phase=navigation|all)
+   - Extract and record these values verbatim (copy exact strings):
+     * competitor_name
+     * competitor_type
+     * store_name, store_id
+     * country_iso
+     * language
+     * currency_code_lc
+   - These will be copied unchanged into the rebuilt parser.
+
+2) Read all state files as context (call read_file for each — handle missing files gracefully):
+   - `<scraper_dir>/.scraper-state/discovery-state.json`      — base URL, site type, API endpoints
+   - `<scraper_dir>/.scraper-state/discovery-knowledge.md`    — site overview notes
+   - `<scraper_dir>/.scraper-state/navigation-selectors.json` — known-good navigation selectors
+   - `<scraper_dir>/.scraper-state/navigation-knowledge.md`   — navigation notes
+   - `<scraper_dir>/.scraper-state/detail-selectors.json`     — known-good detail selectors
+   - `<scraper_dir>/.scraper-state/detail-knowledge.md`       — detail notes
+   - `<scraper_dir>/.scraper-state/field-spec.json`           — expected output fields
+
+3) Read the existing parser files that need rebuilding:
+   - If phase=details or all: read `<scraper_dir>/parsers/details.rb`
+   - If phase=navigation or all: read `<scraper_dir>/parsers/categories.rb` and `<scraper_dir>/parsers/listings.rb`
+   - Also read `<scraper_dir>/lib/helpers.rb` and `<scraper_dir>/lib/headers.rb`
+
+4) Determine scraper type from discovery-state.json:
+   - If `fetch_type: "browser"` or no API endpoints found → HTML scraper
+   - If API endpoints documented → API scraper
+   - Note the base URL for navigation
+
+5) **Back up existing parsers before modifying anything** (USE ABSOLUTE PATHS):
+   - Create backup directory: `<scraper_dir>/parsers/_backup_<YYYYMMDD>/`
+   - Copy each parser that will be modified into the backup directory
+   - Write a simple backup_manifest.txt noting what was backed up and why
+
+=== STEP 2: Navigate and Assess ===
+
+6) Navigate to the site:
+   - Use the base URL from discovery-state.json (or `url` param if provided)
+   - Handle popups/cookie banners immediately after navigation: browser_snapshot() → dismiss if present
+
+**For HTML scrapers:**
+
+7) If phase=details or all — assess detail page:
+   a) Navigate to a sample product page:
+      - Use a sample URL from detail-selectors.json, navigation-selectors.json, or evals/ fixtures
+      - If none available, navigate to a category listing and click the first product
+
+   b) Cross-check existing selectors against the live page:
+      - For each field in details.rb, note the current selector/extraction method
+      - Run browser_extract_json_ld({ type: "Product" }) — check if JSON-LD is present and has expected fields
+      - For CSS-based fields: browser_count_selector(selector, expected_min: 1) for key selectors (name, price, img)
+      - For fields that fail (count = 0): mark as broken, need re-discovery
+      - Note what still works — don't touch working selectors
+
+   c) Re-discover broken fields:
+      - Use standard discovery order: JSON-LD → meta tags → browser_grep_html → browser_inspect_element → browser_verify_selector
+      - For image fields: browser_extract_images(container_selector) if gallery structure changed
+      - For each broken field, find the new working selector/path
+
+8) If phase=navigation or all — assess navigation pages:
+   a) Navigate to the main category listing page
+
+   b) browser_detect_pagination({ current_url: ... }) — check if pagination strategy changed
+
+   c) browser_count_selector(existing_product_selector, expected_min: 1) — verify product list selector still works
+
+   d) Check category link selector: browser_count_selector(existing_category_selector, expected_min: 1)
+
+   e) For any broken selector: use browser_grep_html → browser_inspect_element to find new one
+
+**For API scrapers:**
+
+7) If phase=details or all — assess detail API:
+   a) Check if known API endpoints still respond:
+      - browser_network_search({ query: "<known endpoint pattern>", searchIn: ["url"] })
+      - If endpoint changed: browser_network_requests_simplified() to find new endpoint pattern
+
+   b) 💭 browser_network_replay: re-download a fresh sample product response → compare JSON structure to what details.rb expects
+      - Check if key paths like `data.dig('product', 'name')` still resolve
+      - Note any paths that no longer exist or moved
+
+   c) Re-verify auth if needed: browser_network_search({ query: "Authorization", searchIn: ["requestHeaders"] })
+
+8) If phase=navigation or all — assess listing API:
+   a) Trigger a category listing request (navigate to a category page)
+   b) 💭 browser_network_replay: download fresh listing response → compare JSON structure to listings.rb
+   c) Check pagination fields: does total_count / per_page still work? Has cursor pagination appeared?
+
+=== STEP 3: Update Parsers ===
+
+9) **Update details.rb** (if phase=details or all):
+
+   For each broken part identified in Step 7:
+   - Edit only what needs changing — leave working code intact
+   - Update selector strings, JSON paths, data-dig chains, logic — whatever the site change requires
+   - If a field moved from CSS to JSON-LD (or vice versa), rewrite that field's extraction block
+   - If pagination or overall page structure changed significantly, rewrite the affected section
+
+   Key rules while editing:
+   - All 53 output fields must still be present in the outputs hash (nil if not available)
+   - Canonical field names: `currency_code_lc`, `rank_in_listing`, `scraped_at_timestamp`, `crawled_source: 'WEB'`
+   - Struct fields (promo_attributes, reviews, item_identifiers, item_attributes) keep their JSON format
+   - Validation block before `outputs <<`: warn if name/customer_price_lc/img_url is nil
+
+10) **Update categories.rb and listings.rb** (if phase=navigation or all):
+
+    For each broken part identified in Step 8:
+    - Update selectors, pagination logic, API endpoint paths — whatever changed
+    - Verify that vars passed to details pages still include: rank_in_listing, category_name, breadcrumb, page_number
+    - For API scrapers: verify fetch_type: "standard" is still set on all API page entries
+
+=== STEP 4: Test ===
+
+11) Test updated parsers with parser_tester:
+
+    **For details.rb:**
+    - If evals/ fixtures exist: use test_files array with all fixture input files
+      ```
+      parser_tester({
+        scraper_dir: "<absolute_scraper_dir>",
+        parser_path: "parsers/details.rb",
+        quiet: true,
+        test_files: [
+          { content_file: "<scraper_dir>/evals/<test1>/input.html", label: "product 1" },
+          { content_file: "<scraper_dir>/evals/<test2>/input.html", label: "product 2" }
+        ]
+      })
+      ```
+    - If no evals/ fixtures: auto-download from active browser tab (navigate to a product page first)
+      ```
+      parser_tester({
+        scraper_dir: "<absolute_scraper_dir>",
+        parser_path: "parsers/details.rb",
+        auto_download: true,
+        quiet: true
+      })
+      ```
+    - Check: are all key fields populated? Any unexpected nils?
+    - If nil fields found that should be populated → go back to Step 9 and fix
+
+    **For listings.rb (if rebuilt):**
+    - Navigate to a category listing page
+    - parser_tester with auto_download: true
+    - Verify pages are generated with correct vars
+
+12) Run scraper_output_validator if any output fields are uncertain:
+    ```
+    scraper_output_validator({
+      scraper_dir: "<absolute_scraper_dir>",
+      outputs_json: "<paste outputs array from parser_tester>"
+    })
+    ```
+
+=== STEP 5: Update State Files ===
+
+13) Update detail-selectors.json with new selectors (USE ABSOLUTE PATH):
+    Only update fields that changed — preserve unchanged entries as-is.
+
+14) Update detail-knowledge.md with rebuild notes (USE ABSOLUTE PATH):
+    Append a "Rebuild YYYY-MM-DD" section noting:
+    - What changed on the site
+    - Which fields/selectors were updated
+    - Any new patterns discovered
+
+15) Update navigation-selectors.json and navigation-knowledge.md if navigation was rebuilt.
+
+16) Update phase-status.json — mark rebuilt phases as "completed" with new timestamp.
+
+=== STEP 6: Session Audit ===
+
+17) Save session-audit-rebuild.json (USE ABSOLUTE PATH):
+    Path: `<scraper_dir>/.scraper-state/session-audit-rebuild-<YYYYMMDD>.json`
+    ```json
+    {
+      "phase": "rebuild",
+      "scraper": "<scraper_slug>",
+      "completed_at": "<ISO timestamp>",
+      "rebuild_phase": "<details|navigation|all>",
+      "scraper_type": "<html|api>",
+      "fields_updated": ["<list of fields that needed changes>"],
+      "selectors_updated": <count>,
+      "selectors_still_working": <count>,
+      "what_changed_on_site": "<brief description of what changed>",
+      "tool_call_counts": {
+        "browser_view_html": 0,
+        "browser_network_download": 0,
+        "browser_network_replay": 0,
+        "browser_request": 0,
+        "datahen_run": 0,
+        "parser_tester": 0,
+        "browser_grep_html": 0,
+        "browser_network_search": 0,
+        "browser_extract_json_ld": 0,
+        "browser_count_selector": 0,
+        "browser_extract_images": 0,
+        "browser_detect_pagination": 0,
+        "scraper_output_validator": 0
+      },
+      "expensive_tool_log": [],
+      "parser_test_iterations": 0,
+      "parser_errors": [],
+      "improvement_suggestions": []
+    }
+    ```
+
+=== STEP 7: Completion Report ===
+
+18) Display completion summary:
+    ```
+    ✅ Scraper Rebuild Complete
+
+    Scraper: <scraper_slug>
+    Phase rebuilt: <details|navigation|all>
+    Scraper type: <HTML|API>
+
+    Changes made:
+    - <field>: <old selector> → <new selector>
+    - <field>: <description of logic change>
+    - (list each changed field/section)
+
+    Unchanged (still working):
+    - <N> selectors verified working, not modified
+
+    Backup saved: parsers/_backup_<YYYYMMDD>/
+
+    Parser test: ✅ passing
+
+    Files updated:
+    - parsers/details.rb ✅
+    - .scraper-state/detail-selectors.json ✅
+    - .scraper-state/detail-knowledge.md ✅
+    - .scraper-state/session-audit-rebuild-<YYYYMMDD>.json ✅
+    ```
+
+🚨🚨🚨 **MANDATORY: STOP AFTER COMPLETION** 🚨🚨🚨
+- After displaying completion summary, you MUST STOP
+- DO NOT continue with any other work
+- This command is COMPLETE — END SESSION NOW
+
+Examples:
+  # Rebuild detail selectors only, using the canonical field spec from home directory
+  /dmart-rebuild scraper=boticas_pe spec="field-spec.json"
+
+  # Rebuild all parsers with spec
+  /dmart-rebuild scraper=sklavenitis_gr phase=all spec="field-spec.json"
+
+  # Rebuild navigation parsers only (listing/categories changed)
+  /dmart-rebuild scraper=bigbasket phase=navigation spec="field-spec.json"
+
+  # Rebuild with URL override (site moved to new domain)
+  /dmart-rebuild scraper=ica_se phase=details spec="field-spec.json" url="https://www.ica.se"
+
+  # Using a project-specific spec file
+  /dmart-rebuild scraper=naivas_ke spec="specs/dloc_spec.csv" phase=all
+"""

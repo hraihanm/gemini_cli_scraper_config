@@ -1,0 +1,68 @@
+[project]
+name         = "dhero"
+display_name = "DHero Restaurants"
+
+[template]
+boilerplate_dir      = "templates/dhero_boilerplate"
+copy_command_windows = 'xcopy /E /I /Y templates\dhero_boilerplate generated_scraper\{scraper}'
+copy_command_unix    = "cp -r templates/dhero_boilerplate generated_scraper/{scraper}"
+
+[boilerplate]
+seeder_rb   = "seeder/seeder.rb"
+headers_rb  = "lib/headers.rb"
+config_yaml = "config.yaml"
+# Different parser files from dmart — restaurant_details replaces details, extra menu phase
+parsers     = [
+  "parsers/listings.rb",
+  "parsers/restaurant_details.rb",
+  "parsers/menu.rb",
+]
+
+[defaults]
+field_spec = "spec_full.json"
+output_dir = "./generated_scraper"
+
+# HTML scraping pipeline — 4 phases (listings → restaurant details → menu)
+# Note: dhero has no categories layer — listings (restaurant list) is the first page type
+[[pipeline.phases]]
+phase    = "scrape"
+workflow = "docs/workflows/phases/01-site-discovery.md"
+label    = "Phase 1: Site Discovery"
+command  = "scrape"
+
+[[pipeline.phases]]
+phase    = "navigation-parser"
+workflow = "docs/workflows/phases/02-navigation-parser.md"
+label    = "Phase 2: Navigation Parser (Restaurant Listings)"
+command  = "navigation-parser"
+
+[[pipeline.phases]]
+phase    = "restaurant-details-parser"
+workflow = "docs/workflows/phases/03-restaurant-details.md"
+label    = "Phase 3: Restaurant Details Parser"
+command  = "restaurant-details-parser"
+
+[[pipeline.phases]]
+phase    = "menu-parser"
+workflow = "docs/workflows/phases/04-menu-parser.md"
+label    = "Phase 4: Menu Parser"
+command  = "menu-parser"
+
+# API scraping pipeline (if applicable)
+[[api_pipeline.phases]]
+phase    = "api-scrape"
+workflow = "docs/workflows/phases/api-01-scrape.md"
+label    = "API Phase 1: API Scrape"
+command  = "api-scrape"
+
+[[api_pipeline.phases]]
+phase    = "api-navigation-parser"
+workflow = "docs/workflows/phases/api-02-navigation.md"
+label    = "API Phase 2: API Navigation Parser"
+command  = "api-navigation-parser"
+
+[[api_pipeline.phases]]
+phase    = "api-details-parser"
+workflow = "docs/workflows/phases/api-03-details.md"
+label    = "API Phase 3: API Details Parser"
+command  = "api-details-parser"

@@ -1,0 +1,131 @@
+seeder:
+  file: ./seeder/seeder.rb
+  disabled: false
+
+parsers:
+  - page_type: listings
+    file: ./parsers/listings.rb
+    disabled: false
+  - page_type: restaurant_details
+    file: ./parsers/restaurant_details.rb
+    disabled: false
+  - page_type: menu
+    file: ./parsers/menu.rb
+    disabled: false
+
+exporters:
+  - exporter_name: restaurants_csv
+    export_filename: <d:yyyyMMdd>_<name>_restaurants
+    no_subfolder: true
+    exporter_type: csv
+    collection: restaurants
+    start_on_job_done: true
+    offset: 0
+    order: desc
+    fields:
+      - header: "name"
+        path: "name"
+        disable_scientific_notation: true
+      - header: "cuisine"
+        path: "cuisine"
+        disable_scientific_notation: true
+      - header: "address"
+        path: "address"
+        disable_scientific_notation: true
+      - header: "phone"
+        path: "phone"
+        disable_scientific_notation: true
+      - header: "rating"
+        path: "rating"
+        disable_scientific_notation: true
+      - header: "rating_count"
+        path: "rating_count"
+        disable_scientific_notation: true
+      - header: "opening_hours"
+        path: "opening_hours"
+        disable_scientific_notation: true
+      - header: "img_url"
+        path: "img_url"
+        disable_scientific_notation: true
+      - header: "description"
+        path: "description"
+        disable_scientific_notation: true
+      - header: "is_open_now"
+        path: "is_open_now"
+        disable_scientific_notation: true
+      - header: "delivery_time"
+        path: "delivery_time"
+        disable_scientific_notation: true
+      - header: "min_order"
+        path: "min_order"
+        disable_scientific_notation: true
+      - header: "tags"
+        path: "tags"
+        disable_scientific_notation: true
+      - header: "url"
+        path: "url"
+        disable_scientific_notation: true
+      - header: "scraped_at_timestamp"
+        path: "scraped_at_timestamp"
+        disable_scientific_notation: true
+      - header: "crawled_source"
+        path: "crawled_source"
+        disable_scientific_notation: true
+
+  - exporter_name: menu_items_csv
+    export_filename: <d:yyyyMMdd>_<name>_menu
+    no_subfolder: true
+    exporter_type: csv
+    collection: menu_items
+    start_on_job_done: true
+    offset: 0
+    order: desc
+    fields:
+      - header: "restaurant_name"
+        path: "restaurant_name"
+        disable_scientific_notation: true
+      - header: "restaurant_url"
+        path: "restaurant_url"
+        disable_scientific_notation: true
+      - header: "cuisine"
+        path: "cuisine"
+        disable_scientific_notation: true
+      - header: "category_name"
+        path: "category_name"
+        disable_scientific_notation: true
+      - header: "name"
+        path: "name"
+        disable_scientific_notation: true
+      - header: "description"
+        path: "description"
+        disable_scientific_notation: true
+      - header: "customer_price_lc"
+        path: "customer_price_lc"
+        disable_scientific_notation: true
+      - header: "currency_code_lc"
+        path: "currency_code_lc"
+        disable_scientific_notation: true
+      - header: "img_url"
+        path: "img_url"
+        disable_scientific_notation: true
+      - header: "is_available"
+        path: "is_available"
+        disable_scientific_notation: true
+      - header: "item_attributes"
+        path: "item_attributes"
+        disable_scientific_notation: true
+      - header: "barcode"
+        path: "barcode"
+        disable_scientific_notation: true
+      - header: "sku"
+        path: "sku"
+        disable_scientific_notation: true
+      - header: "url"
+        path: "url"
+        disable_scientific_notation: true
+      - header: "scraped_at_timestamp"
+        path: "scraped_at_timestamp"
+        disable_scientific_notation: true
+      - header: "crawled_source"
+        path: "crawled_source"
+        disable_scientific_notation: true
