@@ -1,8 +1,10 @@
 # Phase 3: Details Parser
 
+**version:** 2.0.0
+
 **Used by:** dmart-dloc (and any project whose final details parser is for product-style pages)
-**Reads:** `navigation-selectors.json`, `navigation-knowledge.md`, `discovery-state.json`, `field-spec.json`
-**Writes:** `detail-selectors.json`, `detail-knowledge.md`
+**Reads:** `navigation-selectors.json` (includes `_notes`; legacy `navigation-knowledge.md` optional), `discovery-state.json`, `field-spec.json`
+**Writes:** `detail-selectors.json` (includes human **`_notes`** — no separate `detail-knowledge.md`)
 **Edits:** `parsers/details.rb`
 **Next phase:** determined by profile — if this is the last phase, no chaining
 
@@ -33,14 +35,14 @@ Remember — USE TOOLS DIRECTLY, DO NOT WRITE CODE.
 
 **Load state files** (one by one, handle missing gracefully):
 1. `generated_scraper/<scraper>/.scraper-state/phase-status.json`
-2. `generated_scraper/<scraper>/.scraper-state/navigation-selectors.json`
-3. `generated_scraper/<scraper>/.scraper-state/navigation-knowledge.md`
-4. `generated_scraper/<scraper>/.scraper-state/discovery-knowledge.md`
-5. `generated_scraper/<scraper>/.scraper-state/discovery-state.json`
+2. `generated_scraper/<scraper>/.scraper-state/navigation-selectors.json` (read `_notes` when present)
+3. (Legacy) `navigation-knowledge.md` — only if `_notes` missing in navigation-selectors
+4. `generated_scraper/<scraper>/.scraper-state/discovery-state.json` (includes `_notes` / popup strategy)
+5. (Legacy) `discovery-knowledge.md` — only if needed for one-time merge into context
 6. `generated_scraper/<scraper>/.scraper-state/field-spec.json`
    - NOTE: Fields with a `format_spec` key have mandatory output format rules — follow them exactly.
 7. `generated_scraper/<scraper>/.scraper-state/detail-selectors.json` (if resuming)
-8. `generated_scraper/<scraper>/.scraper-state/detail-knowledge.md` (if resuming)
+8. (Legacy) `detail-knowledge.md` (if resuming) — merge into `detail-selectors.json._notes` when rewriting
 
 **Load parser file**:
 - Read `generated_scraper/<scraper>/parsers/details.rb` (must exist from boilerplate)
@@ -123,19 +125,22 @@ name     ||= og_title
 
 ---
 
-## STEP 6: Systematic Field Discovery
+## STEP 6: Systematic Field Discovery (batched by page region)
 
-Iterate through ALL FIND fields in field-spec.json (by priority order). For each:
+**Do not** run one isolated `browser_grep_html` per field when fields group naturally on the page.
 
-1. Skip if `extraction_method != "FIND"` or `discovered == true`
-2. Discover selector — follow `docs/shared/selector-discovery.md` protocol:
-   - `browser_grep_html(query: "<visible value>")` → identify selector from snippet
-   - `browser_inspect_element(ref)` → confirm exact selector
-   - `browser_verify_selector()` → text fields; attribute param for img/href
-3. Update `field-spec.json` immediately: `selectors`, `discovered: true`, `verified`, `confidence`, `extraction_notes`
-4. Track progress: `discovery_status.discovered_fields`, `pending_fields`
+1. Build groups from `field-spec.json` FIND fields (skip `discovered == true` or non-FIND):
+   - **Identity** — name, brand, sku, breadcrumbs
+   - **Pricing** — price, list_price, discount, currency, VAT
+   - **Imagery** — images, gallery
+   - **Availability** — stock, qty, delivery
+   - **Spec / long text** — description, bullets, attributes tables
+2. For **each group**, choose 1–3 high-signal `browser_grep_html` queries that pull **snippets covering multiple nearby fields** (e.g. one grep for a price block substring, one for title area).
+3. From each snippet batch: `browser_inspect_element` / `browser_verify_selector` (or attribute mode) for **all** fields in that group before moving to the next group.
+4. Update `field-spec.json` after each group: selectors, `discovered`, `verified`, `confidence`, `extraction_notes`.
+5. Track `discovery_status` counts.
 
-After all FIND fields iterated — report: "Discovered X/Y FIND fields (Priority 1: A/B, Priority 2: C/D...)"
+After all groups — report: `Discovered X/Y FIND fields` with per-priority breakdown.
 
 ---
 
@@ -168,9 +173,11 @@ b) Map discovered fields from field-spec.json
 c) Replace all PLACEHOLDER strings
 d) Add JSON-LD extraction if found in Step 5
 e) Add meta tag fallbacks for img_url and name
-f) Add validation block
-g) Ensure all 53 output fields present (nil for unavailable)
-h) Write updated file (USE ABSOLUTE PATH)
+f) **Locale-aware price parsing:** from the primary raw price string sample(s), detect **decimal vs thousands** separators (e.g. `1.299,00` EUR vs `1,299.00` US). Store the decision in `detail-selectors.json` under `price_locale` (`{ "decimal_sep": ",", "thousands_sep": "." }` or swapped). Implement `number_from` / string cleanup in `details.rb` so European formats do not parse as wrong floats.
+g) **Category context fallback:** if breadcrumb/CSS `category` extraction is nil, use `vars['category_name']` (and related vars) passed from listings before falling back to empty string.
+h) Add validation block
+i) Ensure all 53 output fields present (nil for unavailable)
+j) Write updated file (USE ABSOLUTE PATH)
 
 ---
 
@@ -191,20 +198,30 @@ Test on 3 different detail URLs. Fix and re-test if any fail.
 
 ---
 
-## STEP 10: Write detail-selectors.json and detail-knowledge.md
+## STEP 9b: Nil-guard check after `parser_tester`
 
-`detail-selectors.json` (USE ABSOLUTE PATH):
+After each successful `parser_tester` run on a detail page, inspect emitted outputs for **required** commercial fields (at minimum **`name`** and **primary price / `customer_price_lc`** per field-spec):
+
+- If any required field is **nil** or empty string while HTML was present: **do not** treat the run as passing — log in `_notes`, adjust selectors or parsing, and re-test.
+- If intentionally absent on this SKU type, document the exception in `field-spec.json` `extraction_notes` and `_notes`.
+
+---
+
+## STEP 10: Write detail-selectors.json (USE ABSOLUTE PATH)
+
+`detail-selectors.json` MUST include top-level **`_notes`** (markdown): fields discovered, JSON-LD usage, **price_locale** summary, category fallback behavior, confidence issues, popup notes, and test URLs.
+
 ```json
 {
-  "fields_discovered": { "name": ".product-title", "price": ".price-tag", ... },
+  "fields_discovered": { "name": ".product-title", "price": ".price-tag" },
   "json_ld_found": true,
   "json_ld_fields": ["name", "price", "brand", "description", "img_url"],
+  "price_locale": { "decimal_sep": ".", "thousands_sep": "," },
   "verified": true,
-  "urls_accessed": { "discovery_urls": ["<url>"], "test_urls": ["<url1>", "<url2>", "<url3>"] }
+  "urls_accessed": { "discovery_urls": ["<url>"], "test_urls": ["<url1>", "<url2>", "<url3>"] },
+  "_notes": "## Details phase\\n\\n- Discovery summary, nil-guard outcomes, next steps\\n"
 }
 ```
-
-`detail-knowledge.md` (USE ABSOLUTE PATH): includes fields discovered, extraction methods, confidence scores, popup handling notes.
 
 ---
 
@@ -218,7 +235,7 @@ Test on 3 different detail URLs. Fix and re-test if any fail.
 
 ## STEP 12: Write Session Audit
 
-Save `session-audit-html_details.json` (same structure as other audits, `"phase": "html_details"`).
+Save `session-audit-html_details.json` (same structure as other audits, `"phase": "html_details"`). **Tally real `tool_call_counts`** (same rules as Phase 1). Use `tool_call_counts_incomplete` if needed.
 
 ---
 
@@ -264,8 +281,7 @@ For dmart-dloc with default pipeline: `details-parser` is index 2 (last) → no 
 - ✅ All 53 output fields present (nil for unavailable)
 - ✅ Parser tested on 3 sample detail pages
 - ✅ `field-spec.json` updated with discovery results
-- ✅ `detail-selectors.json` written
-- ✅ `detail-knowledge.md` written
+- ✅ `detail-selectors.json` written (includes `_notes`, `price_locale` when applicable)
 - ✅ `phase-status.json` updated
 - ✅ Completion report shown
 - ✅ IF auto_next=true AND not last phase: next command EXECUTED

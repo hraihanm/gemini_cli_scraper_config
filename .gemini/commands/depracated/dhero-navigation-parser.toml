@@ -1,0 +1,15 @@
+description = "Deprecated alias: /navigation-parser project=dhero."
+
+prompt = """
+Thin alias — **`/navigation-parser`** with **project=dhero**.
+
+User args: {{args}}
+
+Firmware: `.gemini/system.md`.
+
+@{docs/shared/agent-rules-gemini.md}
+@{docs/shared/datahen-conventions.md}
+@{docs/shared/selector-discovery.md}
+
+`read_file` → `profiles/dhero.toml` → `pipeline.phases[1].workflow` → execute all STEPs.
+"""

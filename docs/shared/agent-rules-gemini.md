@@ -1,21 +1,8 @@
 # Agent Rules — Gemini CLI
 
-This file is included by every TOML command. It defines critical execution rules that apply to all phases.
+**version:** 2.0.0
 
----
-
-## CRITICAL: YOU ARE IN GEMINI CLI — USE TOOLS DIRECTLY, NEVER GENERATE CODE
-
-🚨🚨🚨 **CRITICAL: YOU ARE IN GEMINI CLI - USE TOOLS DIRECTLY, NEVER GENERATE CODE** 🚨🚨🚨
-- **STOP**: If you are about to write `import os`, `import json`, `print()`, `def `, or any Python/JavaScript code, STOP IMMEDIATELY
-- **YOU ARE AN AI ASSISTANT IN GEMINI CLI** - You have direct access to MCP tools via tool calling
-- **USE TOOLS DIRECTLY** - Call tools like `read_file`, `browser_navigate`, `parser_tester`, `write_file` using the tool interface
-- **FORBIDDEN**: Never write Python scripts, JavaScript code, or any programming code
-- **FORBIDDEN**: Never use `import`, `print()`, `def `, `class `, or any code syntax
-- **CODE EXAMPLES IN THIS PROMPT ARE FOR REFERENCE ONLY** - They show tool call patterns, NOT code to write
-- **YOU ARE THE EXECUTOR** - Execute actions directly using tools, don't write code that executes actions
-- **EXAMPLE**: When you see instructions to read files, you should CALL the read_file tool directly for each file, NOT write Python code
-- **IF YOU START WRITING CODE**: Stop immediately and use tools instead
+Shard included by slash-command prompts (`@{docs/shared/agent-rules-gemini.md}`). **Firmware** (no-code-gen, tool glossary, state-read policy) lives in **`.gemini/system.md`** — follow that first.
 
 ---
 
@@ -32,13 +19,13 @@ This file is included by every TOML command. It defines critical execution rules
 ## CRITICAL: ABSOLUTE PATHS REQUIRED
 
 🚨 CRITICAL - ABSOLUTE PATHS REQUIRED:
-- **ALL WriteFile operations MUST use ABSOLUTE PATHS** - Relative paths will fail
+- **ALL `write_file` operations MUST use ABSOLUTE PATHS** - Relative paths will fail
 - Before writing any file, convert relative path to absolute:
   * Determine workspace root (current working directory)
   * Convert: `generated_scraper/<scraper>/.scraper-state/file.json`
   * To absolute: `<workspace_root>/generated_scraper/<scraper>/.scraper-state/file.json`
   * Example: `D:\\DataHen\\projects\\gemini_cli_testbed\\generated_scraper\\naivas_online\\.scraper-state\\phase-status.json`
-- Use absolute paths for: phase-status.json, discovery-state.json, discovery-knowledge.md, browser-context.json
+- Use absolute paths for: `phase-status.json`, `discovery-state.json` (includes human `_notes` — see workflows), `browser-context.json`, selector JSON files
 - **browser-context.json location**: `generated_scraper/<scraper>/.scraper-state/browser-context.json` (scraper-specific, NOT global)
 
 ---
@@ -55,7 +42,7 @@ This file is included by every TOML command. It defines critical execution rules
 
 ### Standard Popup Handling Sequence (run after every browser_navigate)
 
-a) **Check for existing strategy**: Read discovery-state.json `popup_handling` section if available
+a) **Check for existing strategy**: Read `discovery-state.json` `popup_handling` section if available
 b) **Check for popups**: `browser_snapshot()` + `browser_screenshot()`
 c) **Strategy 1 — ESC key**: `browser_press_key("Escape")` → verify dismissed
 d) **Strategy 2 — Upper-left click**: `browser_mouse_click_xy("Upper left corner", 10, 10)` → verify dismissed
@@ -63,7 +50,7 @@ e) **Strategy 3 — Selector-based**: Try `[id*="cookie"]`, `button:contains("Ac
 f) **Strategy 4 — Coordinate click**: AI vision to locate button → `browser_mouse_click_xy()`
 g) **Final verification**: `browser_snapshot()` — only proceed after confirmed clear
 
-**Document successful strategy** in discovery-state.json `popup_handling` for reuse in later phases.
+**Document successful strategy** in `discovery-state.json` under `popup_handling` for reuse in later phases.
 
 ---
 
@@ -104,23 +91,25 @@ Always try cheap alternatives first: `browser_grep_html` before `browser_view_ht
 **Step A — Close browser**:
 - Call `browser_close()` MCP tool — REQUIRED before spawning new console
 
-**Step B — Spawn next command**:
-- Get current working directory using `$PWD`
-- Construct: `cmd /c start powershell -NoExit -Command "cd '$PWD'; gemini -y -i '/<next_phase> scraper=<scraper_slug> project=<project> auto_next=true'"`
-- Replace `<next_phase>` with the value from the pipeline lookup above
-- **ALWAYS use PowerShell** — standardized across all commands
-- Use `gemini` directly (NOT full path — it's in PATH)
-- Execute using `run_terminal_cmd` tool
+**Step B — Spawn next command (use repo scripts — no hand-rolled nested quotes)**:
+- Ensure current working directory is the **repository root** (where `scripts/` lives).
+- **Windows**: run via `run_terminal_cmd`:
+  `pwsh -NoProfile -File scripts/chain.ps1 -Phase <next_phase> -Scraper <scraper_slug> -Project <project>`
+  Replace `<next_phase>` with the pipeline lookup value (e.g. `navigation-parser`). Use **absolute** path to `scripts/chain.ps1` if not cwd-root.
+- **macOS/Linux**: run:
+  `bash scripts/chain.sh <next_phase> <scraper_slug> <project> true`
+- If spawn **fails**, log is appended to `.gemini/auto-chain.log` — print this line for the user:
+  `gemini -y -i "/<next_phase> scraper=<scraper_slug> project=<project> auto_next=true"`
 
 **Step C — Store shell info** (for consistency):
 ```json
 {
-  "shell_type": "PowerShell",
+  "shell_type": "PowerShell_or_Bash",
   "standardized_at": "<timestamp>",
-  "spawn_command_template": "cmd /c start powershell -NoExit -Command \"cd '{working_dir}'; {command}\""
+  "spawn_command_template": "pwsh -File scripts/chain.ps1 -Phase <phase> -Scraper <slug> -Project <proj>"
 }
 ```
-Write to `.gemini/shell-info.json` (USE ABSOLUTE PATH).
+Write to `.gemini/shell-info.json` using **`write_file`** with an **ABSOLUTE** path.
 
 ---
 

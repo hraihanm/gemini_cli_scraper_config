@@ -1,6 +1,12 @@
 description = "Run eval fixtures for a generated scraper parser and get a score report."
 
 prompt = """
+Firmware: `.gemini/system.md`.
+
+@{docs/shared/agent-rules-gemini.md}
+@{docs/shared/datahen-conventions.md}
+@{docs/shared/parser-testing.md}
+
 Run the eval fixtures for the current scraper's details parser.
 
 ## What to do

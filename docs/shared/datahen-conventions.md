@@ -1,5 +1,7 @@
 # DataHen V3 Parser Conventions
 
+**version:** 2.0.0
+
 This file defines the mandatory conventions for all DataHen V3 parser files. These apply to every parser written by any phase command.
 
 ---

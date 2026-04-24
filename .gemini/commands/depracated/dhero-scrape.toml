@@ -1,0 +1,14 @@
+description = "Deprecated alias: /scrape project=dhero."
+
+prompt = """
+Thin alias — **`/scrape`** with **project=dhero**.
+
+User args: {{args}}
+
+Firmware: `.gemini/system.md`.
+
+@{docs/shared/agent-rules-gemini.md}
+@{docs/shared/datahen-conventions.md}
+
+`read_file` → `profiles/dhero.toml` → `pipeline.phases[0].workflow` → execute all STEPs.
+"""

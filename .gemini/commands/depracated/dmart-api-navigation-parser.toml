@@ -1,0 +1,15 @@
+description = "Deprecated alias: /api-navigation-parser project=dmart-dloc."
+
+prompt = """
+Thin alias — **`/api-navigation-parser`** with **project=dmart-dloc**.
+
+User args: {{args}}
+
+Firmware: `.gemini/system.md`.
+
+@{docs/shared/agent-rules-gemini.md}
+@{docs/shared/datahen-conventions.md}
+@{docs/shared/selector-discovery.md}
+
+`read_file` → `profiles/dmart-dloc.toml` → `api_pipeline` phase **`api-navigation-parser`** → read `workflow` → execute.
+"""

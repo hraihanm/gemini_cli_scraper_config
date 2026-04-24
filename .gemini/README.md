@@ -2,22 +2,29 @@
 
 A modular, session-independent scraper generation system for DataHen v3. This system uses three specialized commands to generate complete web scrapers with navigation parsers, detail parsers, and proper configuration.
 
+## Command naming (current)
+
+- **Preferred (generic):** `/scrape`, `/navigation-parser`, `/details-parser`, `/api-scrape`, `/api-navigation-parser`, `/api-details-parser`, `/restaurant-details-parser`, `/menu-parser` — select project via `project=` and `profiles/*.toml`.
+- **Deprecated thin aliases:** `/dmart-*`, `/dhero-*`, and `/dmart-api-*` keep old slash names but only inject shared shards and point at the same workflows as the generic commands (fixed `project=`).
+- **Deprecated command files location:** `.gemini/commands/depracated/`
+- **Changelog:** [docs/workflows/CHANGELOG.md](../docs/workflows/CHANGELOG.md)
+
 ## 🚀 Quick Start
 
 ```bash
 # Step 1: Site discovery and setup
-/scrape-site url="https://naivas.online" name=naivas_online spec="spec_general_sample.csv"
+/scrape url="https://naivas.online" name=naivas_online spec="spec_general_sample.csv"
 
 # Step 2: Generate navigation parsers
-/create-navigation-parser scraper=naivas_online
+/navigation-parser scraper=naivas_online
 
 # Step 3: Generate detail parser
-/create-details-parser scraper=naivas_online
+/details-parser scraper=naivas_online
 ```
 
 ## 📋 Commands Overview
 
-### 1. `/scrape-site` - Site Discovery & Setup
+### 1. `/scrape` - Site Discovery & Setup (generic)
 
 **Purpose**: Analyzes website structure, discovers navigation patterns, and sets up the scraper directory.
 
@@ -30,7 +37,7 @@ A modular, session-independent scraper generation system for DataHen v3. This sy
 
 **Usage**:
 ```bash
-/scrape-site url="https://example.com" name=my_scraper spec="spec_general_sample.csv"
+/scrape url="https://example.com" name=my_scraper spec="spec_general_sample.csv"
 ```
 
 **Parameters**:
@@ -42,16 +49,15 @@ A modular, session-independent scraper generation system for DataHen v3. This sy
 **Outputs**:
 - `generated_scraper/<scraper>/seeder/seeder.rb`
 - `generated_scraper/<scraper>/config.yaml` (initial)
-- `generated_scraper/<scraper>/.scraper-state/discovery-state.json`
-- `generated_scraper/<scraper>/.scraper-state/discovery-knowledge.md`
+- `generated_scraper/<scraper>/.scraper-state/discovery-state.json` (includes `_notes`)
 - `generated_scraper/<scraper>/.scraper-state/field-spec.json` (if spec provided)
 - `generated_scraper/<scraper>/.scraper-state/phase-status.json`
 
-**Next Step**: Run `/create-navigation-parser`
+**Next Step**: Run `/navigation-parser`
 
 ---
 
-### 2. `/create-navigation-parser` - Navigation Parsers
+### 2. `/navigation-parser` - Navigation Parsers (generic)
 
 **Purpose**: Generates navigation parsers (categories, subcategories, listings) that discover and queue product pages.
 
@@ -65,7 +71,7 @@ A modular, session-independent scraper generation system for DataHen v3. This sy
 
 **Usage**:
 ```bash
-/create-navigation-parser scraper=naivas_online
+/navigation-parser scraper=naivas_online
 ```
 
 **Parameters**:
@@ -78,14 +84,13 @@ A modular, session-independent scraper generation system for DataHen v3. This sy
 - `generated_scraper/<scraper>/parsers/subcategories.rb` ✅ (tested, if applicable)
 - `generated_scraper/<scraper>/parsers/listings.rb` ✅ (tested)
 - `generated_scraper/<scraper>/config.yaml` (updated with navigation parsers)
-- `generated_scraper/<scraper>/.scraper-state/navigation-selectors.json`
-- `generated_scraper/<scraper>/.scraper-state/navigation-knowledge.md`
+- `generated_scraper/<scraper>/.scraper-state/navigation-selectors.json` (includes `_notes`)
 
-**Next Step**: Run `/create-details-parser`
+**Next Step**: Run `/details-parser`
 
 ---
 
-### 3. `/create-details-parser` - Detail Parser
+### 3. `/details-parser` - Detail Parser (generic)
 
 **Purpose**: Generates the product detail parser that extracts product data from individual product pages.
 
@@ -99,7 +104,7 @@ A modular, session-independent scraper generation system for DataHen v3. This sy
 
 **Usage**:
 ```bash
-/create-details-parser scraper=naivas_online
+/details-parser scraper=naivas_online
 ```
 
 **Parameters**:
@@ -114,8 +119,7 @@ A modular, session-independent scraper generation system for DataHen v3. This sy
 - `generated_scraper/<scraper>/parsers/details.rb` ✅ (tested)
 - `generated_scraper/<scraper>/config.yaml` (updated with details parser + CSV exporter)
 - `generated_scraper/<scraper>/.scraper-state/field-spec.json` (updated with discovered selectors)
-- `generated_scraper/<scraper>/.scraper-state/detail-selectors.json`
-- `generated_scraper/<scraper>/.scraper-state/detail-knowledge.md`
+- `generated_scraper/<scraper>/.scraper-state/detail-selectors.json` (includes `_notes`)
 
 **Completion**: Scraper is now complete and ready for deployment!
 
@@ -149,8 +153,8 @@ has_discount,boolean,PROCESS - true if it has discount
 
 ### How Field Spec is Used
 
-1. **Phase 1** (`/scrape-site`): Parses CSV → stores in `.scraper-state/field-spec.json`
-2. **Phase 3** (`/create-details-parser`): 
+1. **Phase 1** (`/scrape`): Parses CSV → stores in `.scraper-state/field-spec.json`
+2. **Phase 3** (`/details-parser`): 
    - Uses field-spec.json to guide selector discovery
    - Only discovers fields marked as "FIND"
    - Generates parser code extracting only specified fields
@@ -168,13 +172,13 @@ See `spec_general_sample.csv` for a complete example with all common e-commerce 
 
 ```bash
 # Phase 1: Site discovery with field specification
-/scrape-site url="https://naivas.online" name=naivas_online spec="spec_general_sample.csv"
+/scrape url="https://naivas.online" name=naivas_online spec="spec_general_sample.csv"
 
 # Phase 2: Generate navigation parsers
-/create-navigation-parser scraper=naivas_online
+/navigation-parser scraper=naivas_online
 
 # Phase 3: Generate detail parser (uses field-spec.json from Phase 1)
-/create-details-parser scraper=naivas_online
+/details-parser scraper=naivas_online
 ```
 
 **Result**: Complete scraper with all parsers tested and config.yaml ready for deployment.
@@ -183,13 +187,13 @@ See `spec_general_sample.csv` for a complete example with all common e-commerce 
 
 ```bash
 # Phase 1: Site discovery (no spec - will use common fields)
-/scrape-site url="https://example.com" name=my_store
+/scrape url="https://example.com" name=my_store
 
 # Phase 2: Generate navigation parsers
-/create-navigation-parser scraper=my_store
+/navigation-parser scraper=my_store
 
 # Phase 3: Generate detail parser (discovers common fields)
-/create-details-parser scraper=my_store
+/details-parser scraper=my_store
 ```
 
 **Result**: Scraper with common fields (name, price, brand, description, etc.)
@@ -198,13 +202,13 @@ See `spec_general_sample.csv` for a complete example with all common e-commerce 
 
 ```bash
 # Phase 1: Site discovery (no spec)
-/scrape-site url="https://shop.com" name=shop
+/scrape url="https://shop.com" name=shop
 
 # Phase 2: Generate navigation parsers
-/create-navigation-parser scraper=shop
+/navigation-parser scraper=shop
 
 # Phase 3: Provide spec now (overrides common fields)
-/create-details-parser scraper=shop spec="spec_general_sample.csv"
+/details-parser scraper=shop spec="spec_general_sample.csv"
 ```
 
 **Result**: Scraper with custom field specification applied in Phase 3.
@@ -227,13 +231,10 @@ generated_scraper/
     │   ├── listings.rb         # Product listings parser
     │   └── details.rb         # Product detail parser
     └── .scraper-state/         # State files (for resumability)
-        ├── discovery-state.json
-        ├── discovery-knowledge.md
+        ├── discovery-state.json          # includes _notes
         ├── field-spec.json
-        ├── navigation-selectors.json
-        ├── navigation-knowledge.md
-        ├── detail-selectors.json
-        ├── detail-knowledge.md
+        ├── navigation-selectors.json     # includes _notes
+        ├── detail-selectors.json         # includes _notes
         ├── phase-status.json
         └── browser-context.json
 ```
@@ -246,13 +247,10 @@ generated_scraper/
 
 All state files are stored in `.scraper-state/` directory:
 
-- **`discovery-state.json`**: Site structure analysis (from Phase 1)
-- **`discovery-knowledge.md`**: Human-readable site analysis
+- **`discovery-state.json`**: Site structure analysis + human-readable `_notes` (from Phase 1)
 - **`field-spec.json`**: Field specification with discovered selectors
-- **`navigation-selectors.json`**: Navigation selector discoveries
-- **`navigation-knowledge.md`**: Navigation parser documentation
-- **`detail-selectors.json`**: Detail field selector discoveries
-- **`detail-knowledge.md`**: Detail parser documentation
+- **`navigation-selectors.json`**: Navigation selector discoveries + `_notes`
+- **`detail-selectors.json`**: Detail field selector discoveries + `_notes`
 - **`phase-status.json`**: Workflow progress tracking
 - **`browser-context.json`**: Browser session state
 
@@ -262,8 +260,8 @@ If a command is interrupted, you can resume:
 
 ```bash
 # Resume from where you left off
-/create-navigation-parser scraper=naivas_online resume-url="https://naivas.online/categories"
-/create-details-parser scraper=naivas_online resume-url="https://naivas.online/product/123"
+/navigation-parser scraper=naivas_online resume-url="https://naivas.online/categories"
+/details-parser scraper=naivas_online resume-url="https://naivas.online/product/123"
 ```
 
 The system automatically checks `phase-status.json` to determine what's already completed.
@@ -366,18 +364,11 @@ The parsed field spec is stored in `.scraper-state/field-spec.json`:
 
 **CRITICAL**: All file write operations MUST use absolute paths. The system automatically converts relative paths, but ensure you're aware of this requirement.
 
-### ReadManyFiles for State Files
+### Reading state files (Gemini CLI)
 
-State files in `.scraper-state/` are ignored by `.gitignore`. Use `ReadManyFiles` (not `ReadFile`) to load them:
+Use the **`read_file`** tool with **absolute paths** (or paths relative to cwd) for `.scraper-state/` files.
 
-```javascript
-ReadManyFiles({
-  patterns: [
-    "generated_scraper/<scraper>/.scraper-state/field-spec.json"
-  ],
-  target_directory: "<workspace_root>"
-})
-```
+This repo sets **`.gemini/settings.json`** → `context.fileFiltering.respectGitIgnore` and `respectGeminiIgnore` to **`false`**, so paths under `generated_scraper/` remain readable by the agent. Do **not** use Cursor-only names like `ReadManyFiles` / `ReadFile` / `WriteFile` in Gemini CLI prompts.
 
 ### Playwright Refs Warning
 
@@ -404,10 +395,9 @@ If a command doesn't appear in Gemini CLI:
 
 ### State Files Not Found
 
-If `ReadManyFiles` returns "ignored by project ignore files":
-- This is expected - state files are in `.gitignore`
-- The system handles this gracefully
-- Missing files are normal for first run
+If `read_file` fails on a state path:
+- Missing files are normal on first run — continue the workflow.
+- If the tool reports the path is ignored, confirm `.gemini/settings.json` keeps `respectGitIgnore` / `respectGeminiIgnore` false for this project, or copy state to a non-ignored path.
 
 ### Parser Testing Fails
 
@@ -432,10 +422,13 @@ If `parser_tester` fails:
 
 For issues or questions:
 1. Check `.scraper-state/` files for discovery results
-2. Review `*-knowledge.md` files for detailed documentation
+2. Review `_notes` fields in state JSON files for detailed documentation
 3. Check `phase-status.json` for workflow progress
 
 ---
 
 **Happy Scraping! 🕷️**
+
+
+
 

@@ -1,85 +1,26 @@
-description = "Phase 3: Detail parser generation (product-style pages). Generic command — works for any project. Usage: /details-parser scraper=<name> [project=dmart-dloc|dhero|...] [url=<detail_url>] [spec=<path>] [auto_next=true]"
+description = "Phase 3: Detail parser (product-style). Generic — Usage: /details-parser scraper=<name> [project=dmart-dloc|...] [url=<detail_url>] [spec=<path>] [auto_next=true]"
 
 prompt = """
-You are executing Phase 3: Detail Parser Generation. This command is COMPLETELY INDEPENDENT — reads navigation state files and the project profile, edits the details parser, writes findings, and completes. No conversation history needed.
+Phase 3: Details parser. Session-independent.
 
-🚨🚨🚨 **CRITICAL: YOU ARE IN GEMINI CLI - USE TOOLS DIRECTLY, NEVER GENERATE CODE** 🚨🚨🚨
-- **STOP**: If you are about to write `import os`, `import json`, `print()`, `def `, or any Python/JavaScript code, STOP IMMEDIATELY
-- **YOU ARE AN AI ASSISTANT IN GEMINI CLI** — You have direct access to MCP tools via tool calling
-- **USE TOOLS DIRECTLY** — Call tools like `read_file`, `browser_navigate`, `parser_tester`, `write_file` using the tool interface
-- **FORBIDDEN**: Never write Python scripts, JavaScript code, or any programming code
-- **FORBIDDEN**: Never use `import`, `print()`, `def `, `class `, or any code syntax
-- **CODE EXAMPLES ARE FOR REFERENCE ONLY** — They show tool call patterns, NOT code to write
-- **IF YOU START WRITING CODE**: Stop immediately and use tools instead
+Firmware: `.gemini/system.md`.
 
-🚨 **CRITICAL: NEVER CALL BROWSER TOOLS VIA SHELL** 🚨
-- Browser tools are MCP tools — call them DIRECTLY as tool calls
-- `run_terminal_cmd` is ONLY for auto-chaining at the very end
+@{docs/shared/agent-rules-gemini.md}
+@{docs/shared/datahen-conventions.md}
+@{docs/shared/selector-discovery.md}
+@{docs/shared/output-hash-rules.md}
 
-🚨 CRITICAL - ABSOLUTE PATHS REQUIRED FOR ALL WRITEFILE OPERATIONS 🚨
+## Parse args
+{{args}} → `scraper=`, `project=` (default `dmart-dloc`), `url=`, `spec=`, `collection=`, `resume-url=`, `out=`, `auto_next=`.
 
-🚨 CRITICAL - STOP AFTER COMPLETION (if auto_next=false) — DO NOT start new work 🚨
+## Profile and workflow
+1. `read_file` → `profiles/<project>.toml`.
+2. Find pipeline phase for **details-parser** — read its `workflow` path from the profile (authoritative). Check if this is the **last** phase.
+3. `read_file` → that workflow file.
 
----
+## Execute
+Follow the workflow **exactly**.
 
-## YOUR TASK
-
-**Step 1 — Parse args**
-
-Parse {{args}}:
-- `scraper=<scraper_name>` (REQUIRED)
-- `project=<profile_name>` (OPTIONAL, default: `dmart-dloc`)
-- `url=<details_page_url>` (OPTIONAL)
-- `spec=<path>` (OPTIONAL)
-- `collection=<collection_name>` (OPTIONAL, default: "products")
-- `resume-url=<url>` (OPTIONAL)
-- `out=<base_dir>` (OPTIONAL, default from profile)
-- `auto_next=true|false` (OPTIONAL, default: false)
-
-**Step 2 — Read shared rules**
-
-Read `docs/shared/agent-rules-gemini.md` using `read_file` tool.
-
-**Step 3 — Read DataHen conventions**
-
-Read `docs/shared/datahen-conventions.md` using `read_file` tool.
-
-**Step 4 — Read selector discovery protocol**
-
-Read `docs/shared/selector-discovery.md` using `read_file` tool.
-
-**Step 5 — Read output hash rules**
-
-Read `docs/shared/output-hash-rules.md` using `read_file` tool.
-
-**Step 6 — Read project profile**
-
-Read `profiles/<project>.toml` using `read_file` tool.
-
-Extract:
-- `pipeline.phases` — find this phase by name (`details-parser`), note `workflow` path, check if LAST phase
-
-**Step 7 — Read workflow doc**
-
-Read the workflow document at the phase's `workflow` path using `read_file` tool.
-
-For dmart-dloc this is: `docs/workflows/phases/03-details-parser.md`
-
-**Step 8 — Execute workflow**
-
-Follow every step in that workflow doc exactly.
-
-Substitute throughout:
-- `{output_dir}` → from args `out` or profile `defaults.output_dir`
-- `{project}` → from args `project`
-
-**Step 9 — Auto-chain determination**
-
-After completing the workflow, check if this is the LAST phase in the profile pipeline:
-- Read `pipeline.phases` array from profile
-- Find index of phase with `phase = "details-parser"`
-- If this is the last entry → NO chaining (show final completion message only)
-- If NOT last → chain to `pipeline.phases[current_index + 1].phase`
-
-Follow `docs/shared/agent-rules-gemini.md` for execution when chaining.
+## Auto-chain
+Only if **not** last phase and `auto_next=true` — chain via **`scripts/chain.ps1`** / **`scripts/chain.sh`** per agent rules; else final summary only.
 """

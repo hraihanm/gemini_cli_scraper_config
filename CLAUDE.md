@@ -78,7 +78,7 @@ Prioritized steps with effort + risk estimates.
 
 ### File Path Rules
 
-- **WriteFile operations require absolute paths** — relative paths will fail
+- **`write_file` operations require absolute paths** — relative paths will fail
 - State files, parser files, and knowledge files must all use absolute paths
 
 ### Gemini CLI Commands

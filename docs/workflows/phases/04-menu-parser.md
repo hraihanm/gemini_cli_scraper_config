@@ -1,8 +1,10 @@
 # Phase 4: Menu Parser
 
+**version:** 2.0.0
+
 **Used by:** dhero
-**Reads:** `restaurant-details-state.json`, `restaurant-details-knowledge.md`, `navigation-selectors.json`
-**Writes:** `menu-knowledge.md`
+**Reads:** `restaurant-details-state.json` (`_notes` optional), `navigation-selectors.json` (legacy `restaurant-details-knowledge.md` / `menu-knowledge.md` optional merge)
+**Writes:** `menu-state.json` (includes human **`_notes`** — replaces standalone `menu-knowledge.md` for new runs)
 **Edits:** `parsers/menu.rb`
 **Next phase:** LAST phase in dhero pipeline — no chaining
 
@@ -32,11 +34,11 @@ Menu items are the primary data output — equivalent to "products" in the e-com
 Load `profiles/dhero.toml`.
 
 Load state files:
-1. `restaurant-details-state.json` — get `restaurant_urls_sampled`, `menu_url_pattern`, `vars_passed_to_menu`
-2. `restaurant-details-knowledge.md`
+1. `restaurant-details-state.json` — get `restaurant_urls_sampled`, `menu_url_pattern`, `vars_passed_to_menu`, `_notes` if any
+2. (Legacy) `restaurant-details-knowledge.md` — merge once if needed
 3. `navigation-selectors.json`
 4. `discovery-state.json` — popup_handling
-5. `menu-knowledge.md` (if resuming)
+5. `menu-state.json` (if resuming)
 
 Load `parsers/menu.rb` from boilerplate.
 
@@ -123,7 +125,7 @@ Using `docs/shared/selector-discovery.md` protocol:
 - **Paginated**: Load more or infinite scroll
 - **API-driven**: Items loaded via API (preferred — use `browser_request`)
 
-Document menu structure in `menu-knowledge.md`.
+Document menu structure in `menu-state.json` → `_notes` (markdown).
 
 ---
 
@@ -189,12 +191,12 @@ Test on 3 different restaurant URLs. Each should produce menu item outputs. Fix 
 
 ---
 
-## STEP 8: Write menu-knowledge.md
+## STEP 8: Write menu-state.json (USE ABSOLUTE PATH)
 
-Include:
+Include top-level JSON (shape can include `menu_structure`, `selectors_summary`, `test_urls`) plus non-empty **`_notes`** markdown covering:
 - Menu structure detected (sections, tabs, pagination, API)
 - Selectors used for each field
-- Any fields not available (nil)
+- Fields not available (nil)
 - Embedded JSON / API findings
 - Sample output validation
 
@@ -241,6 +243,6 @@ To test the full pipeline:
 - ✅ `menu.rb` edited with item selectors
 - ✅ Parser tested on 3 restaurant URLs
 - ✅ Each restaurant produces menu item outputs
-- ✅ `menu-knowledge.md` written
+- ✅ `menu-state.json` written (includes `_notes`)
 - ✅ `phase-status.json` updated
 - ✅ Final completion report shown (no chaining — this is the last phase)

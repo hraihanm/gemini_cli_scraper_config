@@ -26,15 +26,15 @@ All three commands (`/scrape-site`, `/create-navigation-parser`, `/create-detail
 
 ```
 generated_scraper/<scraper>/.scraper-state/
-├── discovery-state.json          # Machine-readable site structure
-├── discovery-knowledge.md        # Human + AI readable summary
-├── navigation-selectors.json     # Machine-readable selectors
-├── navigation-knowledge.md       # Human + AI readable summary
-├── detail-selectors.json         # Machine-readable selectors
-├── detail-knowledge.md           # Human + AI readable summary
+├── discovery-state.json          # Site structure + `_notes` (human summary)
+├── navigation-selectors.json     # Selectors + `_notes`
+├── detail-selectors.json         # Selectors + `_notes`
+├── menu-state.json               # DHero menu phase + `_notes` (when applicable)
 ├── phase-status.json             # Overall progress tracking
 └── browser-context.json          # Browser session state
 ```
+
+(Legacy `*-knowledge.md` files may still exist from older runs.)
 
 ## Command Flow
 
@@ -43,8 +43,7 @@ generated_scraper/<scraper>/.scraper-state/
 **Reads:** Nothing (starts fresh)
 
 **Writes:**
-- `discovery-state.json` - Site structure (JSON)
-- `discovery-knowledge.md` - Site analysis (Markdown)
+- `discovery-state.json` - Site structure (JSON) including `_notes`
 - `phase-status.json` - Marks site_discovery complete
 - `browser-context.json` - Browser state
 
@@ -53,16 +52,14 @@ generated_scraper/<scraper>/.scraper-state/
 ### Phase 2: Navigation Parsers (`/create-navigation-parser`)
 
 **Reads:**
-- `discovery-state.json` - Site structure
-- `discovery-knowledge.md` - Site analysis
+- `discovery-state.json` - Site structure (and `_notes`)
 - `phase-status.json` - Check if already done
 
 **Writes:**
 - `parsers/categories.rb` - Category parser
 - `parsers/subcategories.rb` - Subcategory parser (if needed)
 - `parsers/listings.rb` - Listings parser
-- `navigation-selectors.json` - Selectors (JSON)
-- `navigation-knowledge.md` - Discovery summary (Markdown)
+- `navigation-selectors.json` - Selectors (JSON) including `_notes`
 - `phase-status.json` - Marks navigation_discovery complete
 
 **Completes with:** "Next: `/create-details-parser scraper=<name>`"
@@ -70,22 +67,20 @@ generated_scraper/<scraper>/.scraper-state/
 ### Phase 3: Detail Parser (`/create-details-parser`)
 
 **Reads:**
-- `navigation-selectors.json` - Navigation selectors
-- `navigation-knowledge.md` - Navigation summary
-- `discovery-knowledge.md` - Site structure
+- `navigation-selectors.json` - Navigation selectors (and `_notes`)
+- `discovery-state.json` - Site structure (and `_notes`)
 - `phase-status.json` - Check if already done
 
 **Writes:**
 - `parsers/details.rb` - Detail parser
-- `detail-selectors.json` - Selectors (JSON)
-- `detail-knowledge.md` - Discovery summary (Markdown)
+- `detail-selectors.json` - Selectors (JSON) including `_notes`
 - `phase-status.json` - Marks detail_discovery complete
 
 **Completes with:** "Scraper complete! Ready for testing."
 
-## Knowledge File Format
+## Notes format (`_notes` in JSON)
 
-Each `.md` knowledge file contains:
+Each phase's primary JSON state file includes a **`_notes`** string (markdown). It should cover:
 
 1. **Completion Status** - When completed, what phase
 2. **Discoveries** - What was found, selectors discovered
@@ -94,7 +89,7 @@ Each `.md` knowledge file contains:
 5. **Vars Flow** - How data flows between parsers
 6. **Next Steps** - What command to run next
 
-**Example (navigation-knowledge.md):**
+**Example (`navigation-selectors.json` → `_notes`):**
 ```markdown
 # Navigation Parser Knowledge - naivas_online
 
@@ -124,23 +119,23 @@ Run: `/create-details-parser scraper=naivas_online`
 **Session 1:**
 ```bash
 /scrape-site url="https://naivas.online" name=naivas_online
-# Writes: discovery-state.json, discovery-knowledge.md
+# Writes: discovery-state.json (with _notes)
 # Completes: "Next: /create-navigation-parser scraper=naivas_online"
 ```
 
 **Session 2 (New Session):**
 ```bash
 /create-navigation-parser scraper=naivas_online
-# Reads: discovery-state.json, discovery-knowledge.md
-# Writes: navigation-selectors.json, navigation-knowledge.md, parsers/*.rb
+# Reads: discovery-state.json
+# Writes: navigation-selectors.json (with _notes), parsers/*.rb
 # Completes: "Next: /create-details-parser scraper=naivas_online"
 ```
 
 **Session 3 (New Session):**
 ```bash
 /create-details-parser scraper=naivas_online
-# Reads: navigation-selectors.json, navigation-knowledge.md
-# Writes: detail-selectors.json, detail-knowledge.md, parsers/details.rb
+# Reads: navigation-selectors.json, discovery-state.json
+# Writes: detail-selectors.json (with _notes), parsers/details.rb
 # Completes: "Scraper complete!"
 ```
 
