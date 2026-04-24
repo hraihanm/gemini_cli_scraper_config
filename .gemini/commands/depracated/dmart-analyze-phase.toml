@@ -1,12 +1,12 @@
 description = "Analyze session audit files from a generated scraper and suggest TOML prompt improvements. Token-efficient: reads only compact audit + parser files, not conversation history."
 
 prompt = """
-You are analyzing session audit files from completed scraper generation phases to suggest improvements to the TOML workflow prompts.
+Firmware: `.gemini/system.md`.
 
-🚨🚨🚨 **CRITICAL: YOU ARE IN GEMINI CLI - USE TOOLS DIRECTLY, NEVER GENERATE CODE** 🚨🚨🚨
-- **USE TOOLS DIRECTLY** - Call `read_file`, `write_file` via tool calling
-- **FORBIDDEN**: Never write Python scripts, JavaScript code, or any programming code
-- **IF YOU START WRITING CODE**: Stop immediately and use tools instead
+@{docs/shared/agent-rules-gemini.md}
+@{docs/shared/datahen-conventions.md}
+
+You are analyzing session audit files from completed scraper generation phases to suggest improvements to the TOML workflow prompts.
 
 🚨 **TOKEN-EFFICIENT ANALYSIS — read only compact files**:
 - Read `session-audit-*.json` files (2-5KB each) — NOT conversation history

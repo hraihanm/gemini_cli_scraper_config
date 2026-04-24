@@ -729,27 +729,16 @@ All state files stored in `.scraper-state/` directory:
 - `detail-selectors.json` - Detail field selector discoveries
 - `browser-context.json` - Last browser state
 
-**Markdown Files** (Human-readable):
-- `discovery-knowledge.md` - Site analysis documentation
-- `navigation-knowledge.md` - Navigation parser documentation
-- `detail-knowledge.md` - Detail parser documentation
+**Human-readable notes (merged into JSON)**:
+- Phase outputs use a **`_notes`** string field inside the primary JSON state file for that phase (see `docs/workflows/phases/*.md`). Legacy `*-knowledge.md` files may still exist on disk from older runs; prefer JSON `_notes` when present.
 
 ### Reading State Files
 
-**Critical**: Use `ReadManyFiles` (not `ReadFile`) for state files.
+**Critical (Gemini CLI)**: Use the **`read_file`** tool. Use **absolute paths** for `write_file` and for `read_file` when in doubt.
 
-**Why**: State files are in `.gitignore`, so `ReadFile` fails.
+**Why this repo works**: `.gemini/settings.json` sets `context.fileFiltering.respectGitIgnore` and `respectGeminiIgnore` to **`false`**, so paths under `generated_scraper/` (including `.scraper-state/`) remain readable. Do **not** document Cursor-only tool names (`ReadManyFiles`, `ReadFile`, `WriteFile`) for Gemini runs.
 
-**Pattern**:
-```javascript
-ReadManyFiles({
-  patterns: [
-    "generated_scraper/<scraper>/.scraper-state/phase-status.json",
-    "generated_scraper/<scraper>/.scraper-state/discovery-state.json"
-  ],
-  target_directory: "<workspace_root>"
-})
-```
+**Pattern**: Call `read_file` once per file; if a file is missing on first run, handle the error and continue.
 
 ### Writing State Files
 
@@ -868,9 +857,9 @@ parser_tester({
 
 1. **Read state first**: Always load existing state files before starting work
 2. **Write everything**: Save all discoveries before completion
-3. **Use ReadManyFiles**: For state files (ReadFile fails due to .gitignore)
+3. **Use `read_file`**: For state files (this project disables ignore-based blocking in `.gemini/settings.json`)
 4. **Absolute paths**: Convert relative paths to absolute before writing
-5. **Document discoveries**: Write both JSON (machine) and Markdown (human) files
+5. **Document discoveries**: Write JSON state; include human commentary in the **`_notes`** field inside that JSON (see workflows)
 
 ### Browser Automation
 
@@ -896,13 +885,12 @@ parser_tester({
 
 ### State Files Not Found
 
-**Problem**: `ReadManyFiles` returns "ignored by project ignore files".
+**Problem**: `read_file` cannot access a state path.
 
 **Solutions**:
-- This is **expected** - state files are in `.gitignore`
-- The system handles this gracefully
-- Missing files are normal for first run
-- Use `ReadManyFiles` (not `ReadFile`) for state files
+- Missing files are **normal** on first run — continue.
+- Confirm `.gemini/settings.json` keeps `respectGitIgnore` / `respectGeminiIgnore` false for this project.
+- Use **absolute** paths.
 
 ### Parser Testing Fails
 

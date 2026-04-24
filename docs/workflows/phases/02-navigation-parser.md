@@ -1,8 +1,10 @@
 # Phase 2: Navigation Parser
 
+**version:** 2.0.0
+
 **Used by:** all projects (dmart-dloc, dhero, etc.)
-**Reads:** `discovery-state.json`, `discovery-knowledge.md`
-**Writes:** `navigation-selectors.json`, `navigation-knowledge.md`
+**Reads:** `discovery-state.json` (use `_notes` inside JSON; legacy `discovery-knowledge.md` optional for one-time merge)
+**Writes:** `navigation-selectors.json` (includes human **`_notes`** — no separate `navigation-knowledge.md`)
 **Edits:** parser files listed in `boilerplate.parsers` (excluding the final details/restaurant/menu parser)
 **Next phase:** determined by project profile pipeline (phase at index 2)
 
@@ -30,13 +32,13 @@ Remember — USE TOOLS DIRECTLY, DO NOT WRITE CODE.
 
 **Load state files** (one by one, handle missing gracefully):
 1. `generated_scraper/<scraper>/.scraper-state/phase-status.json`
-2. `generated_scraper/<scraper>/.scraper-state/discovery-state.json`
-3. `generated_scraper/<scraper>/.scraper-state/discovery-knowledge.md`
-4. `generated_scraper/<scraper>/.scraper-state/navigation-selectors.json` (if resuming)
-5. `generated_scraper/<scraper>/.scraper-state/navigation-knowledge.md` (if resuming)
+2. `generated_scraper/<scraper>/.scraper-state/discovery-state.json` (read `_notes` for human context)
+3. (Legacy) `discovery-knowledge.md` only if present and `_notes` in discovery-state is empty — merge then prefer JSON
+4. `generated_scraper/<scraper>/.scraper-state/navigation-selectors.json` (if resuming; may include `_notes`)
+5. (Legacy) `navigation-knowledge.md` only if present — merge into `navigation-selectors.json._notes` when rewriting
 
 Parse:
-- `discovery-state.json`: `has_categories`, `has_subcategories`, `has_listings`, `navigation_depth`, `sample_urls`, `popup_handling` strategy
+- `discovery-state.json`: `has_categories`, `has_subcategories`, `has_listings`, `navigation_depth`, `sample_urls`, `popup_handling` strategy, and `_notes` when present
 - `phase-status.json`: check `navigation_discovery.status` — if "completed" display summary and stop
 
 **Load existing parser files** (one by one):
@@ -125,21 +127,22 @@ Use result directly if strategy is clear. Only fall back to manual strategies if
 
 d) Discover product link selector using `browser_grep_html` then `browser_inspect_element`
 
-e) **Manual pagination strategies** (only if browser_detect_pagination returned "unknown"):
-   - **Strategy 1 (Count-Based — TOP PRIORITY)**:
-     * Find product count element: `browser_grep_html(query: "results")` or `browser_grep_html(query: "products")`
-     * Verify with `browser_count_selector({ selector: ".results-count", expected_min: 1 })`
-     * Determine count regex pattern
-     * Count products per page
-     * Test pagination URL pattern (?page=2, /page/2, etc.)
-   - **Strategy 2 (Next Button)**: find next button, extract href pattern
-   - **Strategy 3 (Infinite Scroll)**: scroll detection + network request monitoring
-   - **Strategy 4/5 (URL patterns)**: test query param and path patterns
+e) **Manual pagination strategies** (only if `browser_detect_pagination` returned `"unknown"` OR its strategy fails in practice):
+
+   **Mandatory fallback chain (never silently stay on page 1):**
+   1. **Strategy 1 — Count-based (try first):** find product count / results text → `browser_count_selector` → derive pages → navigate to page 2 and confirm new products or URLs.
+   2. **If Strategy 1 fails** (no count element, regex mismatch, or page 2 looks identical to page 1): immediately try **Strategy 2 — Next button** (`browser_grep_html` / snapshot for `rel=next`, "Next", chevrons) and validate href.
+   3. **If Strategy 2 fails:** **Strategy 3 — Infinite scroll / load-more** (scroll + `browser_network_requests_simplified` or load-more button).
+   4. **If Strategy 3 fails:** **Strategy 4/5 — URL patterns** (`?page=`, `/page/2`, offset params).
+
+   **Page-1-only guard:** After implementing pagination, if the listings parser still only ever queues **page-1** detail URLs, set `navigation-selectors.json` → `listings.pagination_warning` to a **non-empty** string describing which strategies were tried and what failed. Include the same warning in `_notes` and echo it in **bold** in the completion report.
 
 f) Edit `parsers/listings.rb` (USE ABSOLUTE PATH):
    - Replace product link selector
    - Update Strategy 1 with discovered `product_count_selector`, `product_count_regex`, `products_per_page`, pagination pattern
-   - Keep Strategy 1 as primary/active — only use fallbacks if count cannot be discovered
+   - Keep Strategy 1 as primary — **activate fallbacks in code** when count-based pagination yields no second page
+   - **URL deduplication:** when enqueueing detail URLs in `pages <<`, skip URLs already seen in this parser pass (normalize URL: strip fragment, optional trailing slash); use a `Set` / hash keys in Ruby to avoid duplicate detail jobs
+   - **Multi-page selector verification:** before setting `verified: true` on `product_link_selector` in `navigation-selectors.json`, run `browser_verify_selector` (or equivalent) on **at least two** distinct listing surfaces (e.g. category A page 1 and category B page 1, or same category page 1 vs page 2). If the second surface fails, iterate selector until both pass **or** lower `confidence` below 0.9 and document in `_notes`
    - Update vars passing (rank, page_number, listing_position, category_name, breadcrumb)
    - Preserve save_pages calls
 
@@ -207,10 +210,12 @@ Path: `{output_dir}/<scraper>/.scraper-state/navigation-selectors.json`
     "product_count_selector": ".result-count",
     "product_count_regex": "/(\\d+)\\s*(?:results?|products?)/i",
     "products_per_page": 24,
+    "pagination_warning": "",
     "verified": true,
     "confidence": 0.95,
     "sample_detail_urls": ["<url1>", "<url2>"]
   },
+  "_notes": "## Navigation phase (markdown)\\n\\n- Parsers touched, pagination strategy chain, smoke test result\\n- Vars flow categories → listings → details\\n- **Next:** `/<next_phase_from_profile> ...`\\n",
   "urls_accessed": {
     "categories_discovery": ["<url>"],
     "listings_discovery": ["<url>"],
@@ -220,26 +225,11 @@ Path: `{output_dir}/<scraper>/.scraper-state/navigation-selectors.json`
 }
 ```
 
----
-
-## STEP 8: Write navigation-knowledge.md (USE ABSOLUTE PATH)
-
-Path: `{output_dir}/<scraper>/.scraper-state/navigation-knowledge.md`
-
-Include:
-- Parsers updated and tested (with selectors, strategy, confidence)
-- Vars flow documentation (categories → listings → details, with what vars are passed)
-- Pagination details (strategy used, selector, regex, products per page)
-- Sample detail URLs for next phase
-- Pipeline smoke test outcome (PASSED / FAILED + any fixes made)
-- Next command using profile pipeline (NOT hardcoded):
-  ```
-  /<next_phase_from_profile> scraper=<scraper_slug> project=<project>
-  ```
+🚨 **MANDATORY:** `navigation-selectors.json` MUST include a non-empty top-level **`_notes`** string (markdown) covering: parsers updated, selectors + confidence, **pagination strategy chain** (which strategy won; if `pagination_warning` set, explain), vars flow, sample detail URLs, smoke test outcome, and the exact next slash command from the profile (never hardcode `/dmart-details-parser`).
 
 ---
 
-## STEP 9: Update Phase Status and Browser Context
+## STEP 8: Update Phase Status and Browser Context
 
 `phase-status.json` — set `navigation_discovery.status = "completed"`, add `completed_at` and checkpoints.
 
@@ -247,19 +237,19 @@ Include:
 
 ---
 
-## STEP 10: Write Session Audit
+## STEP 9: Write Session Audit
 
-Save `session-audit-html_navigation.json` (same structure as scrape audit, `"phase": "html_navigation"`).
+Save `session-audit-html_navigation.json` (same structure as Phase 1 audit, with `"phase": "html_navigation"`). **Tally real `tool_call_counts`** (same rules as Phase 1 — no silent all-zeros). If counts cannot be reconstructed, set `"tool_call_counts_incomplete": true` and document in `improvement_suggestions`.
 
 ---
 
-## STEP 11: Completion Report
+## STEP 10: Completion Report
 
 Display completion summary. The "Next Command" line MUST use the next phase from the project pipeline profile (NOT `/dmart-details-parser`).
 
 ---
 
-## STEP 12: Auto-Chaining (if auto_next=true)
+## STEP 11: Auto-Chaining (if auto_next=true)
 
 Follow `docs/shared/agent-rules-gemini.md` auto-chain rules.
 
@@ -274,8 +264,8 @@ Follow `docs/shared/agent-rules-gemini.md` auto-chain rules.
 
 - ✅ Navigation parser files edited and tested (categories, subcategories if applicable, listings)
 - ✅ `config.yaml` verified
-- ✅ `navigation-selectors.json` written
-- ✅ `navigation-knowledge.md` written
+- ✅ `navigation-selectors.json` written (includes `_notes` and `listings.pagination_warning` when applicable)
+- ✅ `session-audit-html_navigation.json` with accurate tool counts
 - ✅ Pipeline smoke test passed
 - ✅ `phase-status.json` updated
 - ✅ Sample detail URLs extracted and saved

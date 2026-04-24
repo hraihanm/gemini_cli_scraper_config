@@ -1,5 +1,7 @@
 # Output Hash Rules
 
+**version:** 2.0.0
+
 All details parsers MUST emit an output hash with all 53 fields. This file defines the rules.
 
 ---

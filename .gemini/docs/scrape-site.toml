@@ -30,7 +30,7 @@ You are performing Phase 1: Site Discovery for scraper generation. This command 
 5. **Clear Completion** - Report what's done, what's next, how to continue
 
 🚨 CRITICAL - ABSOLUTE PATHS REQUIRED:
-- **ALL WriteFile operations MUST use ABSOLUTE PATHS** - Relative paths will fail
+- **ALL `write_file` operations MUST use ABSOLUTE PATHS** - Relative paths will fail
 - Before writing any file, convert relative path to absolute:
   * Determine workspace root (current working directory)
   * Convert: `generated_scraper/<scraper>/.scraper-state/file.json`

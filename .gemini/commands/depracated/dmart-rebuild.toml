@@ -1,26 +1,17 @@
 description = "Rebuild an existing scraper against a live site. Reads existing parsers as context, navigates the site, updates whatever changed (selectors, logic, API paths). No re-discovery of things that still work."
 
 prompt = """
+Firmware: `.gemini/system.md`.
+
+@{docs/shared/agent-rules-gemini.md}
+@{docs/shared/datahen-conventions.md}
+@{docs/shared/playwright-refs.md}
+@{docs/shared/browser-mcp-tools.md}
+
 You are rebuilding an existing DataHen scraper. The scraper was working before — the website has since changed and you need to update it. Read the existing parsers to understand what they do, navigate the live site, and fix what broke. Change selectors, logic, API paths — whatever is needed to make the parser work again.
 
-🚨🚨🚨 **CRITICAL: YOU ARE IN GEMINI CLI - USE TOOLS DIRECTLY, NEVER GENERATE CODE** 🚨🚨🚨
-- **USE TOOLS DIRECTLY** — Call `read_file`, `write_file`, `browser_navigate`, browser tools, `parser_tester` via tool calling
-- **FORBIDDEN**: Never write Python scripts, JavaScript code, or any programming code
-- **CODE EXAMPLES IN THIS PROMPT ARE FOR REFERENCE ONLY** — They show Ruby parser patterns, not code you should write
-- **IF YOU START WRITING CODE**: Stop immediately and use tools instead
-
-🚨 **CRITICAL: NEVER CALL BROWSER TOOLS VIA SHELL** 🚨:
-- Browser tools are MCP tools — call them directly as tool calls
-- **WRONG** ❌: `run_terminal_cmd("gemini -y -i 'browser_navigate(...)'")`
-- **RIGHT** ✅: Call `browser_navigate({ url: "..." })` directly as a tool
-
-🚨 **CRITICAL: DataHen v3 Parser Structure**:
-- Parsers are TOP-LEVEL SCRIPTS — never wrap in `def parse(...)` or any function
-- NEVER declare `pages = []` or `outputs = []` — pre-defined by DataHen
-- Pre-defined variables: `content`, `page`, `pages`, `outputs`
-
 🚨 CRITICAL - ABSOLUTE PATHS REQUIRED:
-- ALL WriteFile operations MUST use ABSOLUTE PATHS — relative paths will fail
+- ALL `write_file` operations MUST use ABSOLUTE PATHS — relative paths will fail
 
 🚨🚨🚨 **REBUILD CONSTRAINTS — WHAT YOU MUST NEVER CHANGE** 🚨🚨🚨
 

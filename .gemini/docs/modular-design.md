@@ -18,16 +18,14 @@
 
 ## Knowledge Files Structure
 
-Each command writes comprehensive knowledge files before completion:
+Each command writes comprehensive state files before completion (human summaries live in JSON **`_notes`** fields; legacy `*-knowledge.md` may exist from older runs):
 
 ```
 generated_scraper/<scraper>/.scraper-state/
-├── discovery-state.json          # Site structure (from scrape-site)
-├── discovery-knowledge.md         # Human-readable summary
-├── navigation-selectors.json     # Selectors (from create-navigation-parser)
-├── navigation-knowledge.md       # What was discovered, why, how
-├── detail-selectors.json         # Selectors (from create-details-parser)
-├── detail-knowledge.md           # Field discoveries, edge cases, notes
+├── discovery-state.json          # Site structure + _notes (Phase 1)
+├── navigation-selectors.json     # Selectors + _notes (Phase 2)
+├── detail-selectors.json         # Selectors + _notes (Phase 3)
+├── menu-state.json               # DHero menu phase + _notes (Phase 4, when applicable)
 ├── phase-status.json             # Overall progress
 └── browser-context.json          # Browser state
 ```
@@ -36,12 +34,11 @@ generated_scraper/<scraper>/.scraper-state/
 
 **Before ANY command completes:**
 
-1. **Write Selector/State Files** (JSON - machine readable)
-2. **Write Knowledge Files** (Markdown - human readable + AI readable)
-3. **Write Completion Report** (What was done, what's next)
-4. **Update Phase Status** (Mark phase complete)
+1. **Write Selector/State Files** (JSON — machine readable, include **`_notes`** markdown for human+AI summary)
+2. **Write Completion Report** (What was done, what's next)
+3. **Update Phase Status** (Mark phase complete)
 
-**Knowledge File Format:**
+**Notes format (inside JSON `_notes` string):**
 ```markdown
 # Navigation Parser Knowledge - naivas_online
 

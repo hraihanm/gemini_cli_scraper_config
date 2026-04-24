@@ -1,58 +1,18 @@
-description = "Phase 3 (dhero): Restaurant details parser. Extracts restaurant metadata and queues menu pages. Usage: /restaurant-details-parser scraper=<name> project=dhero [url=<url>] [auto_next=true]"
+description = "Phase 3 (dhero): Restaurant details parser. Generic path: project must be dhero. Usage: /restaurant-details-parser scraper=<name> project=dhero [url=...] [auto_next=true]"
 
 prompt = """
-You are executing Phase 3 (DHero): Restaurant Details Parser. This command is COMPLETELY INDEPENDENT — reads navigation state files, edits restaurant_details.rb, and queues menu pages for Phase 4. No conversation history needed.
+DHero Phase 3 — restaurant details (session-independent).
 
-🚨🚨🚨 **CRITICAL: YOU ARE IN GEMINI CLI - USE TOOLS DIRECTLY, NEVER GENERATE CODE** 🚨🚨🚨
-- **STOP**: If you are about to write `import os`, `import json`, `print()`, `def `, or any Python/JavaScript code, STOP IMMEDIATELY
-- **YOU ARE AN AI ASSISTANT IN GEMINI CLI** — You have direct access to MCP tools via tool calling
-- **USE TOOLS DIRECTLY** — Call tools like `read_file`, `browser_navigate`, `parser_tester`, `write_file` using the tool interface
-- **FORBIDDEN**: Never write Python scripts, JavaScript code, or any programming code
-- **IF YOU START WRITING CODE**: Stop immediately and use tools instead
+Firmware: `.gemini/system.md`.
 
-🚨 **CRITICAL: NEVER CALL BROWSER TOOLS VIA SHELL** 🚨
-🚨 CRITICAL - ABSOLUTE PATHS REQUIRED FOR ALL WRITEFILE OPERATIONS 🚨
-🚨 CRITICAL - STOP AFTER COMPLETION (if auto_next=false) — DO NOT start new work 🚨
+@{docs/shared/agent-rules-gemini.md}
+@{docs/shared/datahen-conventions.md}
+@{docs/shared/selector-discovery.md}
 
----
+Parse {{args}}: `scraper=` (required), `project=` (must be **`dhero`**), `url=`, `resume-url=`, `out=`, `auto_next=`.
 
-## YOUR TASK
-
-**Step 1 — Parse args**
-
-Parse {{args}}:
-- `scraper=<scraper_name>` (REQUIRED)
-- `project=dhero` (REQUIRED — this command is dhero-specific)
-- `url=<restaurant_detail_url>` (OPTIONAL)
-- `resume-url=<url>` (OPTIONAL)
-- `out=<base_dir>` (OPTIONAL, default from profile)
-- `auto_next=true|false` (OPTIONAL, default: false)
-
-**Step 2 — Read shared rules and conventions**
-
-Read in parallel:
-- `docs/shared/agent-rules-gemini.md`
-- `docs/shared/datahen-conventions.md`
-- `docs/shared/selector-discovery.md`
-
-**Step 3 — Read project profile**
-
-Read `profiles/dhero.toml`.
-
-Find pipeline phase where `phase = "restaurant-details-parser"` — note `workflow` path and next phase (menu-parser).
-
-**Step 4 — Read workflow doc**
-
-Read `docs/workflows/phases/03-restaurant-details.md` using `read_file` tool.
-
-**Step 5 — Execute workflow**
-
-Follow every step in the workflow doc exactly.
-
-**Step 6 — Auto-chain (if auto_next=true)**
-
-This is phase index 2 in dhero pipeline. Next phase = `menu-parser`.
-
-Follow `docs/shared/agent-rules-gemini.md` auto-chain rules.
-Spawn: `/menu-parser scraper=<scraper> project=dhero auto_next=true`
+1. `read_file` → `profiles/dhero.toml`.
+2. Find pipeline phase **`restaurant-details-parser`** — read its **`workflow`** path (authoritative).
+3. `read_file` → that workflow; execute every STEP.
+4. Auto-chain per agent rules + **`scripts/chain.ps1`** / **`scripts/chain.sh`** when `auto_next=true` (next phase is usually **`menu-parser`**).
 """

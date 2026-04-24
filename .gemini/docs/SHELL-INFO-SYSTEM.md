@@ -66,7 +66,7 @@ To avoid detecting shell type on every command execution, the system stores shel
 
 ```javascript
 // Step 1: Try to load shell-info.json
-ReadFile({
+read_file({
   absolute_path: "<workspace_root>/.gemini/shell-info.json"
 })
 
@@ -79,7 +79,7 @@ if (shell_info_exists) {
   shell_type = detect_shell_type()
   
   // Step 4: Store to shell-info.json
-  WriteFile({
+  write_file({
     absolute_path: "<workspace_root>/.gemini/shell-info.json",
     content: JSON.stringify({
       shell_type: shell_type,

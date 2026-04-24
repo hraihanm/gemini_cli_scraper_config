@@ -1,0 +1,16 @@
+description = "Deprecated alias: same as /scrape with project=dmart-dloc."
+
+prompt = """
+Thin alias — use **`/scrape`** with **project=dmart-dloc** fixed.
+
+User args: {{args}}
+
+If `project=` appears in args, **override to `dmart-dloc`** for this run.
+
+Firmware: `.gemini/system.md`.
+
+@{docs/shared/agent-rules-gemini.md}
+@{docs/shared/datahen-conventions.md}
+
+`read_file` → `profiles/dmart-dloc.toml` → `read_file` workflow from `pipeline.phases[0].workflow` → execute all STEPs (same as `/scrape`).
+"""

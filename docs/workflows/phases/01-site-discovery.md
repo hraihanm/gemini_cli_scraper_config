@@ -1,8 +1,12 @@
 # Phase 1: Site Discovery
 
+**version:** 2.0.0
+
 **Used by:** all projects (dmart-dloc, dhero, etc.)
-**Output state files:** `discovery-state.json`, `discovery-knowledge.md`, `phase-status.json`, `browser-context.json`
+**Output state files:** `discovery-state.json` (includes human **`_notes`** markdown — no separate `discovery-knowledge.md`), `phase-status.json`, `browser-context.json`
 **Next phase:** determined by project profile pipeline (phase at index 1)
+
+**Migration:** If `discovery-knowledge.md` exists from an older run, read it once, merge its text into `discovery-state.json._notes`, then you may delete the `.md` file.
 
 ---
 
@@ -30,8 +34,8 @@ Remember — USE TOOLS DIRECTLY, DO NOT WRITE CODE. Call `read_file` tool for ea
 Read files one by one using `read_file` tool (CALL THE TOOL DIRECTLY for each — DO NOT write Python code):
 
 1. Read `generated_scraper/<scraper>/.scraper-state/phase-status.json` (if exists)
-2. Read `generated_scraper/<scraper>/.scraper-state/discovery-state.json` (if exists)
-3. Read `generated_scraper/<scraper>/.scraper-state/discovery-knowledge.md` (if exists)
+2. Read `generated_scraper/<scraper>/.scraper-state/discovery-state.json` (if exists) — human notes live in `_notes` inside this JSON when present
+3. (Legacy only) Read `generated_scraper/<scraper>/.scraper-state/discovery-knowledge.md` if it exists and `discovery-state.json` has no `_notes` yet — merge into JSON then prefer JSON-only going forward
 
 If a file doesn't exist, `read_file` returns an error — handle gracefully and continue.
 
@@ -233,34 +237,16 @@ Path: `{output_dir}/<scraper>/.scraper-state/discovery-state.json`
       "wait_time_ms": null,
       "verified": false
     }
-  }
+  },
+  "_notes": "## Discovery summary (markdown)\\n\\n- Site structure, sample URLs, popups, fetch_type notes\\n- **Next:** `/<next_phase_from_profile> scraper=<scraper_slug> project=<project>`\\n"
 }
 ```
 
----
-
-## STEP 10: Write discovery-knowledge.md (USE ABSOLUTE PATH)
-
-Path: `{output_dir}/<scraper>/.scraper-state/discovery-knowledge.md`
-
-🚨 **MANDATORY**: This file MUST be written — required by the next phase.
-
-Include:
-- Site structure analysis (navigation pattern, depth, page types)
-- Sample URLs discovered with purpose and notes
-- Popup handling summary
-- Navigation patterns (category selector hints, pagination type)
-- Browser fetch configuration (fetch_type, button info if any)
-- Next steps section with command to run
-
-In the "Commands to Run Next" section, reference the next phase from the project profile pipeline (NOT hardcoded `/dmart-navigation-parser`):
-```
-/<next_phase_from_profile> scraper=<scraper_slug> project=<project>
-```
+🚨 **MANDATORY**: `discovery-state.json` MUST include a non-empty **`_notes`** string (markdown) covering the same topics the old `discovery-knowledge.md` had: site structure, sample URLs, popup summary, navigation hints, fetch configuration, and the exact next slash command from the profile pipeline (never hardcode `/dmart-navigation-parser`).
 
 ---
 
-## STEP 11: Update Boilerplate Files
+## STEP 10: Update Boilerplate Files
 
 **Update `{boilerplate.headers_rb}`** (USE ABSOLUTE PATH):
 - Read existing file
@@ -286,7 +272,7 @@ In the "Commands to Run Next" section, reference the next phase from the project
 
 ---
 
-## STEP 12: Update Phase Status
+## STEP 11: Update Phase Status
 
 Update `phase-status.json` (USE ABSOLUTE PATH):
 ```json
@@ -310,10 +296,12 @@ Save `browser-context.json` (USE ABSOLUTE PATH):
 
 ---
 
-## STEP 13: Write Session Audit
+## STEP 12: Write Session Audit
 
 Save `session-audit-html_scrape.json` (USE ABSOLUTE PATH):
 Path: `{output_dir}/<scraper>/.scraper-state/session-audit-html_scrape.json`
+
+🚨 **MANDATORY — counts must be real**: Before writing this file, tally **actual** tool calls made during this session (increment per call). **Do not** ship all zeros unless no browser/network/parser tools were used. If you cannot reconstruct counts, set `"tool_call_counts_incomplete": true` and explain in `improvement_suggestions` — all-zero counts without that flag is a **completion failure**.
 
 ```json
 {
@@ -321,10 +309,15 @@ Path: `{output_dir}/<scraper>/.scraper-state/session-audit-html_scrape.json`
   "scraper": "<scraper_slug>",
   "completed_at": "<ISO timestamp>",
   "tool_call_counts": {
-    "browser_view_html": 0, "browser_network_download": 0,
-    "browser_request": 0, "parser_tester": 0, "browser_grep_html": 0,
-    "browser_network_search": 0, "browser_extract_json_ld": 0,
-    "browser_count_selector": 0, "browser_extract_images": 0,
+    "browser_view_html": 0,
+    "browser_network_download": 0,
+    "browser_request": 0,
+    "parser_tester": 0,
+    "browser_grep_html": 0,
+    "browser_network_search": 0,
+    "browser_extract_json_ld": 0,
+    "browser_count_selector": 0,
+    "browser_extract_images": 0,
     "browser_detect_pagination": 0
   },
   "expensive_tool_log": [],
@@ -338,7 +331,7 @@ Path: `{output_dir}/<scraper>/.scraper-state/session-audit-html_scrape.json`
 
 ---
 
-## STEP 14: Completion Report
+## STEP 13: Completion Report
 
 Display:
 ```
@@ -366,10 +359,10 @@ Browser Fetch Configuration:
 - Button to reveal categories: <selector or "none">
 
 State Files Created:
-- .scraper-state/discovery-state.json ✅
-- .scraper-state/discovery-knowledge.md ✅
+- .scraper-state/discovery-state.json ✅ (includes `_notes`)
 - .scraper-state/field-spec.json ✅
 - .scraper-state/phase-status.json ✅
+- .scraper-state/session-audit-html_scrape.json ✅
 
 Next Command:
 /<next_phase_from_profile> scraper=<scraper_slug> project=<project>
@@ -377,7 +370,7 @@ Next Command:
 
 ---
 
-## STEP 15: Auto-Chaining (if auto_next=true)
+## STEP 14: Auto-Chaining (if auto_next=true)
 
 Follow the auto-chain execution steps in `docs/shared/agent-rules-gemini.md`.
 
@@ -395,8 +388,8 @@ Follow the auto-chain execution steps in `docs/shared/agent-rules-gemini.md`.
 - ✅ `lib/headers.rb` updated with site URL
 - ✅ `seeder/seeder.rb` updated with site URL, page_type, fetch_type
 - ✅ `config.yaml` verified
-- ✅ `discovery-state.json` written (REQUIRED for next phase)
-- ✅ `discovery-knowledge.md` written (REQUIRED for next phase)
+- ✅ `discovery-state.json` written with non-empty `_notes` (REQUIRED for next phase)
+- ✅ `session-audit-html_scrape.json` written with accurate `tool_call_counts` (or `tool_call_counts_incomplete`)
 - ✅ `field-spec.json` copied to `.scraper-state/`
 - ✅ `phase-status.json` updated
 - ✅ `browser-context.json` saved

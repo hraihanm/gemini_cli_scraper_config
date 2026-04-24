@@ -1,5 +1,7 @@
 # Selector Discovery Protocol
 
+**version:** 2.0.0
+
 This file defines the standard protocol for discovering CSS selectors using browser tools. Follow this order for every field.
 
 ---

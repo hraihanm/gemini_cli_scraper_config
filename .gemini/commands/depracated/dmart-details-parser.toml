@@ -1,0 +1,16 @@
+description = "Deprecated alias: /details-parser project=dmart-dloc."
+
+prompt = """
+Thin alias — **`/details-parser`** with **project=dmart-dloc**.
+
+User args: {{args}}
+
+Firmware: `.gemini/system.md`.
+
+@{docs/shared/agent-rules-gemini.md}
+@{docs/shared/datahen-conventions.md}
+@{docs/shared/selector-discovery.md}
+@{docs/shared/output-hash-rules.md}
+
+`read_file` → `profiles/dmart-dloc.toml` → locate `details-parser` phase → read its `workflow` → execute all STEPs.
+"""

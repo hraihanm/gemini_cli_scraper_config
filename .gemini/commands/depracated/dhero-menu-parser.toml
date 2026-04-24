@@ -1,0 +1,15 @@
+description = "Deprecated alias: /menu-parser project=dhero."
+
+prompt = """
+Thin alias — **`/menu-parser`** with **project=dhero** (final DHero phase).
+
+User args: {{args}}
+
+Firmware: `.gemini/system.md`.
+
+@{docs/shared/agent-rules-gemini.md}
+@{docs/shared/datahen-conventions.md}
+@{docs/shared/selector-discovery.md}
+
+`read_file` → `profiles/dhero.toml` → phase `menu-parser` → read `workflow` → execute all STEPs.
+"""

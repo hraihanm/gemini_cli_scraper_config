@@ -1,8 +1,10 @@
 # Phase 3: Restaurant Details Parser
 
+**version:** 2.0.0
+
 **Used by:** dhero
-**Reads:** `navigation-selectors.json`, `navigation-knowledge.md`, `discovery-state.json`
-**Writes:** `restaurant-details-state.json`, `restaurant-details-knowledge.md`
+**Reads:** `navigation-selectors.json` (`_notes` inside JSON; legacy `navigation-knowledge.md` optional), `discovery-state.json`
+**Writes:** `restaurant-details-state.json` (add top-level **`_notes`** markdown; drop separate `restaurant-details-knowledge.md` for new runs — merge legacy `.md` into `_notes` if resuming)
 **Edits:** `parsers/restaurant_details.rb`
 **Next phase:** `menu-parser` (index 3 in dhero pipeline)
 
@@ -34,11 +36,11 @@ The Menu Parser reads these URLs and visits each restaurant page to extract menu
 Load `profiles/dhero.toml`.
 
 Load state files:
-1. `navigation-selectors.json` — get `listings.sample_detail_urls`
-2. `navigation-knowledge.md`
+1. `navigation-selectors.json` — get `listings.sample_detail_urls` and `_notes` if present
+2. (Legacy) `navigation-knowledge.md` — only if needed for one-time merge
 3. `discovery-state.json` — popup_handling strategy
 4. `restaurant-details-state.json` (if resuming)
-5. `restaurant-details-knowledge.md` (if resuming)
+5. (Legacy) `restaurant-details-knowledge.md` (if resuming) — merge into `restaurant-details-state.json._notes`
 
 Load `parsers/restaurant_details.rb` from boilerplate.
 
@@ -168,15 +170,18 @@ Test on 3 different restaurant URLs. Fix and re-test if any fail.
   "menu_url_pattern": "inline_same_page | separate_url",
   "menu_page_type": "menu",
   "vars_passed_to_menu": ["restaurant_name", "restaurant_url", "cuisine"],
-  "completed_at": "<timestamp>"
+  "completed_at": "<timestamp>",
+  "_notes": "## Restaurant details phase\\n\\n- Selectors, menu URL strategy, vars for menu parser\\n"
 }
 ```
 
+🚨 **MANDATORY:** `restaurant-details-state.json` MUST include non-empty **`_notes`** (markdown) covering fields discovered, selectors, menu URL strategy, and vars flow to the menu parser.
+
 ---
 
-## STEP 8: Write restaurant-details-knowledge.md
+## STEP 8: Human notes (in JSON only)
 
-Include: fields discovered, selectors, menu URL strategy, vars flow to menu parser.
+All prose from the old `restaurant-details-knowledge.md` belongs in **`restaurant-details-state.json` → `_notes`**. Do not create a separate `.md` file for new runs.
 
 ---
 
@@ -194,7 +199,6 @@ If `auto_next=true`: spawn `/<next_phase> scraper=<scraper> project=dhero auto_n
 
 - ✅ `restaurant_details.rb` edited and tested on 3 restaurant URLs
 - ✅ Parser queues menu pages for Phase 4
-- ✅ `restaurant-details-state.json` written (includes menu URL pattern)
-- ✅ `restaurant-details-knowledge.md` written
+- ✅ `restaurant-details-state.json` written (includes menu URL pattern and `_notes`)
 - ✅ `phase-status.json` updated
 - ✅ IF auto_next=true: browser closed, `/menu-parser` EXECUTED

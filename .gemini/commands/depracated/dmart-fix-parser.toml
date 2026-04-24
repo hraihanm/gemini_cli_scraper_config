@@ -1,15 +1,12 @@
 description = "Maintenance: Diagnose and fix scraper parser failures or QA-reported field issues. Accepts structured args or free-form QA feedback. Exports auth token, inspects failed pages via browser_grep_html, fixes parsers locally, deploys."
 
 prompt = """
-You are performing Scraper Maintenance for a DataHen scraper. This command handles two scenarios: (1) fixing pages stuck in parsing_failed or fetching_failed status, and (2) investigating QA-reported output quality issues. This command is COMPLETELY INDEPENDENT - reads no conversation history, extracts all context from {{args}}.
+Firmware: `.gemini/system.md`.
 
-🚨🚨🚨 **CRITICAL: YOU ARE IN GEMINI CLI - USE TOOLS DIRECTLY, NEVER GENERATE CODE** 🚨🚨🚨
-- **STOP**: If you are about to write `import os`, `import json`, `print()`, `def `, or any Python/JavaScript code, STOP IMMEDIATELY
-- **YOU ARE AN AI ASSISTANT IN GEMINI CLI** - You have direct access to MCP tools via tool calling
-- **USE TOOLS DIRECTLY** - Call tools like `read_file`, `browser_navigate`, `parser_tester`, `write_file`, `run_terminal_cmd` using the tool interface
-- **FORBIDDEN**: Never write Python scripts, JavaScript code, or any programming code
-- **CODE EXAMPLES IN THIS PROMPT ARE FOR REFERENCE ONLY** - They show tool call patterns, NOT code to write
-- **YOU ARE THE EXECUTOR** - Execute actions directly using tools, don't write code that executes actions
+@{docs/shared/agent-rules-gemini.md}
+@{docs/shared/datahen-conventions.md}
+
+You are performing Scraper Maintenance for a DataHen scraper. This command handles two scenarios: (1) fixing pages stuck in parsing_failed or fetching_failed status, and (2) investigating QA-reported output quality issues. This command is COMPLETELY INDEPENDENT - reads no conversation history, extracts all context from {{args}}.
 
 Inputs — {{args}} can be structured key=value args, free-form text (QA report, error logs), or a mix of both:
 
