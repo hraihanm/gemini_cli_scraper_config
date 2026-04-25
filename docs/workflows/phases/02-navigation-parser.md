@@ -53,6 +53,14 @@ If any navigation parser files are missing: report error — "Boilerplate not fo
 - Navigation parser files MUST exist from boilerplate
 - If missing: stop with error
 
+**Validate Phase 1 output contract** — before proceeding, verify `discovery-state.json` contains:
+- `site_structure.has_categories` — boolean present
+- `site_structure.has_listings` — boolean present
+- `sample_urls.listings` — non-null, non-empty URL
+- `popup_handling` — object present (even if `{popups_encountered: false}`)
+
+If any Required field is missing: **STOP** — display: `"Phase 1 output is incomplete. Re-run: /scrape url=<url> name=<scraper> project=<project>"`
+
 ---
 
 ## STEP 2: Test Existing Parsers
@@ -229,9 +237,27 @@ Path: `{output_dir}/<scraper>/.scraper-state/navigation-selectors.json`
 
 ---
 
+## STEP 7b: Validate Output Contract
+
+Re-read the just-written `navigation-selectors.json` and confirm before proceeding to STEP 8:
+
+| Field | Required | Condition |
+|---|---|---|
+| `listings.product_link_selector` | Yes | Non-null, non-empty array or string |
+| `listings.pagination_strategy` | Yes | One of: `count_based`, `next_button`, `url_pattern`, `infinite_scroll`, `none` |
+| `listings.verified` | Yes | Must be `true` |
+| `listings.sample_detail_urls` | Yes | Array with ≥ 1 URL |
+| `categories.category_link_selector` | Conditional | Required if `has_categories = true` |
+| `_notes` | Yes | Non-empty string |
+
+**If `listings.product_link_selector` or `listings.sample_detail_urls` is missing or empty: STOP.**
+Fix the selector (re-navigate, re-test) before proceeding. Do not mark the phase complete with a missing listings selector.
+
+---
+
 ## STEP 8: Update Phase Status and Browser Context
 
-`phase-status.json` — set `navigation_discovery.status = "completed"`, add `completed_at` and checkpoints.
+`phase-status.json` — set `navigation_discovery.status = "completed"`, add `completed_at`, `validated_output: true`, and checkpoints.
 
 `browser-context.json` — update with last URL, `"last_phase": "navigation_discovery"`.
 
@@ -265,6 +291,8 @@ Follow `docs/shared/agent-rules-gemini.md` auto-chain rules.
 - ✅ Navigation parser files edited and tested (categories, subcategories if applicable, listings)
 - ✅ `config.yaml` verified
 - ✅ `navigation-selectors.json` written (includes `_notes` and `listings.pagination_warning` when applicable)
+- ✅ Phase 1 output contract validated (STEP 1) — `sample_urls.listings` + `popup_handling` confirmed
+- ✅ Own output contract validated (STEP 7b) — `listings.product_link_selector` + `sample_detail_urls` confirmed
 - ✅ `session-audit-html_navigation.json` with accurate tool counts
 - ✅ Pipeline smoke test passed
 - ✅ `phase-status.json` updated

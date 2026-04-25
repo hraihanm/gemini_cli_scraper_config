@@ -120,3 +120,18 @@ outputs << {
 - **DMART scrapers**: only fields 1–42 — set `allergens`, `nutrition_facts`, `ingredients`, `dimensions`, `img_url_2/3/4` to `nil`
 
 Check the scraper name or `config.yaml` — "dloc" in the name/project means DLOC.
+
+---
+
+## Listings-Only Mode (API scrapers)
+
+When the listings API returns a "maximal" payload (`fieldset=maximal` or equivalent) that contains all required product fields, the details parser phase is skipped. In this case the **listings parser becomes the final output emitter** and the full 53-field rule still applies.
+
+**Rules:**
+- All 53 fields MUST appear in the listings parser output hash in canonical order
+- Fields the listings API does not provide MUST be set to `nil` — never omit them
+- Field order must match the template above (same as a details parser) — this is for human readability when reviewing outputs side-by-side across scrapers
+- `config.yaml` must have the details parser entry set to `disabled: true`
+- `navigation-selectors.json` must record `"details_parser_needed": false`
+
+The nil-field discipline matters: DataHen exports produce CSV/JSON with consistent column counts. A missing key causes schema drift that breaks downstream pipelines even when the value would have been nil anyway.

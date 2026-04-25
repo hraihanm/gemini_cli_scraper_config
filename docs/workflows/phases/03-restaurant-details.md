@@ -48,6 +48,12 @@ Validate prerequisites:
 - `navigation-selectors.json` must exist
 - `restaurant_details.rb` must exist from boilerplate
 
+**Validate Phase 2 output contract** — before proceeding, verify `navigation-selectors.json` contains:
+- `listings.product_link_selector` — non-null, non-empty
+- `listings.sample_detail_urls` — array with ≥ 1 URL
+
+If missing: **STOP** — display: `"Phase 2 output is incomplete. Re-run: /navigation-parser scraper=<scraper> project=dhero"`
+
 ---
 
 ## STEP 2: Determine Restaurant Detail URL
@@ -161,6 +167,30 @@ Test on 3 different restaurant URLs. Fix and re-test if any fail.
 
 ---
 
+## STEP 6b: Eval Gate (mandatory before marking phase complete)
+
+```javascript
+scraper_run_evals({
+  scraper_dir: "<absolute_path>/generated_scraper/<scraper>"
+})
+```
+
+**Case A — Fixtures exist**: Score ≥ 80% → proceed. Score < 80% → fix and repeat.
+
+**Case B — No fixtures yet**: Create a fixture pair from your most recent parser_tester run:
+- `generated_scraper/<scraper>/evals/<scraper_slug>_restaurant_sample/input.html`
+- `generated_scraper/<scraper>/evals/<scraper_slug>_restaurant_sample/expected.json`
+Then run `scraper_run_evals` to confirm it passes.
+
+Update `phase-status.json` for this phase to include:
+```json
+"eval_score": 100,
+"eval_fixtures": 1,
+"validated_output": true
+```
+
+---
+
 ## STEP 7: Write restaurant-details-state.json
 
 ```json
@@ -198,6 +228,8 @@ If `auto_next=true`: spawn `/<next_phase> scraper=<scraper> project=dhero auto_n
 ## Completion Checklist
 
 - ✅ `restaurant_details.rb` edited and tested on 3 restaurant URLs
+- ✅ Phase 2 output contract validated (STEP 1) — `listings.sample_detail_urls` confirmed
+- ✅ Eval gate passed (STEP 6b) — score ≥ 80% OR first fixture created and passing
 - ✅ Parser queues menu pages for Phase 4
 - ✅ `restaurant-details-state.json` written (includes menu URL pattern and `_notes`)
 - ✅ `phase-status.json` updated

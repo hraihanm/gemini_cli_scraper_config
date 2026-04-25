@@ -246,6 +246,27 @@ Path: `{output_dir}/<scraper>/.scraper-state/discovery-state.json`
 
 ---
 
+## STEP 9b: Validate Output Contract
+
+Re-read the just-written `discovery-state.json` and confirm every Required field is present and non-null **before** proceeding to STEP 10.
+
+| Field | JSON path | Required |
+|---|---|---|
+| Scraper name | `.scraper_name` | Yes |
+| Site URL | `.site_url` | Yes |
+| has_categories | `.site_structure.has_categories` | Yes (boolean) |
+| has_listings | `.site_structure.has_listings` | Yes (boolean) |
+| navigation_depth | `.site_structure.navigation_depth` | Yes (integer) |
+| Listings sample URL | `.sample_urls.listings` | Yes — non-null, non-empty |
+| popup_handling | `.popup_handling` | Yes — object (may be `{popups_encountered: false}`) |
+| fetch_type flag | `.fetch_requirements.initial_page_needs_browser` | Yes (boolean) |
+| Human notes | `._notes` | Yes — non-empty string |
+
+**If any Required field is missing or null: STOP — do not proceed.**
+Fix the gap (re-navigate the site if needed) and rewrite `discovery-state.json`. Only continue when all Required fields are confirmed.
+
+---
+
 ## STEP 10: Update Boilerplate Files
 
 **Update `{boilerplate.headers_rb}`** (USE ABSOLUTE PATH):
@@ -280,7 +301,8 @@ Update `phase-status.json` (USE ABSOLUTE PATH):
   "status": "completed",
   "completed_at": "<timestamp>",
   "discovered_patterns": ["hierarchical", "categories->listings->details"],
-  "navigation_depth": 1
+  "navigation_depth": 1,
+  "validated_output": true
 }
 ```
 
@@ -389,6 +411,7 @@ Follow the auto-chain execution steps in `docs/shared/agent-rules-gemini.md`.
 - ✅ `seeder/seeder.rb` updated with site URL, page_type, fetch_type
 - ✅ `config.yaml` verified
 - ✅ `discovery-state.json` written with non-empty `_notes` (REQUIRED for next phase)
+- ✅ Output contract validated (STEP 9b) — all Required fields confirmed non-null
 - ✅ `session-audit-html_scrape.json` written with accurate `tool_call_counts` (or `tool_call_counts_incomplete`)
 - ✅ `field-spec.json` copied to `.scraper-state/`
 - ✅ `phase-status.json` updated
