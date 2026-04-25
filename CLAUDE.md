@@ -101,20 +101,33 @@ Prioritized steps with effort + risk estimates.
 
 Gemini CLI uses **Playwright MCP Mod** as its browser automation tool — a custom fork of Microsoft's Playwright MCP with additional tools for scraping workflows.
 
-- **Location:** `D:\DataHen\projects\playwright-mcp-mod`
+- **Location:** `../playwright-mcp-mod` (sibling repo — `D:\DataHen\projects\playwright-mcp-mod`)
 - **Setup reference:** `README - Playwrgiht MCP Mod.md` (in this repo)
-- **Build command:** `cd /d/DataHen/projects/playwright-mcp-mod && npm run build`
+- **Build command:** `cd ../playwright-mcp-mod && npm run build`
 
-Custom tools added on top of standard Playwright MCP:
-- `browser_grep_html` — grep page HTML with context snippets (preferred for selector discovery)
-- `browser_view_html` — full sanitized page HTML (last resort — high token cost)
-- `browser_inspect_element` — get exact CSS selector from a snapshot ref
-- `browser_verify_selector` — confirm selector matches expected text
-- `browser_network_search` — grep network request URLs, headers, and response bodies
-- `browser_network_download` — save a network response body to a file
-- `browser_network_requests_simplified` — filtered network request list
-- `browser_request` — make arbitrary HTTP requests from the browser context (inherits cookies)
-- `parser_tester` — test DataHen parsers against HTML/JSON/XML content
+Custom tools added on top of standard Playwright MCP (source: `../playwright-mcp-mod/src/tools/mod/`):
+
+| Tool | Source file | Purpose |
+|---|---|---|
+| `browser_grep_html` | `html.ts` | Grep page HTML for text/regex, return context snippets — preferred for selector discovery |
+| `browser_view_html` | `html.ts` | Full sanitized page HTML — last resort, high token cost |
+| `browser_inspect_element` | `inspector.ts` | Exact CSS selector from a snapshot ref; supports `batch` array |
+| `browser_verify_selector` | `inspector.ts` | Confirm selector matches text; supports `attribute` param + `batch` |
+| `browser_count_selector` | `inspector.ts` | Count DOM matches with min/max assertions |
+| `browser_extract_images` | `inspector.ts` | Extract all image URLs from a container (handles lazy-load) |
+| `browser_extract_json_ld` | `json_ld.ts` | Extract JSON-LD blocks, filter by `@type`, return fields list |
+| `browser_detect_pagination` | `dom_utils.ts` | Auto-detect pagination strategy (count/next-button/url-pattern) |
+| `browser_network_search` | `network_search.ts` | Grep network request URLs, headers, and response bodies |
+| `browser_network_download` | `network_download.ts` | Save a network response body to a file |
+| `browser_network_requests_simplified` | `network_simplified.ts` | Filtered network request list |
+| `browser_request` | `network_request.ts` | Make HTTP requests from browser context (inherits cookies) |
+| `browser_network_replay` | `network_replay.ts` | Find captured request by URL pattern and replay it |
+| `parser_tester` | `parser_tester.ts` | Test DataHen parsers against HTML/JSON/XML; supports `test_files` array |
+| `scraper_output_validator` | `scraper_validator.ts` | Validate parser output against config.yaml field list |
+| `scraper_run_evals` | `eval.ts` | Run eval fixtures, return score + nil-rate report |
+| `datahen_run` | `datahen_run.ts` | Run DataHen scraper commands (seed, step, reset, pages) |
+
+To add a new tool: create a `.ts` file in `src/tools/mod/`, export a tool array, import and spread it in `index.ts`, then run `npm run build`. Run `npm run check-drift` from this repo to verify docs stay in sync.
 
 ### Browser Tool Protocols (HTML scraping)
 
@@ -147,6 +160,7 @@ For API scrapers, the agent should exhaust all JSON API fields first. Only fall 
 - Capture auth tokens via `browser_network_search({query: "Authorization", searchIn: ["requestHeaders"]})`
 - Cursor pagination: detect `pageInfo.endCursor` / `pageInfo.hasNextPage` — chain pages, do not queue upfront
 - Add deduplication in listings parser when API may return overlapping product IDs across pages
+- **Listings-only mode:** if `fieldset=maximal` (or equivalent) makes the listings API return complete product data, set `details_parser_needed: false` in the API state file and `disabled: true` on the details parser in `config.yaml`. The listings parser then emits the final output and MUST still include all 53 fields in canonical order — fields unavailable from the API set to `nil` explicitly, never omitted
 
 ### Output Hash Rules
 
