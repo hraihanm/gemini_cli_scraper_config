@@ -57,6 +57,13 @@ Parse:
 - `navigation-selectors.json` must exist → "Run `/navigation-parser scraper=<scraper> project=<project>` first"
 - `details.rb` must exist from boilerplate → "Run `/scrape` first"
 
+**Validate Phase 2 output contract** — before proceeding, verify `navigation-selectors.json` contains:
+- `listings.product_link_selector` — non-null, non-empty
+- `listings.sample_detail_urls` — array with ≥ 1 URL
+- `listings.pagination_strategy` — non-null
+
+If any Required field is missing: **STOP** — display: `"Phase 2 output is incomplete. Re-run: /navigation-parser scraper=<scraper> project=<project>"`
+
 ---
 
 ## STEP 2: Determine Detail URL
@@ -207,6 +214,41 @@ After each successful `parser_tester` run on a detail page, inspect emitted outp
 
 ---
 
+## STEP 9c: Eval Gate (mandatory before marking phase complete)
+
+Run the eval suite. **This step is not optional** — do not mark the phase "completed" without it.
+
+```javascript
+scraper_run_evals({
+  scraper_dir: "<absolute_path>/generated_scraper/<scraper>"
+})
+```
+
+**Case A — Fixtures exist** (`evals/` has ≥ 1 subdirectory with `input.html` + `expected.json`):
+- Score ≥ 80% → proceed to STEP 10
+- Score < 80% → fix each failing field (`parser_tester` → edit → re-test), then re-run `scraper_run_evals`; repeat until ≥ 80%
+- **Never mark phase "completed" with a failing eval score**
+
+**Case B — No fixtures yet** (first run for this scraper):
+1. The most recent `parser_tester` run downloaded an HTML file — locate it in `cache/` or re-download via `auto_download: true`
+2. Create a fixture pair (USE ABSOLUTE PATHS):
+   - `generated_scraper/<scraper>/evals/<scraper_slug>_sample/input.html` — the downloaded HTML
+   - `generated_scraper/<scraper>/evals/<scraper_slug>_sample/expected.json` — the output hash from that `parser_tester` run (include all 53 fields; use `null` for genuinely absent fields)
+3. Re-run `scraper_run_evals` to confirm the new fixture passes (score = 100%)
+
+Record in `phase-status.json`:
+```json
+"detail_discovery": {
+  "status": "completed",
+  "completed_at": "<timestamp>",
+  "eval_score": 100,
+  "eval_fixtures": 1,
+  "validated_output": true
+}
+```
+
+---
+
 ## STEP 10: Write detail-selectors.json (USE ABSOLUTE PATH)
 
 `detail-selectors.json` MUST include top-level **`_notes`** (markdown): fields discovered, JSON-LD usage, **price_locale** summary, category fallback behavior, confidence issues, popup notes, and test URLs.
@@ -227,7 +269,7 @@ After each successful `parser_tester` run on a detail page, inspect emitted outp
 
 ## STEP 11: Update Phase Status
 
-`phase-status.json` — set `detail_discovery.status = "completed"`.
+`phase-status.json` — use the schema written in STEP 9c (includes `eval_score`, `eval_fixtures`, `validated_output: true`).
 
 `browser-context.json` — update with last URL, `"last_phase": "detail_discovery"`.
 
@@ -280,6 +322,8 @@ For dmart-dloc with default pipeline: `details-parser` is index 2 (last) → no 
 - ✅ Meta tag fallbacks added for img_url and name
 - ✅ All 53 output fields present (nil for unavailable)
 - ✅ Parser tested on 3 sample detail pages
+- ✅ Phase 2 output contract validated (STEP 1) — `listings.sample_detail_urls` confirmed
+- ✅ Eval gate passed (STEP 9c) — score ≥ 80% OR first fixture created and passing
 - ✅ `field-spec.json` updated with discovery results
 - ✅ `detail-selectors.json` written (includes `_notes`, `price_locale` when applicable)
 - ✅ `phase-status.json` updated

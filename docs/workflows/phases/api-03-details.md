@@ -17,6 +17,13 @@ Fill `parsers/details.rb` (or project detail parser) using JSON paths / `JSON.pa
 
 ## Steps (summary)
 
+0. **Listings-only guard** — read `navigation-selectors.json` (or API state file). If `details_parser_needed == false`: this phase is a no-op. Display:
+   ```
+   ⏭  Details phase skipped — listings parser handles all fields (details_parser_needed: false).
+   Verify config.yaml has details parser disabled: true.
+   ```
+   Then stop. Do not edit any parser files.
+
 1. Load navigation/API state, `field-spec.json`, existing detail parser.
 2. JSON-LD or meta fallbacks only if API payload lacks fields; otherwise prefer API fields.
 3. Batched grep / inspect: group FIND fields; minimize redundant `browser_*` when working from saved JSON files (`read_file` on downloaded samples).

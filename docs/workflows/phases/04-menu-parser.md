@@ -46,6 +46,13 @@ Validate prerequisites:
 - `restaurant-details-state.json` must exist → "Run `/restaurant-details-parser scraper=<scraper> project=dhero` first"
 - `menu.rb` must exist from boilerplate
 
+**Validate Phase 3 output contract** — before proceeding, verify `restaurant-details-state.json` contains:
+- `restaurant_urls_sampled` — array with ≥ 1 URL
+- `menu_url_pattern` — non-null string (`"inline_same_page"` or `"separate_url"`)
+- `vars_passed_to_menu` — array with ≥ 1 var name
+
+If missing: **STOP** — display: `"Phase 3 output is incomplete. Re-run: /restaurant-details-parser scraper=<scraper> project=dhero"`
+
 ---
 
 ## STEP 2: Determine Sample Restaurant URL
@@ -191,6 +198,30 @@ Test on 3 different restaurant URLs. Each should produce menu item outputs. Fix 
 
 ---
 
+## STEP 7b: Eval Gate (mandatory before marking phase complete)
+
+```javascript
+scraper_run_evals({
+  scraper_dir: "<absolute_path>/generated_scraper/<scraper>"
+})
+```
+
+**Case A — Fixtures exist**: Score ≥ 80% → proceed. Score < 80% → fix and repeat.
+
+**Case B — No fixtures yet**: Create a fixture pair from your most recent parser_tester run:
+- `generated_scraper/<scraper>/evals/<scraper_slug>_menu_sample/input.html`
+- `generated_scraper/<scraper>/evals/<scraper_slug>_menu_sample/expected.json`
+Then run `scraper_run_evals` to confirm it passes.
+
+Update `phase-status.json` for this phase to include:
+```json
+"eval_score": 100,
+"eval_fixtures": 1,
+"validated_output": true
+```
+
+---
+
 ## STEP 8: Write menu-state.json (USE ABSOLUTE PATH)
 
 Include top-level JSON (shape can include `menu_structure`, `selectors_summary`, `test_urls`) plus non-empty **`_notes`** markdown covering:
@@ -243,6 +274,8 @@ To test the full pipeline:
 - ✅ `menu.rb` edited with item selectors
 - ✅ Parser tested on 3 restaurant URLs
 - ✅ Each restaurant produces menu item outputs
+- ✅ Phase 3 output contract validated (STEP 1) — `restaurant_urls_sampled` + `menu_url_pattern` confirmed
+- ✅ Eval gate passed (STEP 7b) — score ≥ 80% OR first fixture created and passing
 - ✅ `menu-state.json` written (includes `_notes`)
 - ✅ `phase-status.json` updated
 - ✅ Final completion report shown (no chaining — this is the last phase)
