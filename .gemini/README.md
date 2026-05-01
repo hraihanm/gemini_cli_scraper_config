@@ -4,12 +4,30 @@ A modular, session-independent scraper generation system for DataHen v3. This sy
 
 ## Command naming (current)
 
-- **Preferred (generic):** `/scrape`, `/navigation-parser`, `/details-parser`, `/api-scrape`, `/api-navigation-parser`, `/api-details-parser`, `/restaurant-details-parser`, `/menu-parser` — select project via `project=` and `profiles/*.toml`.
+- **Preferred (generic):** `/scrape`, `/navigation-parser`, `/details-parser`, … — select project via `project=` and `profiles/*.toml`.
+- **Greenfield (prompt-driven):** `/greenfield-scrape` → same Phase 2–3 commands with **`project=greenfield`** (registries, search portals; schema often pasted in prompt — see `docs/shared/greenfield-prompt-spec.md`).
 - **Deprecated thin aliases:** `/dmart-*`, `/dhero-*`, and `/dmart-api-*` keep old slash names but only inject shared shards and point at the same workflows as the generic commands (fixed `project=`).
 - **Deprecated command files location:** `.gemini/commands/depracated/`
 - **Changelog:** [docs/workflows/CHANGELOG.md](../docs/workflows/CHANGELOG.md)
 
-## 🚀 Quick Start
+## Greenfield quick start (registry / search portal)
+
+Paste the **output schema and caveats** in the same prompt as the command:
+
+```bash
+/greenfield-scrape url="https://foretagsinfo.bolagsverket.se/sok-foretagsinformation-web/foretag" name=bolagsverket_se spec="spec_greenfield_registry_sample.csv"
+```
+
+Then:
+
+```bash
+/navigation-parser scraper=bolagsverket_se project=greenfield
+/details-parser scraper=bolagsverket_se project=greenfield
+```
+
+Omit `spec=` when the schema is only in natural language; Phase 1 builds `field-spec.json` per `docs/shared/greenfield-prompt-spec.md`.
+
+## 🚀 Quick Start (retail)
 
 ```bash
 # Step 1: Site discovery and setup

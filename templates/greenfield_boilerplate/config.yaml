@@ -1,0 +1,96 @@
+seeder:
+  file: ./seeder/seeder.rb
+  disabled: false
+
+parsers:
+  - page_type: categories
+    file: ./parsers/categories.rb
+    disabled: false
+  - page_type: subcategories
+    file: ./parsers/subcategories.rb
+    disabled: false
+  - page_type: listings
+    file: ./parsers/listings.rb
+    disabled: false
+  - page_type: details
+    file: ./parsers/details.rb
+    disabled: false
+
+exporters:
+  - exporter_name: records_json
+    exporter_type: json
+    collection: products
+    offset: 0
+    order: desc
+    write_mode: pretty_array
+    export_filename: <name>_<d:yyyyMMdd>
+    export_extension: json.gz
+    no_tar: true
+    start_on_job_done: true
+
+  - exporter_name: records_csv
+    export_filename: <d:yyyyMMdd>_<name>
+    no_subfolder: true
+    exporter_type: csv
+    collection: products
+    start_on_job_done: true
+    offset: 0
+    order: desc
+    fields:
+      - header: "source"
+        path: "source"
+        disable_scientific_notation: true
+      - header: "country"
+        path: "country"
+        disable_scientific_notation: true
+      - header: "name"
+        path: "name"
+        disable_scientific_notation: true
+      - header: "address"
+        path: "address"
+        disable_scientific_notation: true
+      - header: "date"
+        path: "date"
+        disable_scientific_notation: true
+      - header: "source_url"
+        path: "source_url"
+        disable_scientific_notation: true
+      - header: "phone"
+        path: "phone"
+        disable_scientific_notation: true
+      - header: "website"
+        path: "website"
+        disable_scientific_notation: true
+      - header: "cuisine"
+        path: "cuisine"
+        disable_scientific_notation: true
+      - header: "price_range"
+        path: "price_range"
+        disable_scientific_notation: true
+      - header: "hours"
+        path: "hours"
+        disable_scientific_notation: true
+      - header: "lat"
+        path: "lat"
+        disable_scientific_notation: true
+      - header: "lng"
+        path: "lng"
+        disable_scientific_notation: true
+      - header: "rating"
+        path: "rating"
+        disable_scientific_notation: true
+      - header: "rating_count"
+        path: "rating_count"
+        disable_scientific_notation: true
+      - header: "registration_number"
+        path: "registration_number"
+        disable_scientific_notation: true
+      - header: "licence_expiry"
+        path: "licence_expiry"
+        disable_scientific_notation: true
+      - header: "city"
+        path: "city"
+        disable_scientific_notation: true
+      - header: "postal_code"
+        path: "postal_code"
+        disable_scientific_notation: true

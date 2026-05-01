@@ -1,0 +1,41 @@
+[project]
+name         = "greenfield"
+display_name = "Greenfield (prompt-driven)"
+
+[template]
+boilerplate_dir      = "templates/greenfield_boilerplate"
+copy_command_windows = 'xcopy /E /I /Y templates\greenfield_boilerplate generated_scraper\{scraper}'
+copy_command_unix    = "cp -r templates/greenfield_boilerplate generated_scraper/{scraper}"
+
+[boilerplate]
+seeder_rb   = "seeder/seeder.rb"
+headers_rb  = "lib/headers.rb"
+config_yaml = "config.yaml"
+parsers     = [
+  "parsers/categories.rb",
+  "parsers/subcategories.rb",
+  "parsers/listings.rb",
+  "parsers/details.rb",
+]
+
+[defaults]
+field_spec = "spec_greenfield_registry_sample.csv"
+output_dir = "./generated_scraper"
+
+[[pipeline.phases]]
+phase    = "scrape"
+workflow = "docs/workflows/phases/greenfield-01-site-discovery.md"
+label    = "Greenfield Phase 1: Site Discovery"
+command  = "scrape"
+
+[[pipeline.phases]]
+phase    = "navigation-parser"
+workflow = "docs/workflows/phases/greenfield-02-navigation-parser.md"
+label    = "Greenfield Phase 2: Navigation Parser"
+command  = "navigation-parser"
+
+[[pipeline.phases]]
+phase    = "details-parser"
+workflow = "docs/workflows/phases/greenfield-03-details-parser.md"
+label    = "Greenfield Phase 3: Details Parser"
+command  = "details-parser"
