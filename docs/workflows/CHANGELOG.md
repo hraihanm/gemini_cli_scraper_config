@@ -2,7 +2,7 @@
 
 ## 2.1.0 — 2026-05-01
 
-- **Greenfield pipeline:** `profiles/greenfield.toml`, `templates/greenfield_boilerplate/`, workflows `greenfield-01` … `greenfield-03`, shard `docs/shared/greenfield-prompt-spec.md`, slash command `/greenfield-scrape`; sample spec `spec_greenfield_registry_sample.csv`.
+- **Greenfield pipeline:** `profiles/greenfield.toml`, `templates/greenfield_boilerplate/`, workflows `greenfield-01` … `greenfield-03`, shard `docs/shared/greenfield-prompt-spec.md`, slash command `/greenfield-scrape`. Schema is **message-only** by default (no `field_spec` in profile); optional `spec=` path on the command line.
 
 ## 2.0.0 — 2026-04-23
 

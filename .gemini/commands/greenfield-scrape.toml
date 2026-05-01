@@ -1,7 +1,7 @@
-description = "Greenfield Phase 1: prompt-driven site discovery (no retail template). Usage: /greenfield-scrape url=<url> name=<slug> [spec=<csv|json>] [out=<dir>] [auto_next=true] — paste schema/caveats in the same prompt."
+description = "Greenfield Phase 1: spec in the message only (flexible prose below command). Usage: /greenfield-scrape url=<url> name=<slug> [out=<dir>] [auto_next=true] — then URLs, caveats, output fields in free text. Optional: spec=<path> for a file."
 
 prompt = """
-Greenfield site discovery — **`project=greenfield`** (prompt-driven sources: registries, search portals, directories).
+Greenfield site discovery — **`project=greenfield`**. Output schema is **not** loaded from a default file: derive it from **this entire user message** (slash args + everything **below** the slash line), in **any** format (prose, bullets, sections, tables, pasted tickets).
 
 Firmware: `.gemini/system.md`.
 
@@ -9,11 +9,11 @@ Firmware: `.gemini/system.md`.
 @{docs/shared/datahen-conventions.md}
 @{docs/shared/greenfield-prompt-spec.md}
 
-## User brief
-The same turn must include **source URLs**, **caveats** (e.g. keyword-only search, master list), **required/recommended fields**, and **types**. If `spec=` is omitted, derive `field-spec.json` from this brief per `greenfield-prompt-spec.md`.
+## User brief (flexible)
+Read **`{{args}}`** plus **all narrative text the user wrote under the command**. From that, extract: start/listing URLs, caveats, crawl constraints, refresh cadence, and **every output field** into `field-spec.json` per `greenfield-prompt-spec.md`. Only use a disk spec if the user put **`spec=<path>`** on the slash line.
 
 ## Parse args
-From {{args}} extract: `url=` (required), `name=` (required), `project=greenfield` (force if not set), optional `spec=`, `out=`, `auto_next=` (default false).
+From {{args}} extract: `url=` (required), `name=` (required), `project=greenfield` (force if not set), optional `spec=` (advanced file override), `out=`, `auto_next=` (default false).
 
 ## Load profile and workflow
 1. `read_file` → `profiles/greenfield.toml`.

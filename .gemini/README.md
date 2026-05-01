@@ -5,17 +5,25 @@ A modular, session-independent scraper generation system for DataHen v3. This sy
 ## Command naming (current)
 
 - **Preferred (generic):** `/scrape`, `/navigation-parser`, `/details-parser`, … — select project via `project=` and `profiles/*.toml`.
-- **Greenfield (prompt-driven):** `/greenfield-scrape` → same Phase 2–3 commands with **`project=greenfield`** (registries, search portals; schema often pasted in prompt — see `docs/shared/greenfield-prompt-spec.md`).
+- **Greenfield (prompt-driven):** `/greenfield-scrape` → same Phase 2–3 commands with **`project=greenfield`** — **no default spec file**; describe URLs, caveats, and output fields in free text **under** the command (see `docs/shared/greenfield-prompt-spec.md`). Optional `spec=<path>` if you really want a file.
 - **Deprecated thin aliases:** `/dmart-*`, `/dhero-*`, and `/dmart-api-*` keep old slash names but only inject shared shards and point at the same workflows as the generic commands (fixed `project=`).
 - **Deprecated command files location:** `.gemini/commands/depracated/`
 - **Changelog:** [docs/workflows/CHANGELOG.md](../docs/workflows/CHANGELOG.md)
 
 ## Greenfield quick start (registry / search portal)
 
-Paste the **output schema and caveats** in the same prompt as the command:
+Put **URLs, caveats, and output fields** in plain language (or tables) **below** the slash line — no spec file required:
 
 ```bash
-/greenfield-scrape url="https://foretagsinfo.bolagsverket.se/sok-foretagsinformation-web/foretag" name=bolagsverket_se spec="spec_greenfield_registry_sample.csv"
+/greenfield-scrape url="https://foretagsinfo.bolagsverket.se/sok-foretagsinformation-web/foretag" name=bolagsverket_se
+```
+
+Then in the same message, add your brief (example structure — anything similar works):
+
+```text
+Source: bolagsverket_se, country SE. Search portal only; need master list of search strings.
+Required output: source, country, name, address, date (ISO UTC), source_url; optional phone, website, registration_number, city, postal_code, …
+Caveats: blank search does not return all companies.
 ```
 
 Then:
@@ -25,7 +33,7 @@ Then:
 /details-parser scraper=bolagsverket_se project=greenfield
 ```
 
-Omit `spec=` when the schema is only in natural language; Phase 1 builds `field-spec.json` per `docs/shared/greenfield-prompt-spec.md`.
+Phase 1 builds `field-spec.json` from that message. Optionally pass `spec=path.csv` (or `.json`) on the slash line if you already maintain a field-spec file.
 
 ## 🚀 Quick Start (retail)
 
