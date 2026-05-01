@@ -19,7 +19,7 @@ parsers     = [
 ]
 
 [defaults]
-field_spec = "spec_greenfield_registry_sample.csv"
+# Greenfield has no default spec file — output columns come from the user message (below the slash command).
 output_dir = "./generated_scraper"
 
 [[pipeline.phases]]

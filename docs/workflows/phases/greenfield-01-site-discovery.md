@@ -5,7 +5,7 @@
 **Used by:** `profiles/greenfield.toml` only (prompt-driven / registry / search portals — not retail templates).
 **Output state files:** `discovery-state.json` (includes human **`_notes`** markdown — no separate `discovery-knowledge.md`), `phase-status.json`, `browser-context.json`
 **Next phase:** determined by project profile pipeline (phase at index 1)
-**Also read:** `docs/shared/greenfield-prompt-spec.md` when building `field-spec.json` without a `spec=` file.
+**Also read:** `docs/shared/greenfield-prompt-spec.md` when building `field-spec.json` from the **user message** (default). Use a file only if `spec=` appears in args.
 
 **Migration:** If `discovery-knowledge.md` exists from an older run, read it once, merge its text into `discovery-state.json._notes`, then you may delete the `.md` file.
 
@@ -16,7 +16,7 @@
 - `url=<site_url>` — REQUIRED — target website URL. USE THIS EXACT URL ONLY.
 - `name=<scraper_name>` — REQUIRED
 - `project=<profile_name>` — OPTIONAL, default: `greenfield` when using `/greenfield-scrape`; otherwise set **`project=greenfield`** explicitly for this workflow
-- `spec=<path>` — OPTIONAL — field-spec file; default from profile
+- `spec=<path>` — OPTIONAL — only if the user explicitly attaches a field-spec **file** on the slash line (advanced); greenfield has **no** default spec file
 - `out=<base_dir>` — OPTIONAL — default from profile (`./generated_scraper`)
 - `auto_next=true|false` — OPTIONAL, default: false
 
@@ -59,8 +59,7 @@ Extract:
 - `template.copy_command_windows` / `copy_command_unix` — copy command
 - `boilerplate.parsers` — list of parser files that must exist after copy
 - `boilerplate.seeder_rb`, `boilerplate.headers_rb` — files to update in Step 10
-- `defaults.field_spec` — fallback CSV/JSON path relative to repo root when `spec=` omitted and the prompt lacks columns
-- `defaults.output_dir` — default output directory
+- `defaults.output_dir` — default output directory (greenfield does **not** define `field_spec` — schema comes from the **message** unless `spec=` is in args)
 - `pipeline.phases` — full pipeline array; find current phase index (0 = this phase), note next phase
 
 **Greenfield context:** Also read `docs/shared/greenfield-prompt-spec.md` once before STEP 4 so prompt-only specs are consistent.
@@ -92,13 +91,15 @@ Ensure `{output_dir}/<scraper>/.scraper-state/` exists (create with `mkdir` / `r
 
 Destination (always): `{output_dir}/<scraper>/.scraper-state/field-spec.json` (absolute path).
 
-**Branch A — `spec=` points to `.json`:** File copy only via `run_terminal_cmd` (same as retail workflow). Do not use read_file + write_file for JSON-to-JSON copy.
+**Branch A — `spec=` points to `.json` in args:** File copy only via `run_terminal_cmd` (same as retail workflow). Do not use read_file + write_file for JSON-to-JSON copy.
 
-**Branch B — no `spec=` in args:** Build `field-spec.json` from the **user message** (tables, required/recommended fields, caveats) using `docs/shared/greenfield-prompt-spec.md`. If the message does not define any output columns, parse **`defaults.field_spec`** from the profile (repo root, CSV) into `field-spec.json` (CSV → JSON conversion via read + write is allowed here).
+**Branch B — `spec=` points to `.csv` in args:** Parse CSV to `field-spec.json` (read CSV, write JSON). Map columns: `column_name`, `column_type`, `dev_notes` → `fields[]` entries.
 
-**Branch C — `spec=` points to `.csv`:** Parse CSV to `field-spec.json` (read CSV, write JSON). Map columns: `column_name`, `column_type`, `dev_notes` → `fields[]` entries.
+**Branch C — no `spec=` in args (normal greenfield):** Build `field-spec.json` entirely from the **same user turn**: slash-line args plus **all text below the command** (any format — prose, bullets, tables, tickets). Follow `docs/shared/greenfield-prompt-spec.md`. Ingest URLs, caveats, cadence, and field list from that free-form content.
 
-Ensure every output field the user cares about appears under `fields` with `extraction_method` **FIND** or **PROCESS** as appropriate. Document in root `_notes`: **missing values → `nil` (JSON null)**, not empty strings.
+**If Branch C and you cannot extract at least one output field from the full message:** STOP — tell the user to list required columns in the message or pass `spec=<path>`. Do **not** load a template spec from the repo.
+
+Ensure every output field appears under `fields` with `extraction_method` **FIND** or **PROCESS** as appropriate. Document in root `_notes`: **missing values → `nil` (JSON null)**, not empty strings.
 
 ---
 
