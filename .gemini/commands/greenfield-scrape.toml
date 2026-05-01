@@ -1,0 +1,28 @@
+description = "Greenfield Phase 1: prompt-driven site discovery (no retail template). Usage: /greenfield-scrape url=<url> name=<slug> [spec=<csv|json>] [out=<dir>] [auto_next=true] — paste schema/caveats in the same prompt."
+
+prompt = """
+Greenfield site discovery — **`project=greenfield`** (prompt-driven sources: registries, search portals, directories).
+
+Firmware: `.gemini/system.md`.
+
+@{docs/shared/agent-rules-gemini.md}
+@{docs/shared/datahen-conventions.md}
+@{docs/shared/greenfield-prompt-spec.md}
+
+## User brief
+The same turn must include **source URLs**, **caveats** (e.g. keyword-only search, master list), **required/recommended fields**, and **types**. If `spec=` is omitted, derive `field-spec.json` from this brief per `greenfield-prompt-spec.md`.
+
+## Parse args
+From {{args}} extract: `url=` (required), `name=` (required), `project=greenfield` (force if not set), optional `spec=`, `out=`, `auto_next=` (default false).
+
+## Load profile and workflow
+1. `read_file` → `profiles/greenfield.toml`.
+2. From profile read `pipeline.phases[0].workflow` (authoritative).
+3. `read_file` → that workflow file (`docs/workflows/phases/greenfield-01-site-discovery.md`).
+
+## Execute
+Follow that workflow **exactly**.
+
+## Auto-chain
+If `auto_next=true`: use `scripts/chain.ps1` / `scripts/chain.sh` per `docs/shared/agent-rules-gemini.md` with next `pipeline.phases[1].phase`, scraper name, and **`Project=greenfield`**.
+"""

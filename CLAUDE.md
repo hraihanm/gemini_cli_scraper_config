@@ -85,6 +85,7 @@ Prioritized steps with effort + risk estimates.
 
 **Generic commands (project= param selects profile from `profiles/`):**
 - HTML pipeline: `/scrape` → `/navigation-parser` → `/details-parser`
+- Greenfield (prompt/schema in thread): `/greenfield-scrape` → `/navigation-parser` → `/details-parser` with **`project=greenfield`**
 - API pipeline: `/api-scrape` → `/api-navigation-parser` → `/api-details-parser`
 - Extra phases: `/restaurant-details-parser` → `/menu-parser` (dhero)
 
