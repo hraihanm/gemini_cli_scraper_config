@@ -168,7 +168,27 @@ For API scrapers, the agent should exhaust all JSON API fields first. Only fall 
 - All 53 fields in field-spec.json MUST appear in the output hash
 - Fields that cannot be extracted must be set to `nil` explicitly — never omit them
 - Canonical field names: `currency_code_lc`, `rank_in_listing`, `scraped_at_timestamp`, `crawled_source: 'WEB'`
-- Add a validation block before `outputs <<` to warn on nil required fields (name, customer_price_lc, img_url)
+- All boilerplate `details.rb` templates include a nil-field summary warn before `outputs <<` — do not remove it:
+  `warn "[DETAILS] url=... nil=X/N fields: ..."` — emitted only when any field is nil
+
+### Parser Error Handling (boilerplate)
+
+All template parsers include built-in error logging — preserve these patterns when editing generated parsers:
+
+- **Details parsers**: nil-field summary `warn "[DETAILS] url=... nil=X/N fields: ...]"` before every `outputs <<`. `greenfield` and `dhero/restaurant_details` also wrap the output section in `begin/rescue` emitting `[DETAILS ERROR]` on unexpected exceptions.
+- **Listings parsers**: per-item `begin/rescue` in the product/restaurant loop emitting `[LISTINGS ERROR] url=... idx=N error=...`; count log `[LISTINGS] url=... queued=N products` at end of each page run.
+- Reference implementations: `templates/*/parsers/`
+
+### State File Logging (`_log`)
+
+Every state file that carries `_notes` MUST also include a `_log` array of structured decision entries. See `docs/shared/datahen-conventions.md` → "Agent Decision Log" for entry schema and required entry points (json_ld_probe, selector_verify, parser_test, pagination_strategy, fallback, structural_error).
+
+### Error Taxonomy
+
+Classify failures before responding — see `docs/shared/agent-rules-gemini.md` → "Error Taxonomy":
+- **Transient** (network timeout, popup) → retry once, then treat as Structural
+- **Structural** (0-match selector, required field nil on 3+ URLs) → STOP, write `_log` entry, surface to user
+- **Data gap** (optional field nil on some SKUs) → log nil rate, continue
 
 ---
 
