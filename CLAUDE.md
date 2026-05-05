@@ -58,6 +58,28 @@ Prioritized steps with effort + risk estimates.
 | `Done` | All steps completed and verified |
 | `Cancelled` | Decided not to implement |
 
+### Lifecycle enforcement (mandatory)
+
+Follow this sequence for every non-trivial task:
+
+1. **Create proposal** (`Draft`) — before writing any code
+2. **Update to `In Progress`** — when the first file is edited
+3. **Implement** — write code, edit files, run tests
+4. **Update to `Done`** — after implementation is complete, before or alongside the final commit
+
+The proposal file and the implementation commit should land in the **same git commit** or adjacent commits. Never close a session with code committed but the proposal still at `Draft` or `In Progress`.
+
+### Retroactive fallback
+
+If the user directs implementation before planning (e.g. "just do it", "execute now"):
+
+1. **Still create the proposal file first** — set status `In Progress`, sections can be brief
+2. **Implement**
+3. **Fill in full proposal detail** (Background, Current State, Problems, code samples) and update status to `Done`
+4. **Commit** proposal alongside or immediately after the implementation commit
+
+Never skip the proposal entirely — a retroactive `Done` proposal is acceptable; no proposal is not.
+
 ---
 
 ## General Rules
