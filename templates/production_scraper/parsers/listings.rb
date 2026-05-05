@@ -11,29 +11,34 @@ products_on_page = html.css('PRODUCT_ITEM_SELECTOR_PLACEHOLDER').count
 
 # Extract product URLs - CUSTOMIZE SELECTOR
 html.css('PRODUCT_ITEM_SELECTOR_PLACEHOLDER').each_with_index do |prod, idx|
-  prod_url = prod.css('a').attr('href')&.text rescue nil
-  next if prod_url.nil?
+  begin
+    prod_url = prod.css('a').attr('href')&.text rescue nil
+    next if prod_url.nil?
 
-  # Skip invalid URLs
-  next if prod_url.include?('%')
+    # Skip invalid URLs
+    next if prod_url.include?('%')
 
-  # Handle relative URLs
-  if prod_url.start_with?('/')
-    base_url = URI.parse(page['url']).tap { |u| u.path = ''; u.query = nil }.to_s
-    prod_url = base_url.chomp('/') + prod_url
+    # Handle relative URLs
+    if prod_url.start_with?('/')
+      base_url = URI.parse(page['url']).tap { |u| u.path = ''; u.query = nil }.to_s
+      prod_url = base_url.chomp('/') + prod_url
+    end
+
+    pages << {
+      url: prod_url,
+      method: "GET",
+      page_type: 'details',
+      headers: page['headers'],
+      fetch_type: 'browser',
+      vars: {
+        rank: idx + 1
+      }.merge(vars)
+    }
+  rescue => e
+    warn "[LISTINGS ERROR] url=#{page['url']} idx=#{idx} error=#{e.message}"
   end
-
-  pages << {
-    url: prod_url,
-    method: "GET",
-    page_type: 'details',
-    headers: page['headers'],
-    fetch_type: 'browser',
-    vars: {
-      rank: idx + 1
-    }.merge(vars)
-  }
 end
+warn "[LISTINGS] url=#{page['url']} queued=#{pages.length} products"
 
 # Pagination logic - CUSTOMIZE BASED ON SITE
 PRODUCTS_PER_PAGE = 15  # Adjust based on site

@@ -101,29 +101,35 @@ tags = nil if tags.empty?
 # ============================================================================
 # Output: Restaurant metadata
 # ============================================================================
-warn "WARN: name is nil for #{page[:url]}"    if name.nil?
-warn "WARN: cuisine is nil for #{page[:url]}" if cuisine.nil?
+begin
+  output = {
+    name:                  name,
+    cuisine:               cuisine,
+    address:               address,
+    phone:                 phone,
+    rating:                rating,
+    rating_count:          rating_count,
+    opening_hours:         opening_hours,
+    img_url:               img_url,
+    description:           description,
+    is_open_now:           is_open_now,
+    delivery_time:         delivery_time,
+    min_order:             min_order,
+    tags:                  tags,
+    rank_in_listing:       page[:vars]&.dig('rank_in_listing'),
+    page_number:           page[:vars]&.dig('page_number'),
+    url:                   page[:url],
+    scraped_at_timestamp:  Time.now.utc.iso8601,
+    crawled_source:        'WEB',
+  }
 
-outputs << {
-  name:                  name,
-  cuisine:               cuisine,
-  address:               address,
-  phone:                 phone,
-  rating:                rating,
-  rating_count:          rating_count,
-  opening_hours:         opening_hours,
-  img_url:               img_url,
-  description:           description,
-  is_open_now:           is_open_now,
-  delivery_time:         delivery_time,
-  min_order:             min_order,
-  tags:                  tags,
-  rank_in_listing:       page[:vars]&.dig('rank_in_listing'),
-  page_number:           page[:vars]&.dig('page_number'),
-  url:                   page[:url],
-  scraped_at_timestamp:  Time.now.utc.iso8601,
-  crawled_source:        'WEB',
-}
+  nil_fields = output.reject { |k, _| %i[scraped_at_timestamp crawled_source].include?(k) }.select { |_, v| v.nil? }.keys
+  warn "[DETAILS] url=#{page[:url]} nil=#{nil_fields.count}/#{output.length} fields: #{nil_fields.join(', ')}" unless nil_fields.empty?
+
+  outputs << output
+rescue => e
+  warn "[DETAILS ERROR] url=#{page[:url]} error=#{e.message} (#{e.class})"
+end
 
 # ============================================================================
 # Queue Menu Page (for Phase 4: Menu Parser)

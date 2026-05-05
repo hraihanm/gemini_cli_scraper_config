@@ -46,39 +46,35 @@ base_url = vars['base_url'] || URLs::BASE_URL || page['url'].split('/')[0..2].jo
 products = html.css('PLACEHOLDER')
 
 products.each_with_index do |product_link, idx|
-  # Extract product URL from link href attribute
-  # Handle both direct links and nested links (product_link.at_css('a')['href'])
-  product_url = product_link['href'] || product_link.at_css('a')&.[]('href')
-  product_url = URI.join(base_url, product_url).to_s unless product_url&.start_with?('http')
-  
-  # Skip if product URL is missing
-  next if product_url.nil? || product_url.empty?
-  
-  # ============================================================================
-  # Queue Detail Page for Processing
-  # ============================================================================
-  # NOTE: pages is pre-defined by DataHen - DO NOT declare (pages = [] is FORBIDDEN)
-  # Use pages << directly to queue pages for DataHen to process
-  pages << {
-    url: product_url,
-    page_type: "details",
-    vars: vars.merge({
-      # Navigation context passed to details parser
-      rank: idx + 1, # Product position in listing (1-based)
-      page_number: vars['page_number'] || vars['page'] || 1,
-      listing_position: idx + 1, # Position within current page
-      # Preserve category context
-      category_name: vars['category_name'],
-      category_id: vars['category_id'], # Preserve category_id from parent category
-      subcategory_name: vars['subcategory_name'],
-      breadcrumb: vars['breadcrumb']
-    })
-  }
-  
-  # Memory management: Save pages to server when array gets large
-  # NOTE: save_pages(pages) is a pre-defined function - DO NOT declare it
-  save_pages(pages) if pages.count > 99
+  begin
+    # Extract product URL from link href attribute
+    # Handle both direct links and nested links (product_link.at_css('a')['href'])
+    product_url = product_link['href'] || product_link.at_css('a')&.[]('href')
+    product_url = URI.join(base_url, product_url).to_s unless product_url&.start_with?('http')
+
+    # Skip if product URL is missing
+    next if product_url.nil? || product_url.empty?
+
+    pages << {
+      url: product_url,
+      page_type: "details",
+      vars: vars.merge({
+        rank: idx + 1,
+        page_number: vars['page_number'] || vars['page'] || 1,
+        listing_position: idx + 1,
+        category_name: vars['category_name'],
+        category_id: vars['category_id'],
+        subcategory_name: vars['subcategory_name'],
+        breadcrumb: vars['breadcrumb']
+      })
+    }
+
+    save_pages(pages) if pages.count > 99
+  rescue => e
+    warn "[LISTINGS ERROR] url=#{page['url']} idx=#{idx} error=#{e.message}"
+  end
 end
+warn "[LISTINGS] url=#{page['url']} queued=#{pages.length} products"
 
 # ============================================================================
 # Pagination Handling

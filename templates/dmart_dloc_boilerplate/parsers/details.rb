@@ -388,4 +388,7 @@ output["img_url_2"] = img_url_2 if img_url_2
 # ============================================================================
 # NOTE: outputs is pre-defined by DataHen - DO NOT declare (outputs = [] is FORBIDDEN)
 # Use outputs << directly to append product data
+nil_fields = output.select { |_, v| v.nil? }.keys
+warn "[DETAILS] url=#{page['url']} nil=#{nil_fields.count}/#{output.length} fields: #{nil_fields.join(', ')}" unless nil_fields.empty?
+
 outputs << output

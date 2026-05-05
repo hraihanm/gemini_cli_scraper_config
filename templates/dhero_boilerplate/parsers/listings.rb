@@ -28,33 +28,34 @@ base_url = URLs::BASE_URL
 restaurant_links = html.css("PLACEHOLDER_RESTAURANT_LINK_SELECTOR")
 
 restaurant_links.each_with_index do |link, idx|
-  href = link['href']
-  next if href.nil? || href.empty?
+  begin
+    href = link['href']
+    next if href.nil? || href.empty?
 
-  # Build absolute URL
-  restaurant_url = if href.start_with?('http')
-    href
-  else
-    Addressable::URI.join(base_url, href).to_s
-  end
+    restaurant_url = if href.start_with?('http')
+      href
+    else
+      Addressable::URI.join(base_url, href).to_s
+    end
 
-  # Extract restaurant name from link text (or nearby element)
-  # PLACEHOLDER: Update selector if name is in a child element
-  restaurant_name = link.text.strip
+    restaurant_name = link.text.strip
+    rank = (page[:vars]&.dig('page_number').to_i - 1) * 20 + idx + 1 rescue idx + 1
 
-  rank = (page[:vars]&.dig('page_number').to_i - 1) * 20 + idx + 1 rescue idx + 1
-
-  pages << {
-    url:       restaurant_url,
-    page_type: "restaurant_details",
-    headers:   ReqHeaders::MINIMAL_HEADERS,
-    vars: {
-      restaurant_name:  restaurant_name,
-      rank_in_listing:  rank,
-      page_number:      page[:vars]&.dig('page_number') || 1,
+    pages << {
+      url:       restaurant_url,
+      page_type: "restaurant_details",
+      headers:   ReqHeaders::MINIMAL_HEADERS,
+      vars: {
+        restaurant_name:  restaurant_name,
+        rank_in_listing:  rank,
+        page_number:      page[:vars]&.dig('page_number') || 1,
+      }
     }
-  }
+  rescue => e
+    warn "[LISTINGS ERROR] url=#{page[:url]} idx=#{idx} error=#{e.message}"
+  end
 end
+warn "[LISTINGS] url=#{page[:url]} queued=#{pages.length} restaurants"
 
 # ============================================================================
 # Pagination

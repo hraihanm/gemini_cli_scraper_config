@@ -148,5 +148,8 @@ if (current_price || 0).to_f == 0.0
   output_hash['_collection'] = 'products_with_zero_price'
 end
 
+nil_fields = output_hash.select { |_, v| v.nil? }.keys
+warn "[DETAILS] url=#{page['url']} nil=#{nil_fields.count}/#{output_hash.length} fields: #{nil_fields.join(', ')}" unless nil_fields.empty?
+
 outputs << output_hash
 save_outputs outputs if outputs.length > 99
