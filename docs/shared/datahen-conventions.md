@@ -107,6 +107,36 @@ warn "WARN: img_url is nil for #{page[:url]}"       if img_url.nil?
 
 ---
 
+## Agent Decision Log (`_log`)
+
+Every state file that carries `_notes` MUST also include a top-level `_log` array. Each element records one key decision or observation, enabling post-mortem diagnosis without re-running the phase.
+
+### Entry schema
+
+```json
+{ "step": "5",         "action": "json_ld_probe",       "result": "found",   "detail": "Product — fields: name, price, brand, description, img_url" }
+{ "step": "6.pricing", "action": "selector_verify",     "selector": ".price-tag", "result": "matched", "sample": "€12.99" }
+{ "step": "9",         "action": "parser_test",         "url": "https://…/product/123", "nil_rate": "2/53", "fields_nil": ["brand", "sub_category"] }
+{ "step": "6.pricing", "action": "structural_error",    "detail": "Selector .price-tag — 0 matches on 3 pages" }
+{ "step": "5.3",       "action": "pagination_strategy", "strategy": "count_based", "detail": "count selector .result-count, 240 products, 10/page → 24 pages" }
+{ "step": "5.3",       "action": "fallback",            "from": "count_based", "to": "next_button", "reason": "count selector returned nil on category B" }
+```
+
+### Required entry points
+
+| Trigger | `action` value | Required fields |
+|---|---|---|
+| JSON-LD probe | `json_ld_probe` | `result` (found/not_found), `detail` (type + fields list) |
+| Each selector confirmed | `selector_verify` | `selector`, `result` (matched/failed), `sample` |
+| Each `parser_tester` run | `parser_test` | `url`, `nil_rate` ("X/53"), `fields_nil` (array) |
+| Pagination strategy chosen | `pagination_strategy` | `strategy`, `detail` |
+| Fallback path taken | `fallback` | `from`, `to`, `reason` |
+| Structural failure (stop condition) | `structural_error` | `detail` (what failed, how many pages tested) |
+
+Keep entries **terse** — one object per decision. `_notes` is for human narrative; `_log` is for structured, scannable events.
+
+---
+
 ## save_pages / save_outputs Threshold
 
 ```ruby

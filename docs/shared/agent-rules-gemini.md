@@ -68,6 +68,22 @@ Always try cheap alternatives first: `browser_grep_html` before `browser_view_ht
 
 ---
 
+## Error Taxonomy
+
+Before deciding how to respond to a failure, classify it:
+
+| Category | Examples | Response |
+|---|---|---|
+| **Transient** | Network timeout, popup still visible, page still loading, empty `browser_snapshot` | Retry the same tool call once. If second attempt also fails → treat as Structural |
+| **Structural** | Selector matches 0 elements on 2+ pages, required field nil after 3 test URLs, boilerplate PLACEHOLDER not replaced, page layout changed | STOP. Write a `structural_error` `_log` entry, update `_notes`, surface to user |
+| **Data gap** | Optional field nil on some SKUs (tags, brand, sub_category, country_of_origin) | Log nil rate in `_log` `parser_test` entry. Continue — no retry needed |
+
+**Transient retry rule:** retry once only. Do not loop. If the second attempt fails, escalate to Structural.
+
+**Structural stop rule:** after writing the `_log` entry and updating `_notes`, echo the failure **in bold** to the user before halting the phase. Do not silently skip.
+
+---
+
 ## Auto-Chaining Rules
 
 🚨 **CRITICAL AUTO-CHAINING EXECUTION RULE**:

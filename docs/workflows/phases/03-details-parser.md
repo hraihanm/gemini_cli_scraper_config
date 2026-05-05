@@ -130,6 +130,11 @@ img_url  ||= og_image
 name     ||= og_title
 ```
 
+**Accumulate `_log` entry** (include in `detail-selectors.json` at STEP 10):
+```json
+{ "step": "5", "action": "json_ld_probe", "result": "found|not_found", "detail": "<@type> — fields: <comma-separated list>" }
+```
+
 ---
 
 ## STEP 6: Systematic Field Discovery (batched by page region)
@@ -212,6 +217,11 @@ After each successful `parser_tester` run on a detail page, inspect emitted outp
 - If any required field is **nil** or empty string while HTML was present: **do not** treat the run as passing — log in `_notes`, adjust selectors or parsing, and re-test.
 - If intentionally absent on this SKU type, document the exception in `field-spec.json` `extraction_notes` and `_notes`.
 
+**Accumulate `_log` entry** per `parser_tester` run (include in `detail-selectors.json` at STEP 10):
+```json
+{ "step": "9", "action": "parser_test", "url": "<tested_url>", "nil_rate": "X/53", "fields_nil": ["<field>", "..."] }
+```
+
 ---
 
 ## STEP 9c: Eval Gate (mandatory before marking phase complete)
@@ -261,7 +271,14 @@ Record in `phase-status.json`:
   "price_locale": { "decimal_sep": ".", "thousands_sep": "," },
   "verified": true,
   "urls_accessed": { "discovery_urls": ["<url>"], "test_urls": ["<url1>", "<url2>", "<url3>"] },
-  "_notes": "## Details phase\\n\\n- Discovery summary, nil-guard outcomes, next steps\\n"
+  "_notes": "## Details phase\\n\\n- Discovery summary, nil-guard outcomes, next steps\\n",
+  "_log": [
+    { "step": "5", "action": "json_ld_probe", "result": "found", "detail": "Product — fields: name, price, brand, description, img_url" },
+    { "step": "6.identity", "action": "selector_verify", "selector": "h1.product-title", "result": "matched", "sample": "Organic Oat Milk 1L" },
+    { "step": "6.pricing",  "action": "selector_verify", "selector": ".price-tag", "result": "matched", "sample": "€1.29" },
+    { "step": "9", "action": "parser_test", "url": "<url1>", "nil_rate": "2/53", "fields_nil": ["brand", "sub_category"] },
+    { "step": "9", "action": "parser_test", "url": "<url2>", "nil_rate": "1/53", "fields_nil": ["sub_category"] }
+  ]
 }
 ```
 
@@ -325,7 +342,7 @@ For dmart-dloc with default pipeline: `details-parser` is index 2 (last) → no 
 - ✅ Phase 2 output contract validated (STEP 1) — `listings.sample_detail_urls` confirmed
 - ✅ Eval gate passed (STEP 9c) — score ≥ 80% OR first fixture created and passing
 - ✅ `field-spec.json` updated with discovery results
-- ✅ `detail-selectors.json` written (includes `_notes`, `price_locale` when applicable)
+- ✅ `detail-selectors.json` written (includes `_notes`, `_log`, `price_locale` when applicable)
 - ✅ `phase-status.json` updated
 - ✅ Completion report shown
 - ✅ IF auto_next=true AND not last phase: next command EXECUTED
