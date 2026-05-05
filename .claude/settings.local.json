@@ -14,5 +14,9 @@
       "Bash(netstat -ano)",
       "Bash(xargs -I{} taskkill /PID {} /F)"
     ]
+  },
+  "attribution": {
+    "commit": "",
+    "pr": ""
   }
 }

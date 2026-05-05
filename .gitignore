@@ -1,14 +1,16 @@
 generated_scraper/*
 !generated_scraper/.gitkeep
-cache/*
 !cache/.gitkeep
-original_scraper/*
-example_scraper_project/*
-conversations/*
 .gemini/.env
 .windsurf/*
-z_other/*
-slides/*
 node_modules/
 docs/datahen_documentations/
 auto-chain.log
+
+# Folders
+z_other
+slides
+cache
+original_scraper
+example_scraper_project
+conversations
