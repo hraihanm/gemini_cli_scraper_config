@@ -6,7 +6,18 @@ For top-level script rules and reserved variables, see **`docs/shared/datahen-co
 
 ## Preloaded libraries
 
-`nokogiri`, `json`, `cgi` are typically available — follow project boilerplate for `require` lines.
+DataHen v3 pre-loads the following gems in every parser runtime — **never add `require` for them**:
+
+- `nokogiri` — HTML parsing
+- `json` — JSON encode/decode
+- `digest` — MD5/SHA hashing
+- `cgi` — CGI utilities
+
+Still require explicitly:
+- `addressable` — URL building/joining
+- `chronic` — natural-language date parsing
+- `./lib/headers` — project-specific request headers
+- `./lib/helpers` — project-specific helper methods
 
 ## Error handling
 
