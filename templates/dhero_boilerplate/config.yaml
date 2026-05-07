@@ -1,3 +1,19 @@
+scraper_image: gcr.io/answers-engine-cloud/dhero-scraper-worker:latest
+
+env_vars:
+  - name: DBHOST
+    global_name: DBHOST
+    disabled: false
+  - name: DBNAME
+    global_name: DBNAME
+    disabled: false
+  - name: DBUSER
+    global_name: DBUSER
+    disabled: false
+  - name: DBPASS
+    global_name: DBPASS
+    disabled: false
+
 seeder:
   file: ./seeder/seeder.rb
   disabled: false
@@ -14,118 +30,80 @@ parsers:
     disabled: false
 
 exporters:
-  - exporter_name: restaurants_csv
-    export_filename: <d:yyyyMMdd>_<name>_restaurants
-    no_subfolder: true
-    exporter_type: csv
-    collection: restaurants
+  # A3 — menu items (full row, internal fields stripped)
+  - exporter_name: items_a3
+    exporter_type: json
+    collection: items
+    write_mode: line
     start_on_job_done: true
-    offset: 0
-    order: desc
-    fields:
-      - header: "name"
-        path: "name"
-        disable_scientific_notation: true
-      - header: "cuisine"
-        path: "cuisine"
-        disable_scientific_notation: true
-      - header: "address"
-        path: "address"
-        disable_scientific_notation: true
-      - header: "phone"
-        path: "phone"
-        disable_scientific_notation: true
-      - header: "rating"
-        path: "rating"
-        disable_scientific_notation: true
-      - header: "rating_count"
-        path: "rating_count"
-        disable_scientific_notation: true
-      - header: "opening_hours"
-        path: "opening_hours"
-        disable_scientific_notation: true
-      - header: "img_url"
-        path: "img_url"
-        disable_scientific_notation: true
-      - header: "description"
-        path: "description"
-        disable_scientific_notation: true
-      - header: "is_open_now"
-        path: "is_open_now"
-        disable_scientific_notation: true
-      - header: "delivery_time"
-        path: "delivery_time"
-        disable_scientific_notation: true
-      - header: "min_order"
-        path: "min_order"
-        disable_scientific_notation: true
-      - header: "tags"
-        path: "tags"
-        disable_scientific_notation: true
-      - header: "url"
-        path: "url"
-        disable_scientific_notation: true
-      - header: "scraped_at_timestamp"
-        path: "scraped_at_timestamp"
-        disable_scientific_notation: true
-      - header: "crawled_source"
-        path: "crawled_source"
-        disable_scientific_notation: true
+    export_filename: <name>_A3Items_<d:yyyyMMdd>
+    no_subfolder: true
+    export_extension: json.gz
+    no_tar: true
+    excluded_fields:
+      - _id
+      - _gid
+      - _collection
+      - _created_at
+      - _job_id
+      - id
+      - restaurant_id
 
-  - exporter_name: menu_items_csv
-    export_filename: <d:yyyyMMdd>_<name>_menu
-    no_subfolder: true
-    exporter_type: csv
-    collection: menu_items
+  # A1 — restaurant core location data (address, contact, rating)
+  - exporter_name: locations_a1
+    exporter_type: json
+    collection: locations
+    write_mode: line
     start_on_job_done: true
-    offset: 0
-    order: desc
-    fields:
-      - header: "restaurant_name"
-        path: "restaurant_name"
-        disable_scientific_notation: true
-      - header: "restaurant_url"
-        path: "restaurant_url"
-        disable_scientific_notation: true
-      - header: "cuisine"
-        path: "cuisine"
-        disable_scientific_notation: true
-      - header: "category_name"
-        path: "category_name"
-        disable_scientific_notation: true
-      - header: "name"
-        path: "name"
-        disable_scientific_notation: true
-      - header: "description"
-        path: "description"
-        disable_scientific_notation: true
-      - header: "customer_price_lc"
-        path: "customer_price_lc"
-        disable_scientific_notation: true
-      - header: "currency_code_lc"
-        path: "currency_code_lc"
-        disable_scientific_notation: true
-      - header: "img_url"
-        path: "img_url"
-        disable_scientific_notation: true
-      - header: "is_available"
-        path: "is_available"
-        disable_scientific_notation: true
-      - header: "item_attributes"
-        path: "item_attributes"
-        disable_scientific_notation: true
-      - header: "barcode"
-        path: "barcode"
-        disable_scientific_notation: true
-      - header: "sku"
-        path: "sku"
-        disable_scientific_notation: true
-      - header: "url"
-        path: "url"
-        disable_scientific_notation: true
-      - header: "scraped_at_timestamp"
-        path: "scraped_at_timestamp"
-        disable_scientific_notation: true
-      - header: "crawled_source"
-        path: "crawled_source"
-        disable_scientific_notation: true
+    export_filename: <name>_A1Restaurants_<d:yyyyMMdd>
+    no_subfolder: true
+    export_extension: json.gz
+    no_tar: true
+    excluded_fields:
+      - _id
+      - _gid
+      - _collection
+      - _created_at
+      - _job_id
+      - id
+      - restaurant_id
+      - cuisine_name
+      - opening_hours
+      - restaurant_tags
+      - restaurant_delivery_zones
+      - img_url
+      - description
+      - free_field
+
+  # A2 — restaurant rich data (hours, tags, delivery zones, media)
+  - exporter_name: locations_a2
+    exporter_type: json
+    collection: locations
+    write_mode: line
+    start_on_job_done: true
+    export_filename: <name>_A2Restaurants_<d:yyyyMMdd>
+    no_subfolder: true
+    export_extension: json.gz
+    no_tar: true
+    excluded_fields:
+      - _id
+      - _gid
+      - _collection
+      - _created_at
+      - _job_id
+      - id
+      - restaurant_id
+      - restaurant_name
+      - restaurant_address
+      - restaurant_post_code
+      - restaurant_area
+      - restaurant_lat
+      - restaurant_long
+      - restaurant_city
+      - restaurant_country
+      - restaurant_delivers
+      - phone_number
+      - restaurant_rating
+      - restaurant_position
+      - number_of_ratings
+      - main_cuisine

@@ -5,7 +5,9 @@
 # ============================================================================
 #
 # PURPOSE: Parse restaurant menu pages and extract menu items.
-# This is the final phase of the DHero pipeline.
+# Final phase of the DHero pipeline.
+#
+# FIELD SPEC: spec_full.json — collection: "items"
 #
 # DATAHEN v3 STRUCTURE:
 # - TOP-LEVEL SCRIPT, NOT a function
@@ -13,111 +15,148 @@
 # - DO NOT redeclare any of these variables
 # ============================================================================
 
-require 'nokogiri'
-require 'json'
 require './lib/headers'
 
 html = Nokogiri::HTML(content)
 
-# Restaurant context (passed from restaurant_details parser via vars)
-restaurant_name = page[:vars]&.dig('restaurant_name')
-restaurant_url  = page[:vars]&.dig('restaurant_url')
-cuisine         = page[:vars]&.dig('cuisine')
+# ============================================================================
+# FROM_VARS — context passed from restaurant_details parser
+# ============================================================================
+restaurant_id   = page['vars']&.dig('loc_id')
+restaurant_name = page['vars']&.dig('restaurant_name')
+restaurant_url  = page['vars']&.dig('restaurant_url')
+cuisine         = page['vars']&.dig('cuisine')
 
 # ============================================================================
-# Embedded JSON Check (Priority 1 for menu data)
-# Many food delivery sites embed menu data as JSON in the page
+# Embedded JSON Check (Priority 1)
+# Many food delivery sites embed menu data as JSON — check before CSS fallback.
+# PLACEHOLDER: Inspect page source for window.__NEXT_DATA__, __INITIAL_STATE__,
+# or similar. Use browser_network_search to find the relevant request/response.
 # ============================================================================
-
-# Check for window.__NEXT_DATA__ or similar embedded JSON (inspect via browser tools)
-# PLACEHOLDER: Uncomment and adapt if embedded JSON is found
-#
 # raw_script = html.css('script#__NEXT_DATA__').first&.text
 # if raw_script
-#   next_data = JSON.parse(raw_script) rescue nil
-#   menu_items = next_data&.dig('props', 'pageProps', 'menu', 'categories') || []
-#   menu_items.each do |section|
+#   next_data   = JSON.parse(raw_script) rescue nil
+#   categories  = next_data&.dig('props', 'pageProps', 'menu', 'categories') || []
+#   categories.each do |section|
 #     category_name = section['name']
-#     (section['items'] || []).each do |item|
+#     (section['items'] || []).each_with_index do |item_data, idx|
+#       item_name        = item_data['name']
+#       next if item_name.nil? || item_name.empty?
+#       item_description = item_data['description']
+#       item_price       = item_data['price']&.to_f
+#       item_price       = nil if item_price == 0
+#       img_url          = item_data['imageUrl']
+#       is_available     = !item_data['soldOut']
+#       item_is_promoted = false
+#       item_id          = Digest::MD5.hexdigest("#{restaurant_id}_#{item_name}_#{idx}")
+#
 #       outputs << {
-#         restaurant_name:       restaurant_name,
-#         restaurant_url:        restaurant_url,
-#         cuisine:               cuisine,
-#         category_name:         category_name,
-#         name:                  item['name'],
-#         description:           item['description'],
-#         customer_price_lc:     item['price']&.to_f,
-#         currency_code_lc:      'PLACEHOLDER_CURRENCY',
-#         img_url:               item['imageUrl'],
-#         is_available:          !item['soldOut'],
-#         item_attributes:       nil,
-#         barcode:               nil,
-#         sku:                   item['id']&.to_s,
-#         url:                   page[:url],
-#         scraped_at_timestamp:  Time.now.utc.iso8601,
-#         crawled_source:        'WEB',
+#         _collection:     'items',
+#         _id:             item_id,
+#         date:            Time.parse(page['fetched_at']).strftime('%Y%m%d %H:%M:%S'),
+#         url:             page['url'],
+#         crawled_source:  'WEB',
+#         free_field:      nil,
+#         currency:        'PLACEHOLDER_CURRENCY',
+#         lead_id:         restaurant_id,
+#         restaurant_id:   restaurant_id,
+#         restaurant_name: restaurant_name,
+#         restaurant_url:  restaurant_url,
+#         cuisine:         cuisine,
+#         item_id:         item_id,
+#         category_name:   category_name,
+#         item_name:       item_name,
+#         item_description: item_description,
+#         item_price:      item_price,
+#         item_is_promoted: item_is_promoted,
+#         img_url:         img_url,
+#         is_available:    is_available,
+#         item_attributes: nil,
+#         barcode:         nil,
+#         sku:             item_data['id']&.to_s,
 #       }
 #     end
 #   end
+#   save_outputs(outputs) if outputs.length > 99
+#   warn "[LISTINGS] url=#{page['url']} queued=#{outputs.length} items"
+#   return
 # end
 
 # ============================================================================
-# CSS Selector Fallback (when no embedded JSON found)
-# PLACEHOLDER: Replace selectors with discovered selectors
+# CSS Selector Fallback
+# Replace PLACEHOLDER selectors with discovered selectors from browser tools.
 # ============================================================================
+html.css('PLACEHOLDER_MENU_SECTION_SELECTOR').each do |section|
+  category_name = section.at_css('PLACEHOLDER_SECTION_TITLE_SELECTOR')&.text&.strip
 
-# Iterate menu sections
-html.css("PLACEHOLDER_MENU_SECTION_SELECTOR").each do |section|
-  # Menu section/category name (e.g., "Starters", "Mains", "Desserts")
-  category_name = section.at_css("PLACEHOLDER_SECTION_TITLE_SELECTOR")&.text&.strip
+  section.css('PLACEHOLDER_MENU_ITEM_SELECTOR').each_with_index do |el, idx|
+    begin
+      item_name = el.at_css('PLACEHOLDER_ITEM_NAME_SELECTOR')&.text&.strip
+      next if item_name.nil? || item_name.empty?
 
-  # Individual menu items within this section
-  section.css("PLACEHOLDER_MENU_ITEM_SELECTOR").each_with_index do |item, idx|
-    name        = item.at_css("PLACEHOLDER_ITEM_NAME_SELECTOR")&.text&.strip
-    next if name.nil? || name.empty?
+      item_description  = el.at_css('PLACEHOLDER_ITEM_DESCRIPTION_SELECTOR')&.text&.strip
+      item_description  = nil if item_description&.empty?
 
-    description  = item.at_css("PLACEHOLDER_ITEM_DESCRIPTION_SELECTOR")&.text&.strip
-    price_text   = item.at_css("PLACEHOLDER_ITEM_PRICE_SELECTOR")&.text&.strip
-    customer_price_lc = price_text&.gsub(/[^\d.]/, '')&.to_f
+      price_text  = el.at_css('PLACEHOLDER_ITEM_PRICE_SELECTOR')&.text&.strip
+      item_price  = price_text&.gsub(/[^\d.]/, '')&.to_f
+      item_price  = nil if item_price.to_f == 0
+      warn "WARN: item_price is nil for '#{item_name}' idx=#{idx}" if item_price.nil?
 
-    img_url      = item.at_css("PLACEHOLDER_ITEM_IMG_SELECTOR")&.[]('src')
-    img_url    ||= item.at_css("PLACEHOLDER_ITEM_IMG_SELECTOR")&.[]('data-src')
+      img_url  = el.at_css('PLACEHOLDER_ITEM_IMG_SELECTOR')&.[]('src')
+      img_url  ||= el.at_css('PLACEHOLDER_ITEM_IMG_SELECTOR')&.[]('data-src')
 
-    # Availability: check for sold-out marker
-    # PLACEHOLDER: Update sold-out selector
-    is_available = item.at_css("PLACEHOLDER_SOLD_OUT_SELECTOR").nil?
+      is_available = el.at_css('PLACEHOLDER_SOLD_OUT_SELECTOR').nil?
 
-    # Item tags (dietary labels, features: vegetarian, spicy, halal, new, etc.)
-    # PLACEHOLDER: Update tag selector
-    item_tags   = item.css("PLACEHOLDER_ITEM_TAGS_SELECTOR").map { |t| t.text.strip }.reject(&:empty?)
-    item_attributes = item_tags.any? ?
-      JSON.generate({ 'tags' => item_tags.map { |t| "'#{t}'" }.join(', ') }) : nil
+      item_tags       = el.css('PLACEHOLDER_ITEM_TAGS_SELECTOR').map { |t| t.text.strip }.reject(&:empty?)
+      item_attributes = item_tags.any? ? JSON.generate({ 'tags' => item_tags.map { |t| "'#{t}'" }.join(', ') }) : nil
 
-    # Item ID / SKU (if available in data attributes or JSON)
-    sku = item['data-item-id'] || item['data-id']
+      # PLACEHOLDER: Detect promotion via section header name, badge element, or data attribute.
+      item_is_promoted = false
+      # item_is_promoted = category_name&.downcase == 'promotions'
+      # item_is_promoted ||= !el.at_css('PLACEHOLDER_PROMO_BADGE_SELECTOR').nil?
 
-    warn "WARN: customer_price_lc is nil for item '#{name}'" if customer_price_lc.nil? || customer_price_lc == 0
+      sku     = el['data-item-id'] || el['data-id']
+      item_id = Digest::MD5.hexdigest("#{restaurant_id}_#{item_name}_#{idx}")
 
-    outputs << {
-      restaurant_name:       restaurant_name,
-      restaurant_url:        restaurant_url,
-      cuisine:               cuisine,
-      category_name:         category_name,
-      name:                  name,
-      description:           description,
-      customer_price_lc:     customer_price_lc,
-      # PLACEHOLDER: Update with actual currency code discovered during Phase 1
-      currency_code_lc:      'PLACEHOLDER_CURRENCY',
-      img_url:               img_url,
-      is_available:          is_available,
-      item_attributes:       item_attributes,
-      barcode:               nil,
-      sku:                   sku,
-      url:                   page[:url],
-      scraped_at_timestamp:  Time.now.utc.iso8601,
-      crawled_source:        'WEB',
-    }
+      outputs << {
+        _collection: 'items',
+        _id:         item_id,
+
+        # --- HARDCODED ---
+        date:           Time.parse(page['fetched_at']).strftime('%Y%m%d %H:%M:%S'),
+        url:            page['url'],
+        crawled_source: 'WEB',
+        free_field:     nil,
+
+        # --- INFER (set during Phase 1) ---
+        currency: 'PLACEHOLDER_CURRENCY',  # e.g. 'USD', 'AED', 'BDT'
+
+        # --- FROM_VARS ---
+        lead_id:         restaurant_id,
+        restaurant_id:   restaurant_id,
+        restaurant_name: restaurant_name,
+        restaurant_url:  restaurant_url,
+        cuisine:         cuisine,
+
+        # --- FIND / DETERMINE ---
+        item_id:          item_id,
+        category_name:    category_name,
+        item_name:        item_name,
+        item_description: item_description,
+        item_price:       item_price,
+        item_is_promoted: item_is_promoted,
+        img_url:          img_url,
+        is_available:     is_available,
+        item_attributes:  item_attributes,
+        barcode:          nil,
+        sku:              sku,
+      }
+    rescue => e
+      warn "[LISTINGS ERROR] url=#{page['url']} idx=#{idx} error=#{e.message}"
+    end
   end
 end
+
+warn "[LISTINGS] url=#{page['url']} queued=#{outputs.length} items"
 
 save_outputs(outputs) if outputs.length > 99

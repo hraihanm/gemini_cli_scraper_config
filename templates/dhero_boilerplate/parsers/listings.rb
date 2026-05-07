@@ -13,7 +13,6 @@
 # - DO NOT redeclare any of these variables
 # ============================================================================
 
-require 'nokogiri'
 require 'addressable'
 require './lib/headers'
 
