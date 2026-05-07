@@ -8,7 +8,7 @@
 # Extracts restaurant metadata (→ locations collection) and queues the menu
 # page for Phase 4.
 #
-# FIELD SPEC: spec_full.json — collection: "locations"
+# FIELD SPEC: dhero-field-spec.json — collection: "locations"
 # EXTRACTION ORDER: JSON-LD → meta tags → CSS selectors
 #
 # DATAHEN v3 STRUCTURE:
@@ -17,7 +17,6 @@
 # - DO NOT redeclare any of these variables
 # ============================================================================
 
-require 'addressable'
 require './lib/headers'
 
 html     = Nokogiri::HTML(content)
@@ -200,7 +199,7 @@ end
 # ============================================================================
 menu_url = page['url']
 # menu_href = html.at_css('PLACEHOLDER_MENU_LINK_SELECTOR')&.[]('href')
-# menu_url  = menu_href ? Addressable::URI.join(base_url, menu_href).to_s : page['url']
+# menu_url  = menu_href ? (menu_href.start_with?('http') ? menu_href : "#{base_url}#{menu_href}") : page['url']
 
 pages << {
   url:       menu_url,

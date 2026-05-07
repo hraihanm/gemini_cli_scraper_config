@@ -19,7 +19,7 @@ parsers     = [
 ]
 
 [defaults]
-field_spec = "spec_full.json"
+field_spec = "dhero-field-spec.json"
 output_dir = "./generated_scraper"
 
 # HTML scraping pipeline — 4 phases (listings → restaurant details → menu)

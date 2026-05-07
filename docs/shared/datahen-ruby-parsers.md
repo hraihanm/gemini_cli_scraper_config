@@ -14,10 +14,20 @@ DataHen v3 pre-loads the following gems in every parser runtime — **never add 
 - `cgi` — CGI utilities
 
 Still require explicitly:
-- `addressable` — URL building/joining
 - `chronic` — natural-language date parsing
 - `./lib/headers` — project-specific request headers
 - `./lib/helpers` — project-specific helper methods
+
+## URL construction — avoid `addressable`
+
+Do not use `require 'addressable'` or `Addressable::URI.join`. Simple string interpolation is sufficient and keeps the parser dependency-free:
+
+```ruby
+# Relative → absolute URL
+url = href.start_with?('http') ? href : "#{base_url}#{href}"
+```
+
+`base_url` (from `URLs::BASE_URL`) has no trailing slash; hrefs from restaurant/menu sites are clean `/path` strings. This covers all dhero use cases without a gem dependency.
 
 ## Error handling
 

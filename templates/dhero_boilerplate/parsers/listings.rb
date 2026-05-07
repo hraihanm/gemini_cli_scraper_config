@@ -13,7 +13,6 @@
 # - DO NOT redeclare any of these variables
 # ============================================================================
 
-require 'addressable'
 require './lib/headers'
 
 html     = Nokogiri::HTML(content)
@@ -31,11 +30,7 @@ restaurant_links.each_with_index do |link, idx|
     href = link['href']
     next if href.nil? || href.empty?
 
-    restaurant_url = if href.start_with?('http')
-      href
-    else
-      Addressable::URI.join(base_url, href).to_s
-    end
+    restaurant_url = href.start_with?('http') ? href : "#{base_url}#{href}"
 
     restaurant_name = link.text.strip
     rank = (page[:vars]&.dig('page_number').to_i - 1) * 20 + idx + 1 rescue idx + 1
@@ -82,11 +77,13 @@ warn "[LISTINGS] url=#{page[:url]} queued=#{pages.length} restaurants"
 # Strategy 2: Next button (fallback)
 # next_link = html.at_css("PLACEHOLDER_NEXT_BUTTON_SELECTOR")
 # if next_link && next_link['href']
+#   next_href = next_link['href']
+#   next_url  = next_href.start_with?('http') ? next_href : "#{base_url}#{next_href}"
 #   pages << {
-#     url: Addressable::URI.join(base_url, next_link['href']).to_s,
+#     url:       next_url,
 #     page_type: "listings",
-#     headers: ReqHeaders::MINIMAL_HEADERS,
-#     vars: { page_number: (page[:vars]&.dig('page_number')&.to_i || 1) + 1 }
+#     headers:   ReqHeaders::MINIMAL_HEADERS,
+#     vars:      { page_number: (page[:vars]&.dig('page_number')&.to_i || 1) + 1 }
 #   }
 # end
 
