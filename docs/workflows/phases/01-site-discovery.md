@@ -171,6 +171,44 @@ Document findings in `discovery-state.json` under `fetch_requirements`:
 
 ---
 
+## STEP 7b: API Header Verification
+
+**Run this step whenever an API endpoint is discovered** (via `browser_network_requests_simplified` or `browser_network_search`) — regardless of project type.
+
+### Step A — Test bare
+
+```javascript
+browser_request({ url: "<discovered_api_url>", method: "GET" })
+```
+
+If the response contains real data (non-empty array or object with items) → bare fetch works, no custom headers needed. Set `api_config.requires_custom_headers: false` and skip to STEP 8.
+
+If response is empty, `{}`, `[]`, or an error status → proceed to Step B.
+
+### Step B — Capture working headers from browser
+
+```javascript
+browser_network_search({ query: "<api_url_substring>", searchIn: ["url"], includeHeaders: true })
+```
+
+Read the `requestHeaders` of the matching entry. Classify each header:
+
+| Class | Examples | Action |
+|---|---|---|
+| **Stable** — safe to hardcode | `appversion`, `language`, `platform`, `deviceid`, `latitude`, `longitude`, `accept`, `content-type` | Include in `API_HEADERS` |
+| **Ephemeral** — expires per session | `cookie`, `authorization` (bearer), `traceparent`, `x-datadog-*`, `tracestate` | Note only — do NOT hardcode |
+
+### Step C — Test with stable headers only
+
+Re-run `browser_request` with only the stable headers. Confirm response has real data.
+
+- **Success** → record stable headers; set `requires_browser_session: false`
+- **Still empty** → some ephemeral header is also required; set `requires_browser_session: true`; note in `_notes` that this API may need a live browser session or token refresh mechanism
+
+Record all findings in `discovery-state.json.api_config` (see schema in STEP 9).
+
+---
+
 ## STEP 8: Analyze Site Structure
 
 Navigate through site to determine:
@@ -238,6 +276,16 @@ Path: `{output_dir}/<scraper>/.scraper-state/discovery-state.json`
       "verified": false
     }
   },
+  "api_config": {
+    "has_api": false,
+    "endpoint_pattern": null,
+    "requires_custom_headers": false,
+    "stable_headers": {},
+    "ephemeral_headers_noted": [],
+    "requires_browser_session": false,
+    "bare_test": "not_tested",
+    "headers_test": "not_tested"
+  },
   "_notes": "## Discovery summary (markdown)\\n\\n- Site structure, sample URLs, popups, fetch_type notes\\n- **Next:** `/<next_phase_from_profile> scraper=<scraper_slug> project=<project>`\\n"
 }
 ```
@@ -272,6 +320,13 @@ Fix the gap (re-navigate the site if needed) and rewrite `discovery-state.json`.
 **Update `{boilerplate.headers_rb}`** (USE ABSOLUTE PATH):
 - Read existing file
 - Update `URLs::BASE_URL` constant with discovered base URL
+- If `api_config.requires_custom_headers: true`: add `API_HEADERS` constant to the `ReqHeaders` module — merge `MINIMAL_HEADERS` with each stable header from `api_config.stable_headers`:
+  ```ruby
+  API_HEADERS = MINIMAL_HEADERS.merge({
+    "header-name" => "value",   # one entry per stable header discovered
+    # ...
+  })
+  ```
 - Preserve all other code
 
 **Update `{boilerplate.seeder_rb}`** (USE ABSOLUTE PATH):
@@ -283,6 +338,7 @@ Fix the gap (re-navigate the site if needed) and rewrite `discovery-state.json`.
 - Update `fetch_type:` based on `fetch_requirements.initial_page_needs_browser`:
   - true → `"browser"`
   - false → `"standard"`
+- If `api_config.requires_custom_headers: true`: add `headers: ReqHeaders::API_HEADERS` and `fetch_type: "standard"` to every `pages <<` entry that targets an API URL
 - If fetch_type = "browser" AND button_to_reveal exists: configure driver block with selector and puppeteer_code
 - Preserve all other code
 
