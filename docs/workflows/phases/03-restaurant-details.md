@@ -107,11 +107,25 @@ Discover selectors for restaurant fields using `docs/shared/selector-discovery.m
 - `url` — canonical restaurant URL
 
 ### Menu URL Discovery (CRITICAL for Phase 4)
+
+**Step 4.c — Probe `/menu` sub-URL first (do this before any other check)**
+
+Many food directory sites expose a dedicated menu page at `{base_url}/menu`. Check this pattern before looking for inline content or "View Menu" links:
+
+1. Build candidate: `menu_url = current_restaurant_url.sub(/\.html$/, '') + "/menu"`
+2. Navigate to `menu_url` (or use `browser_request` to check status)
+3. Run `browser_grep_html(query: "dish-holder")` or `browser_grep_html(query: "menu-item")` — look for any item-level elements
+4. Decision:
+   - **Items found** → set `menu_url_pattern = "separate_url"`, record `menu_url_template = "{restaurant_url_without_html}/menu"`. Skip remaining checks below.
+   - **404 or no items** → fall through to Step 4.d
+
+**Step 4.d — Inline / link scan (fallback)**
+
 - Check if the restaurant detail page has a menu section inline or a separate menu URL
 - Look for: menu tabs, "View Menu" links, menu API calls
-- If menu is inline on the same page: Phase 4 will reuse the same URL
-- If menu is on a separate URL: capture the pattern and queue it
-- Document `menu_url_pattern` in `restaurant-details-state.json`
+- If menu is inline on the same page: Phase 4 will reuse the same URL → set `menu_url_pattern = "inline_same_page"`
+- If menu is on a separate URL found via a link: capture the pattern → set `menu_url_pattern = "separate_url"`
+- Document both `menu_url_pattern` and `menu_url_template` in `restaurant-details-state.json`
 
 ---
 
@@ -141,20 +155,27 @@ outputs << {
 }
 ```
 
-The parser should ALSO queue the menu page for each restaurant:
+The parser should ALSO queue the **menu listings** page for each restaurant.
+Note: page_type is `'menu_listings'` — Phase 4 (menu_listings) will queue the actual `'menu'` pages.
+
 ```ruby
-# Queue menu page for this restaurant
-menu_url = page[:url]  # if menu is inline
-# OR
-menu_url = html.at_css('a.menu-link')&.[]('href')  # if separate URL
+# Pattern 1: /menu sub-URL (preferred — verified during STEP 4.c)
+menu_root_url = page['url'].sub(/\.html$/, '') + '/menu'
+
+# Pattern 2: inline (same page as restaurant detail)
+# menu_root_url = page['url']
+
+# Pattern 3: explicit link found on the page
+# menu_root_url = html.at_css('a[href*="/menu"]')&.[]('href')
 
 pages << {
-  url: menu_url,
-  page_type: "menu",
+  url:       menu_root_url,
+  page_type: 'menu_listings',
   vars: {
-    restaurant_name: name,
-    restaurant_url:  page[:url],
-    cuisine:         cuisine,
+    loc_id:          lead_id,
+    restaurant_name: restaurant_name,
+    restaurant_url:  page['url'],
+    cuisine:         main_cuisine,
   }
 }
 ```
@@ -198,8 +219,9 @@ Update `phase-status.json` for this phase to include:
   "scraper_name": "<scraper>",
   "restaurant_urls_sampled": ["<url1>", "<url2>", "<url3>"],
   "menu_url_pattern": "inline_same_page | separate_url",
+  "menu_url_template": "{restaurant_url_without_html}/menu | null",
   "menu_page_type": "menu",
-  "vars_passed_to_menu": ["restaurant_name", "restaurant_url", "cuisine"],
+  "vars_passed_to_menu": ["loc_id", "restaurant_name", "restaurant_url", "cuisine"],
   "completed_at": "<timestamp>",
   "_notes": "## Restaurant details phase\\n\\n- Selectors, menu URL strategy, vars for menu parser\\n"
 }
