@@ -4,8 +4,9 @@
 # Menu Parser - DHero Boilerplate
 # ============================================================================
 #
-# PURPOSE: Parse restaurant menu pages and extract menu items.
-# Final phase of the DHero pipeline.
+# PURPOSE: Extract menu items from a single menu category/page.
+# Final phase of the DHero pipeline (Phase 5).
+# Receives URLs queued by menu_listings.rb (Phase 4).
 #
 # FIELD SPEC: spec_full.json — collection: "items"
 #
@@ -20,12 +21,15 @@ require './lib/headers'
 html = Nokogiri::HTML(content)
 
 # ============================================================================
-# FROM_VARS — context passed from restaurant_details parser
+# FROM_VARS — context passed from menu_listings parser
+# category_name: set by menu_listings if multi-category; nil if single-page
+#                (parser discovers it from CSS when nil)
 # ============================================================================
 restaurant_id   = page['vars']&.dig('loc_id')
 restaurant_name = page['vars']&.dig('restaurant_name')
 restaurant_url  = page['vars']&.dig('restaurant_url')
 cuisine         = page['vars']&.dig('cuisine')
+category_name   = page['vars']&.dig('category_name')
 
 # ============================================================================
 # Embedded JSON Check (Priority 1)

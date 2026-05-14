@@ -109,11 +109,11 @@ Never skip the proposal entirely — a retroactive `Done` proposal is acceptable
 - HTML pipeline: `/scrape` → `/navigation-parser` → `/details-parser`
 - Greenfield (URLs + schema in same message, **`project=greenfield`**): `/greenfield-scrape` → `/navigation-parser` → `/details-parser` — no default spec file unless `spec=` is passed
 - API pipeline: `/api-scrape` → `/api-navigation-parser` → `/api-details-parser`
-- Extra phases: `/restaurant-details-parser` → `/menu-parser` (dhero)
+- Extra phases: `/restaurant-details-parser` → `/menu-listings-parser` → `/menu-parser` (dhero)
 
 **Project aliases (shorthand — project is hardcoded):**
 - dmart: `/dmart-scrape` → `/dmart-navigation-parser` → `/dmart-details-parser`
-- dhero: `/dhero-scrape` → `/dhero-navigation-parser` → `/dhero-restaurant-details` → `/dhero-menu-parser`
+- dhero: `/dhero-scrape` → `/dhero-navigation-parser` → `/dhero-restaurant-details` → `/menu-listings-parser project=dhero` → `/dhero-menu-parser`
 - API: `/dmart-api-scrape` → `/dmart-api-navigation-parser` → `/dmart-api-details-parser`
 
 **Pipeline configuration:** `profiles/<project>.toml` defines the pipeline array.

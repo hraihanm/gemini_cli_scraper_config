@@ -25,6 +25,9 @@ parsers:
   - page_type: restaurant_details
     file: ./parsers/restaurant_details.rb
     disabled: false
+  - page_type: menu_listings
+    file: ./parsers/menu_listings.rb
+    disabled: false
   - page_type: menu
     file: ./parsers/menu.rb
     disabled: false

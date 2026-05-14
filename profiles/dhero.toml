@@ -11,10 +11,11 @@ copy_command_unix    = "cp -r templates/dhero_boilerplate generated_scraper/{scr
 seeder_rb   = "seeder/seeder.rb"
 headers_rb  = "lib/headers.rb"
 config_yaml = "config.yaml"
-# Different parser files from dmart — restaurant_details replaces details, extra menu phase
+# Different parser files from dmart — restaurant_details replaces details, two menu phases
 parsers     = [
   "parsers/listings.rb",
   "parsers/restaurant_details.rb",
+  "parsers/menu_listings.rb",
   "parsers/menu.rb",
 ]
 
@@ -43,9 +44,15 @@ label    = "Phase 3: Restaurant Details Parser"
 command  = "restaurant-details-parser"
 
 [[pipeline.phases]]
+phase    = "menu-listings-parser"
+workflow = "docs/workflows/phases/04-menu-listings.md"
+label    = "Phase 4: Menu Listings Parser"
+command  = "menu-listings-parser"
+
+[[pipeline.phases]]
 phase    = "menu-parser"
-workflow = "docs/workflows/phases/04-menu-parser.md"
-label    = "Phase 4: Menu Parser"
+workflow = "docs/workflows/phases/05-menu-details.md"
+label    = "Phase 5: Menu Details Parser"
 command  = "menu-parser"
 
 # API scraping pipeline (if applicable)

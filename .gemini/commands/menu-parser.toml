@@ -1,7 +1,7 @@
-description = "Phase 4 (dhero): Menu parser (final). Usage: /menu-parser scraper=<name> project=dhero [url=...]"
+description = "Phase 5 (dhero): Menu details parser (final). Extracts items from a single menu page. Usage: /menu-parser scraper=<name> project=dhero [url=...]"
 
 prompt = """
-DHero Phase 4 — menu parser (**final** phase).
+DHero Phase 5 — menu details parser (**final** phase).
 
 Firmware: `.gemini/system.md`.
 
@@ -12,7 +12,7 @@ Firmware: `.gemini/system.md`.
 Parse {{args}}: `scraper=`, `project=` (**dhero**), `url=`, `resume-url=`, `out=`.
 
 1. `read_file` → `profiles/dhero.toml`.
-2. Find phase **`menu-parser`** — read its **`workflow`** path.
-3. `read_file` → workflow; execute every STEP.
+2. Find phase **`menu-parser`** — read its **`workflow`** path (authoritative).
+3. `read_file` → that workflow; execute every STEP.
 4. **No auto-chain** (terminal phase). Ignore `auto_next` for chaining purposes.
 """

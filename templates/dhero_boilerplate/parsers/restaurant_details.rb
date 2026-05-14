@@ -193,17 +193,23 @@ rescue => e
 end
 
 # ============================================================================
-# Queue Menu Page (Phase 4)
-# Option A: menu inline on same page — reuse current URL (default)
-# Option B: separate menu URL — uncomment and update selector
+# Queue Menu Listings Page (Phase 4)
+# Passes the restaurant's menu root URL to the menu_listings parser.
+# menu_listings will discover category/page URLs and queue 'menu' pages.
+#
+# Option A: separate /menu sub-URL (strip .html, append /menu) — check first
+# Option B: inline on same page — reuse current URL
+# Option C: explicit link on the page — use discovered href
+# Agent selects the correct option during Phase 3 discovery.
 # ============================================================================
-menu_url = page['url']
-# menu_href = html.at_css('PLACEHOLDER_MENU_LINK_SELECTOR')&.[]('href')
-# menu_url  = menu_href ? (menu_href.start_with?('http') ? menu_href : "#{base_url}#{menu_href}") : page['url']
+menu_root_url = page['url'].sub(/\.html$/, '') + '/menu'
+# Option B (inline): menu_root_url = page['url']
+# Option C (link):   menu_href = html.at_css('PLACEHOLDER_MENU_LINK_SELECTOR')&.[]('href')
+#                    menu_root_url = menu_href ? Addressable::URI.join(page['url'], menu_href).to_s : page['url']
 
 pages << {
-  url:       menu_url,
-  page_type: 'menu',
+  url:       menu_root_url,
+  page_type: 'menu_listings',
   headers:   ReqHeaders::MINIMAL_HEADERS,
   vars: {
     loc_id:          lead_id,
