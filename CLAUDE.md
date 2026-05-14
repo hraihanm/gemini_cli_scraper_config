@@ -145,6 +145,7 @@ Custom tools added on top of standard Playwright MCP (source: `../playwright-mcp
 | `browser_network_requests_simplified` | `network_simplified.ts` | Filtered network request list |
 | `browser_request` | `network_request.ts` | Make HTTP requests from browser context (inherits cookies) |
 | `browser_network_replay` | `network_replay.ts` | Find captured request by URL pattern and replay it |
+| `browser_get_request_context` | `network_context.ts` | Full request context (headers, cookies, body) for a URL pattern — headers pre-classified as stable vs ephemeral |
 | `parser_tester` | `parser_tester.ts` | Test DataHen parsers against HTML/JSON/XML; supports `test_files` array |
 | `scraper_output_validator` | `scraper_validator.ts` | Validate parser output against config.yaml field list |
 | `scraper_run_evals` | `eval.ts` | Run eval fixtures, return score + nil-rate report |

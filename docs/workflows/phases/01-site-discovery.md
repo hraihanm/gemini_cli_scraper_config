@@ -188,19 +188,25 @@ If response is empty, `{}`, `[]`, or an error status → proceed to Step B.
 ### Step B — Capture working headers from browser
 
 ```javascript
-browser_network_search({ query: "<api_url_substring>", searchIn: ["url"], includeHeaders: true })
+browser_get_request_context({ urlPattern: "<api_url_substring>" })
 ```
 
-Read the `requestHeaders` of the matching entry. Classify each header:
+This returns the complete request headers pre-classified into `stable` (safe to hardcode) and `ephemeral` (session-bound) groups, plus cookies extracted separately. No need to search for individual header names — the full picture comes back in one call.
 
-| Class | Examples | Action |
-|---|---|---|
-| **Stable** — safe to hardcode | `appversion`, `language`, `platform`, `deviceid`, `latitude`, `longitude`, `accept`, `content-type` | Include in `API_HEADERS` |
-| **Ephemeral** — expires per session | `cookie`, `authorization` (bearer), `traceparent`, `x-datadog-*`, `tracestate` | Note only — do NOT hardcode |
+Example output:
+```json
+{
+  "requestHeaders": {
+    "stable": { "appversion": "2", "language": "en", "snoonu-app-platform": "Web" },
+    "ephemeral": { "cookie": "session=abc...", "traceparent": "00-..." }
+  },
+  "cookies": { "session": "abc123", "_ga": "GA1.1..." }
+}
+```
 
 ### Step C — Test with stable headers only
 
-Re-run `browser_request` with only the stable headers. Confirm response has real data.
+Re-run `browser_request` with only the `stable` headers from Step B. Confirm response has real data.
 
 - **Success** → record stable headers; set `requires_browser_session: false`
 - **Still empty** → some ephemeral header is also required; set `requires_browser_session: true`; note in `_notes` that this API may need a live browser session or token refresh mechanism

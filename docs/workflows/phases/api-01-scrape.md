@@ -52,14 +52,9 @@ If response is empty `{}` / `[]` / error → proceed to Step B.
 
 **Step B — Capture headers from browser request:**
 ```javascript
-browser_network_search({ query: "<endpoint_url_substring>", searchIn: ["url"], includeHeaders: true })
+browser_get_request_context({ urlPattern: "<endpoint_url_substring>" })
 ```
-Read `requestHeaders` from the matched entry. Classify:
-
-| Class | Examples | Action |
-|---|---|---|
-| **Stable** — safe to hardcode | `appversion`, `language`, `platform`, `deviceid`, `latitude`, `longitude`, `accept`, `content-type`, `origin`, `referer` | Include in `API_HEADERS` |
-| **Ephemeral** — expires per session | `cookie`, `authorization` bearer tokens, `traceparent`, `x-datadog-*`, `tracestate` | Note only — do NOT hardcode |
+Returns complete request headers pre-classified into `stable` (safe to hardcode) and `ephemeral` (session-bound) groups, plus cookies extracted separately. Use `stable` headers for `API_HEADERS`; note `ephemeral` keys but do not hardcode them.
 
 **Step C — Test with stable headers only:**
 ```javascript

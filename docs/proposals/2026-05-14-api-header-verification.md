@@ -2,6 +2,7 @@
 
 **Created:** 2026-05-14
 **Status:** Done
+**Scope:** `playwright-mcp-mod/src/tools/mod/network_context.ts`, `playwright-mcp-mod/src/tools/mod/index.ts`, `docs/workflows/phases/01-site-discovery.md`, `docs/workflows/phases/api-01-scrape.md`, `CLAUDE.md`, `generated_scraper/snoonu_qa/lib/headers.rb`, `generated_scraper/snoonu_qa/seeder/seeder.rb`, `generated_scraper/snoonu_qa/parsers/listings.rb`
 **Scope:** `docs/workflows/phases/01-site-discovery.md`, `docs/workflows/phases/api-01-scrape.md`, `generated_scraper/snoonu_qa/lib/headers.rb`, `generated_scraper/snoonu_qa/seeder/seeder.rb`, `generated_scraper/snoonu_qa/parsers/listings.rb`
 
 ---
@@ -137,8 +138,11 @@ pages << {
 
 | Step | File | Change | Effort | Risk |
 |---|---|---|---|---|
-| 1 | `docs/workflows/phases/01-site-discovery.md` | Add STEP 7b (header verification protocol) + STEP 9 api_config + STEP 10 headers.rb update | Medium | None |
-| 2 | `docs/workflows/phases/api-01-scrape.md` | Expand steps 4–6 with same protocol | Medium | None |
-| 3 | `generated_scraper/snoonu_qa/lib/headers.rb` | Add `API_HEADERS` with stable headers from curl sample | Low | None |
-| 4 | `generated_scraper/snoonu_qa/seeder/seeder.rb` | Add `headers:` + `fetch_type: 'standard'` to all pages | Low | Low |
-| 5 | `generated_scraper/snoonu_qa/parsers/listings.rb` | Add `headers:` + `fetch_type: 'standard'` to pagination pages | Low | Low |
+| 1 | `playwright-mcp-mod/src/tools/mod/network_context.ts` | New `browser_get_request_context` tool | Medium | None |
+| 2 | `playwright-mcp-mod/src/tools/mod/index.ts` | Import + spread new tool | Low | None |
+| 3 | `docs/workflows/phases/01-site-discovery.md` | Add STEP 7b (header verification protocol) + STEP 9 api_config + STEP 10 headers.rb update; update Step B to use new tool | Medium | None |
+| 4 | `docs/workflows/phases/api-01-scrape.md` | Expand steps 4–6 with same protocol; update Step B | Medium | None |
+| 5 | `CLAUDE.md` | Add `browser_get_request_context` to tool table | Low | None |
+| 6 | `generated_scraper/snoonu_qa/lib/headers.rb` | Add `API_HEADERS` with stable headers from curl sample | Low | None |
+| 7 | `generated_scraper/snoonu_qa/seeder/seeder.rb` | Add `headers:` + `fetch_type: 'standard'` to all pages | Low | Low |
+| 8 | `generated_scraper/snoonu_qa/parsers/listings.rb` | Add `headers:` + `fetch_type: 'standard'` to pagination pages | Low | Low |
