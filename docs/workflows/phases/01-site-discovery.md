@@ -341,6 +341,7 @@ Fix the gap (re-navigate the site if needed) and rewrite `discovery-state.json`.
 - Update `page_type:` based on site structure:
   - has_categories → `"categories"`
   - else has_listings → `"listings"`
+- **Apply `[scope].categories` filter if present in profile**: when the profile defines `scope.categories`, only seed categories whose name contains one of those strings (case-insensitive). Skip all others and log each skipped category: `warn "SCOPE: skipping category '#{name}' — not in #{scope_categories.inspect}"`
 - Update `fetch_type:` based on `fetch_requirements.initial_page_needs_browser`:
   - true → `"browser"`
   - false → `"standard"`

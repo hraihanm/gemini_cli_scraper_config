@@ -123,8 +123,8 @@ Many food directory sites expose a dedicated menu page at `{base_url}/menu`. Che
 
 - Check if the restaurant detail page has a menu section inline or a separate menu URL
 - Look for: menu tabs, "View Menu" links, menu API calls
-- If menu is inline on the same page: Phase 4 will reuse the same URL → set `menu_url_pattern = "inline_same_page"`
 - If menu is on a separate URL found via a link: capture the pattern → set `menu_url_pattern = "separate_url"`
+- If menu is inline on the same page: **do NOT queue the same URL as `menu_listings`** — DataHen GID = hash(url), so re-queuing the same URL with a different page_type is silently ignored and the page will never be fetched again (see `docs/shared/datahen-conventions.md` → "Page GID and URL Deduplication"). Instead: set `menu_url_pattern = "inline_strategy_e"` and extract items directly in `restaurant_details.rb` (see STEP 5 Strategy E)
 - Document both `menu_url_pattern` and `menu_url_template` in `restaurant-details-state.json`
 
 ---
@@ -155,18 +155,11 @@ outputs << {
 }
 ```
 
-The parser should ALSO queue the **menu listings** page for each restaurant.
-Note: page_type is `'menu_listings'` — Phase 4 (menu_listings) will queue the actual `'menu'` pages.
+The parser must either queue a `menu_listings` page (when the menu is at a different URL) or extract items inline (when the menu is on the same page). Choose based on `menu_url_pattern`:
 
+**Pattern 1: `/menu` sub-URL (preferred — use when STEP 4.c found items)**
 ```ruby
-# Pattern 1: /menu sub-URL (preferred — verified during STEP 4.c)
 menu_root_url = page['url'].sub(/\.html$/, '') + '/menu'
-
-# Pattern 2: inline (same page as restaurant detail)
-# menu_root_url = page['url']
-
-# Pattern 3: explicit link found on the page
-# menu_root_url = html.at_css('a[href*="/menu"]')&.[]('href')
 
 pages << {
   url:       menu_root_url,
@@ -179,6 +172,59 @@ pages << {
   }
 }
 ```
+
+**Pattern 2: explicit link found on the page**
+```ruby
+menu_root_url = html.at_css('a[href*="/menu"]')&.[]('href')
+pages << { url: menu_root_url, page_type: 'menu_listings', vars: { ... } }
+```
+
+**Pattern 3 — Strategy E: menu is inline (same URL as restaurant detail)**
+🚨 Do NOT queue `page['url']` again — GID collision, page will never be fetched (see `docs/shared/datahen-conventions.md`).
+Extract items directly from the current `content` and add to `outputs`. Do not add any `pages <<` entry for menu.
+
+```ruby
+# Inline item extraction — add after the locations output block
+# Source: __NEXT_DATA__, embedded JSON, or CSS — agent discovers during STEP 4
+# Use dhero item fields (_collection: 'items'), NOT dmart product fields
+raw_items = []  # agent replaces with actual extraction
+
+raw_items.each_with_index do |item, idx|
+  item_name = item['PLACEHOLDER_NAME_FIELD']&.strip
+  next if item_name.nil? || item_name.empty?
+
+  item_id = Digest::MD5.hexdigest("#{lead_id}_#{item_name}_#{idx}")
+  outputs << {
+    _collection:      'items',
+    _id:              item_id,
+    date:             Time.parse(page['fetched_at']).strftime('%Y%m%d %H:%M:%S'),
+    url:              page['url'],
+    crawled_source:   'WEB',
+    free_field:       nil,
+    currency:         'PLACEHOLDER_CURRENCY',
+    lead_id:          lead_id,
+    restaurant_id:    lead_id,
+    restaurant_name:  restaurant_name,
+    restaurant_url:   page['url'],
+    cuisine:          main_cuisine,
+    item_id:          item_id,
+    category_name:    item['PLACEHOLDER_CATEGORY'],
+    item_name:        item_name,
+    item_description: item['PLACEHOLDER_DESCRIPTION'],
+    item_price:       item['PLACEHOLDER_PRICE']&.to_f,
+    item_is_promoted: false,
+    img_url:          item['PLACEHOLDER_IMAGE'],
+    is_available:     true,
+    item_attributes:  nil,
+    barcode:          nil,
+    sku:              item['PLACEHOLDER_ID']&.to_s,
+  }
+end
+warn "[DETAILS] url=#{page['url']} items=#{outputs.count { |o| o[:_collection] == 'items' }}"
+# No pages << for menu — items output inline, Phases 4 and 5 are skipped
+```
+
+Also set `disabled: true` for `menu_listings` and `menu` page types in `config.yaml` when Strategy E is used.
 
 ---
 
@@ -218,9 +264,10 @@ Update `phase-status.json` for this phase to include:
 {
   "scraper_name": "<scraper>",
   "restaurant_urls_sampled": ["<url1>", "<url2>", "<url3>"],
-  "menu_url_pattern": "inline_same_page | separate_url",
+  "menu_url_pattern": "separate_url | inline_strategy_e",
   "menu_url_template": "{restaurant_url_without_html}/menu | null",
-  "menu_page_type": "menu",
+  "items_extracted_inline": false,
+  "menu_page_type": "menu_listings",
   "vars_passed_to_menu": ["loc_id", "restaurant_name", "restaurant_url", "cuisine"],
   "completed_at": "<timestamp>",
   "_notes": "## Restaurant details phase\\n\\n- Selectors, menu URL strategy, vars for menu parser\\n"
@@ -252,7 +299,8 @@ If `auto_next=true`: spawn `/<next_phase> scraper=<scraper> project=dhero auto_n
 - ✅ `restaurant_details.rb` edited and tested on 3 restaurant URLs
 - ✅ Phase 2 output contract validated (STEP 1) — `listings.sample_detail_urls` confirmed
 - ✅ Eval gate passed (STEP 6b) — score ≥ 80% OR first fixture created and passing
-- ✅ Parser queues menu pages for Phase 4
-- ✅ `restaurant-details-state.json` written (includes menu URL pattern and `_notes`)
+- ✅ If `menu_url_pattern = "separate_url"`: parser queues `menu_listings` pages for Phase 4
+- ✅ If `menu_url_pattern = "inline_strategy_e"`: items extracted inline; `menu_listings` + `menu` disabled in `config.yaml`
+- ✅ `restaurant-details-state.json` written (includes `menu_url_pattern`, `items_extracted_inline`, and `_notes`)
 - ✅ `phase-status.json` updated
 - ✅ IF auto_next=true: browser closed, `/menu-parser` EXECUTED

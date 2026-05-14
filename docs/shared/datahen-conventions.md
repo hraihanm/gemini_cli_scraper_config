@@ -137,6 +137,38 @@ Keep entries **terse** — one object per decision. `_notes` is for human narrat
 
 ---
 
+## Page GID and URL Deduplication
+
+🚨 **CRITICAL: DataHen deduplicates pages by URL only.**
+
+GID = `MD5(url)`. The `page_type` field does **not** affect the GID.
+
+**Consequence:** queuing the same URL with a different `page_type` does nothing — DataHen sees it as the same page and silently ignores the second queue entry. The page will not be re-fetched.
+
+```ruby
+# ❌ WRONG — second queue is ignored; same URL = same GID
+pages << { url: page['url'], page_type: 'restaurant_details', ... }
+pages << { url: page['url'], page_type: 'menu_listings', ... }  # silent no-op
+
+# ✅ CORRECT — different URL = different GID
+pages << { url: page['url'],          page_type: 'restaurant_details', ... }
+pages << { url: page['url'] + '/menu', page_type: 'menu_listings', ... }
+```
+
+**When the data you need is already on the current page** (same URL), extract it inline in the same parser — do not queue the URL again. This is Strategy E (listings-only) applied at the parser level.
+
+```ruby
+# ✅ CORRECT — extract from current page's content directly, no re-queue
+html = Nokogiri::HTML(content)
+# ... extract location fields ...
+outputs << { _collection: 'locations', ... }
+# ... also extract menu items from the same content ...
+outputs << { _collection: 'items', ... }
+# No pages << needed
+```
+
+---
+
 ## save_pages / save_outputs Threshold
 
 ```ruby

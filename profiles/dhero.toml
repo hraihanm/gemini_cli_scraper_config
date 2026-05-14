@@ -2,6 +2,11 @@
 name         = "dhero"
 display_name = "DHero Restaurants"
 
+# Scope limits what the agent seeds. Only categories matching these slugs/keywords
+# are seeded — others are skipped and logged. Case-insensitive substring match.
+[scope]
+categories = ["restaurant"]   # excludes grocery, pharmacy, flowers, market, etc.
+
 [template]
 boilerplate_dir      = "templates/dhero_boilerplate"
 copy_command_windows = 'xcopy /E /I /Y templates\dhero_boilerplate generated_scraper\{scraper}'
