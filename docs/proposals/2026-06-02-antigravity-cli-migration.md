@@ -46,8 +46,7 @@ This allowed agents to read `.gitignore`d paths (`.scraper-state/`). The Antigra
 
 ```
 .agents/
-  config/
-    mcp_config.json     ← .gemini/settings.json (mcpServers only; url→serverUrl for HTTP)
+  mcp_config.json       ← .gemini/settings.json (mcpServers only; url→serverUrl for HTTP)
   skills/               ← .gemini/commands/*.toml converted to *.md
     scrape.md
     navigation-parser.md
