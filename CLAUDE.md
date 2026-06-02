@@ -18,7 +18,7 @@ Rules here override default behavior.
 | Situation | Required? |
 |---|---|
 | Debugging a single-line bug | No |
-| Adding a new TOML command or phase | Yes |
+| Adding a new Skill (`.agents/skills/`) or phase | Yes |
 | Modifying boilerplate templates | Yes |
 | Changing field-spec.json schema | Yes |
 | Refactoring more than one file | Yes |
@@ -103,7 +103,17 @@ Never skip the proposal entirely — a retroactive `Done` proposal is acceptable
 - **`write_file` operations require absolute paths** — relative paths will fail
 - State files, parser files, and knowledge files must all use absolute paths
 
-### Gemini CLI Commands
+### Antigravity CLI — Agent Configuration Layers
+
+`AGENTS.md` is the **single context file** — merges the old `GEMINI.md` (persona, PARSE methodology) and `.gemini/system.md` (firmware rules). Antigravity CLI (`agy`) prepends it to every prompt automatically; no env var needed.
+
+**Config:** `.agents/config/mcp_config.json` (MCP servers). **Env:** `.agents/.env` (`AGY_API_KEY`, `AGY_MODEL`).
+
+The old `.gemini/` directory is retained as a reference but is inert — `gemini` binary was deprecated June 18, 2026.
+
+---
+
+### Antigravity CLI Commands
 
 **Generic commands (project= param selects profile from `profiles/`):**
 - HTML pipeline: `/scrape` → `/navigation-parser` → `/details-parser`
@@ -112,17 +122,16 @@ Never skip the proposal entirely — a retroactive `Done` proposal is acceptable
 - Extra phases: `/restaurant-details-parser` → `/menu-listings-parser` → `/menu-parser` (dhero)
 
 **Project aliases (shorthand — project is hardcoded):**
-- dmart: `/dmart-scrape` → `/dmart-navigation-parser` → `/dmart-details-parser`
-- dhero: `/dhero-scrape` → `/dhero-navigation-parser` → `/dhero-restaurant-details` → `/menu-listings-parser project=dhero` → `/dhero-menu-parser`
-- API: `/dmart-api-scrape` → `/dmart-api-navigation-parser` → `/dmart-api-details-parser`
+- dhero: `/scrape project=dhero` → `/navigation-parser project=dhero` → `/restaurant-details-parser` → `/menu-listings-parser project=dhero` → `/menu-parser`
 
+**Skills location:** `.agents/skills/` — one `.md` file per slash command.
 **Pipeline configuration:** `profiles/<project>.toml` defines the pipeline array.
 **Workflow docs:** `docs/workflows/phases/` — one file per phase type.
 **Shared rules:** `docs/shared/` — agent-rules-gemini.md, datahen-conventions.md, selector-discovery.md, output-hash-rules.md
 
 ### Playwright MCP Mod
 
-Gemini CLI uses **Playwright MCP Mod** as its browser automation tool — a custom fork of Microsoft's Playwright MCP with additional tools for scraping workflows.
+Antigravity CLI uses **Playwright MCP Mod** as its browser automation tool — a custom fork of Microsoft's Playwright MCP with additional tools for scraping workflows.
 
 - **Location:** `../playwright-mcp-mod` (sibling repo — `D:\DataHen\projects\playwright-mcp-mod`)
 - **Setup reference:** `README - Playwrgiht MCP Mod.md` (in this repo)
@@ -168,7 +177,7 @@ When the AI agent writes `details.rb` field extraction code, instruct it to try 
 2. **Meta tags** (`og:title`, `og:image`, `og:description`) — reliable fallback for key fields
 3. **CSS selectors** — site-specific, discovered via browser tools
 
-The agent runs `browser_grep_html(query: "@type")` first in Phase 3 to detect JSON-LD before spending time on CSS selector discovery. This is codified in `dmart-details-parser.toml` step 9.a0.
+The agent runs `browser_grep_html(query: "@type")` first in Phase 3 to detect JSON-LD before spending time on CSS selector discovery. This is codified in the details-parser workflow docs.
 
 **Templates stay clean:** `details.rb` boilerplate contains only PLACEHOLDER CSS selectors. The agent generates the appropriate json_ld / og_image code when it finds structured data.
 
