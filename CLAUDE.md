@@ -107,7 +107,7 @@ Never skip the proposal entirely — a retroactive `Done` proposal is acceptable
 
 `AGENTS.md` is the **single context file** — merges the old `GEMINI.md` (persona, PARSE methodology) and `.gemini/system.md` (firmware rules). Antigravity CLI (`agy`) prepends it to every prompt automatically; no env var needed.
 
-**Config:** `.agents/mcp_config.json` (MCP servers). **Env:** `.agents/.env` (`AGY_API_KEY`, `AGY_MODEL`). **Plugin manifest:** `.agents/plugin.json` (required — without it agy ignores all skills and MCP servers in `.agents/`).
+**Config:** `.agents/mcp_config.json` (MCP servers). **Env:** `.agents/.env` (`AGY_API_KEY`, `AGY_MODEL`). **Plugin manifest:** `.agents/plugin.json` (required — without it agy ignores all skills and MCP servers in `.agents/`). **One-time setup:** run `agy plugin install .agents` from the repo root to register the plugin with agy (only needed once per machine; persists across sessions).
 
 The old `.gemini/` directory is retained as a reference but is inert — `gemini` binary was deprecated June 18, 2026.
 

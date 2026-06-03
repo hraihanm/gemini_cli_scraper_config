@@ -27,6 +27,6 @@ try {
   Start-Process -FilePath "pwsh" -ArgumentList @("-NoExit", "-NoProfile", "-Command", $command) -WorkingDirectory $RepoRoot
 } catch {
   Add-Content -LiteralPath $LogPath -Value "[$stamp] ERROR: $($_.Exception.Message)" -Encoding utf8
-  Write-Host "AUTO_CHAIN_FAILED: run manually: agy -y -i `"$AgyCmdLine`""
+  Write-Host "AUTO_CHAIN_FAILED: run manually: agy --dangerously-skip-permissions --prompt-interactive `"$AgyCmdLine`""
   exit 1
 }

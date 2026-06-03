@@ -126,3 +126,11 @@ The old `.gemini/` directory is left in place (not deleted) as a fallback refere
 | 6 | Update `docs/shared/agent-rules-gemini.md` | Low |
 | 7 | Update `CLAUDE.md` | Low |
 | 8 | Install `agy` and smoke-test `/scrape` | Medium |
+| 9 | Run `agy plugin install .agents` — one-time registration per machine | Low |
+
+### Plugin install vs validate
+
+`agy plugin validate <path>` — validates structure only (dry run, does NOT register).
+`agy plugin install <path>` — registers the plugin with agy; persists across sessions. Required once per machine after cloning the repo.
+
+The TUI "Skills" panel and slash-command completion both source from installed plugins. Without running `install`, the workspace is registered in `projects.json` but the plugin skills are invisible to agy.
