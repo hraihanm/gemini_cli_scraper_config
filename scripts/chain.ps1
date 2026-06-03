@@ -21,8 +21,7 @@ Add-Content -LiteralPath $LogPath -Value "[$stamp] chain.ps1 cwd=$RepoRoot cmd=$
 
 $rootEsc = $RepoRoot.Replace("'", "''")
 $lineEsc = $AgyCmdLine.Replace("'", "''")
-# NOTE: verify flags with `agy --help` — -y (auto-confirm) may map to -d/--dangerously-skip-permissions
-$command = "Set-Location -LiteralPath '$rootEsc'; agy -y -i '$lineEsc'"
+$command = "Set-Location -LiteralPath '$rootEsc'; agy --dangerously-skip-permissions --prompt-interactive '$lineEsc'"
 
 try {
   Start-Process -FilePath "pwsh" -ArgumentList @("-NoExit", "-NoProfile", "-Command", $command) -WorkingDirectory $RepoRoot

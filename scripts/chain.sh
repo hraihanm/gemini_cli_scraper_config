@@ -15,13 +15,12 @@ STAMP="$(date -Iseconds)"
 echo "[$STAMP] chain.sh cwd=$REPO_ROOT cmd=$LINE" >>"$LOG"
 
 cd "$REPO_ROOT"
-# NOTE: verify flags with `agy --help` — -y (auto-confirm) may map to -d/--dangerously-skip-permissions
 if command -v agy >/dev/null 2>&1; then
   # Detach so the parent session can finish
-  nohup agy -y -i "$LINE" >>"$LOG" 2>&1 &
-  echo "Started: agy -y -i \"$LINE\" (see $LOG)"
+  nohup agy --dangerously-skip-permissions --prompt-interactive "$LINE" >>"$LOG" 2>&1 &
+  echo "Started: agy --dangerously-skip-permissions --prompt-interactive \"$LINE\" (see $LOG)"
 else
   echo "AUTO_CHAIN_FAILED: agy not in PATH. Run manually:"
-  echo "  agy -y -i \"$LINE\""
+  echo "  agy --dangerously-skip-permissions --prompt-interactive \"$LINE\""
   exit 1
 fi

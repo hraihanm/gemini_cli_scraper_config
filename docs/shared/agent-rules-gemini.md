@@ -10,7 +10,7 @@ Shard read by Agent Skills (`read_file → docs/shared/agent-rules-gemini.md`). 
 
 🚨 **CRITICAL: NEVER CALL BROWSER TOOLS VIA SHELL** 🚨
 - Browser tools (`browser_navigate`, `browser_snapshot`, `browser_grep_html`, `browser_network_search`, etc.) are **MCP tools** — call them **directly** as tool calls
-- **WRONG** ❌: `run_terminal_cmd("agy -y -i 'browser_navigate(...); browser_snapshot()'")`
+- **WRONG** ❌: `run_terminal_cmd("agy --dangerously-skip-permissions --prompt-interactive 'browser_navigate(...); browser_snapshot()'")`
 - **RIGHT** ✅: Call `browser_navigate({ url: "..." })` directly as a tool
 - `run_terminal_cmd` / shell is **ONLY** for auto-chaining at the very end. Never for browser actions.
 
@@ -115,7 +115,7 @@ Before deciding how to respond to a failure, classify it:
 - **macOS/Linux**: run:
   `bash scripts/chain.sh <next_phase> <scraper_slug> <project> true`
 - If spawn **fails**, log is appended to `.agents/auto-chain.log` — print this line for the user:
-  `agy -y -i "/<next_phase> scraper=<scraper_slug> project=<project> auto_next=true"`
+  `agy --dangerously-skip-permissions --prompt-interactive "/<next_phase> scraper=<scraper_slug> project=<project> auto_next=true"`
 
 **Step C — Store shell info** (for consistency):
 ```json

@@ -46,18 +46,19 @@ This allowed agents to read `.gitignore`d paths (`.scraper-state/`). The Antigra
 
 ```
 .agents/
+  plugin.json           ← REQUIRED plugin manifest — without it agy ignores all skills/MCP
   mcp_config.json       ← .gemini/settings.json (mcpServers only; url→serverUrl for HTTP)
-  skills/               ← .gemini/commands/*.toml converted to *.md
-    scrape.md
-    navigation-parser.md
-    details-parser.md
-    restaurant-details-parser.md
-    menu-listings-parser.md
-    menu-parser.md
-    greenfield-scrape.md
-    api-scrape.md
-    api-navigation-parser.md
-    api-details-parser.md
+  skills/               ← .gemini/commands/*.toml converted to {name}/SKILL.md directories
+    scrape/SKILL.md
+    navigation-parser/SKILL.md
+    details-parser/SKILL.md
+    restaurant-details-parser/SKILL.md
+    menu-listings-parser/SKILL.md
+    menu-parser/SKILL.md
+    greenfield-scrape/SKILL.md
+    api-scrape/SKILL.md
+    api-navigation-parser/SKILL.md
+    api-details-parser/SKILL.md
   .env                  ← .gemini/.env (GEMINI_* → AGY_*)
   .env.example
   system.md             ← .gemini/system.md (kept for reference; content merged into AGENTS.md)
