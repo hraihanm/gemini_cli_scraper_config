@@ -3,7 +3,7 @@
  * check-tool-drift.js
  *
  * Detects drift between playwright-mcp-mod tool exports and the tool lists
- * documented in CLAUDE.md and .gemini/system.md.
+ * documented in CLAUDE.md and docs/shared/browser-mcp-tools.md.
  *
  * Usage:  node scripts/check-tool-drift.js
  * Exit:   0 = no drift, 1 = drift detected or mod repo not found
@@ -15,7 +15,7 @@ const path = require('path');
 const REPO_ROOT = path.resolve(__dirname, '..');
 const MOD_DIR   = path.resolve(REPO_ROOT, '../playwright-mcp-mod/src/tools/mod');
 const CLAUDE_MD = path.resolve(REPO_ROOT, 'CLAUDE.md');
-const SYSTEM_MD = path.resolve(REPO_ROOT, '.gemini/system.md');
+const TOOLS_MD  = path.resolve(REPO_ROOT, 'docs/shared/browser-mcp-tools.md');
 
 // Prefixes that identify scraping tool names (avoids false positives from
 // other `name:` fields inside TypeScript objects)
@@ -84,13 +84,13 @@ if (tsTools === null) {
 }
 
 const claudeTools = extractFromMarkdown(CLAUDE_MD);
-const systemTools = extractFromMarkdown(SYSTEM_MD);
-const docTools = new Set([...claudeTools, ...systemTools]);
+const toolsDocTools = extractFromMarkdown(TOOLS_MD);
+const docTools = new Set([...claudeTools, ...toolsDocTools]);
 
 console.log(`playwright-mcp-mod tools found  (${tsTools.size}):`);
 for (const t of [...tsTools].sort()) console.log(`  + ${t}`);
 
-console.log(`\nDocumented tools (CLAUDE.md + system.md)  (${docTools.size}):`);
+console.log(`\nDocumented tools (CLAUDE.md + browser-mcp-tools.md)  (${docTools.size}):`);
 for (const t of [...docTools].sort()) console.log(`  + ${t}`);
 
 let hasErrors = false;
@@ -100,7 +100,7 @@ const undocumented = [...tsTools].filter(t => !docTools.has(t)).sort();
 if (undocumented.length > 0) {
   console.log(`\n❌  UNDOCUMENTED — in playwright-mcp-mod but missing from docs:`);
   for (const t of undocumented) console.log(`     - ${t}`);
-  console.log(`   → Add these to the CLAUDE.md "Custom tools" list and/or .gemini/system.md tool glossary.`);
+  console.log(`   → Add these to the CLAUDE.md "Custom tools" list and/or docs/shared/browser-mcp-tools.md tool glossary.`);
   hasErrors = true;
 } else {
   console.log('\n✅  All playwright-mcp-mod tools are documented.');
@@ -112,7 +112,7 @@ const stale = [...docTools].filter(t => !tsTools.has(t) && !STDLIB_TOOLS.has(t))
 if (stale.length > 0) {
   console.log(`\n⚠️   STALE — in docs but not found in playwright-mcp-mod source:`);
   for (const t of stale) console.log(`     - ${t}`);
-  console.log(`   → Remove or rename these entries in CLAUDE.md / .gemini/system.md.`);
+  console.log(`   → Remove or rename these entries in CLAUDE.md / docs/shared/browser-mcp-tools.md.`);
   hasErrors = true;
 } else {
   console.log('✅  No stale tool entries in docs.');

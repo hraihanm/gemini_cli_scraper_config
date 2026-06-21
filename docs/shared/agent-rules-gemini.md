@@ -104,28 +104,16 @@ Before deciding how to respond to a failure, classify it:
 
 ### Auto-chain execution steps (when auto_next=true)
 
+Antigravity CLI runs the whole pipeline in **one session**. Chaining is **in-session** — do **not** spawn a new `agy` process or shell script.
+
 **Step A — Close browser**:
-- Call `browser_close()` MCP tool — REQUIRED before spawning new console
+- Call `browser_close()` MCP tool — REQUIRED before starting the next phase.
 
-**Step B — Spawn next command (use repo scripts — no hand-rolled nested quotes)**:
-- Ensure current working directory is the **repository root** (where `scripts/` lives).
-- **Windows**: run via `run_terminal_cmd`:
-  `pwsh -NoProfile -File scripts/chain.ps1 -Phase <next_phase> -Scraper <scraper_slug> -Project <project>`
-  Replace `<next_phase>` with the pipeline lookup value (e.g. `navigation-parser`). Use **absolute** path to `scripts/chain.ps1` if not cwd-root.
-- **macOS/Linux**: run:
-  `bash scripts/chain.sh <next_phase> <scraper_slug> <project> true`
-- If spawn **fails**, log is appended to `.agents/auto-chain.log` — print this line for the user:
+**Step B — Begin the next phase in this same session**:
+- Resolve `<next_phase>` from the profile pipeline lookup above (e.g. `navigation-parser`).
+- Immediately start that phase here, exactly as its dedicated workflow (`.agents/workflows/<next_phase>.md`) defines, driving handoff through the phase's **state file** (`scraper=<scraper_slug>`, `project=<project>` semantics). No new console, no `chain.*` script.
+- If the next phase **fails**, STOP, write the `_log` structural-error entry, and print this line so the user can resume manually:
   `agy --dangerously-skip-permissions --prompt-interactive "/<next_phase> scraper=<scraper_slug> project=<project> auto_next=true"`
-
-**Step C — Store shell info** (for consistency):
-```json
-{
-  "shell_type": "PowerShell_or_Bash",
-  "standardized_at": "<timestamp>",
-  "spawn_command_template": "pwsh -File scripts/chain.ps1 -Phase <phase> -Scraper <slug> -Project <proj>"
-}
-```
-Write to `.agents/shell-info.json` using **`write_file`** with an **ABSOLUTE** path.
 
 ---
 

@@ -1,15 +1,17 @@
-# Quick sanity check: required agent files exist. Optional: run gemini (commented).
+# Quick sanity check: required agent files exist. Optional: run agy (commented).
 # Usage: pwsh -File scripts/prompt-smoke.ps1
 $ErrorActionPreference = "Stop"
 $root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $required = @(
-  ".gemini/system.md",
+  "AGENTS.md",
   "docs/shared/agent-rules-gemini.md",
   "docs/shared/datahen-conventions.md",
   "docs/workflows/phases/01-site-discovery.md",
   "profiles/dmart-dloc.toml",
-  ".gemini/commands/scrape.toml",
-  "scripts/chain.ps1"
+  ".agents/workflows/scrape.md",
+  ".agents/workflows/run-pipeline.md",
+  ".agents/skills/datahen-conventions/SKILL.md",
+  ".agents/mcp_config.json"
 )
 $missing = @()
 foreach ($rel in $required) {
@@ -20,5 +22,5 @@ if ($missing.Count -gt 0) {
   exit 1
 }
 Write-Host "OK: all required paths present under $root"
-# Uncomment to run CLI (requires gemini in PATH):
-# Set-Location $root; gemini -y -i "/scrape url=https://example.com name=smoke_test project=dmart-dloc auto_next=false"
+# Uncomment to run CLI (requires agy in PATH):
+# Set-Location $root; agy --dangerously-skip-permissions --prompt-interactive "/scrape url=https://example.com name=smoke_test project=dmart-dloc auto_next=false"
