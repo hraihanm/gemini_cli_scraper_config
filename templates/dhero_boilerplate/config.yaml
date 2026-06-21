@@ -52,7 +52,7 @@ exporters:
       - id
       - restaurant_id
 
-  # A1 — restaurant core location data (address, contact, rating)
+  # A1 — restaurant core location data (address, contact, rating, hours, tags, delivery zones)
   - exporter_name: locations_a1
     exporter_type: json
     collection: locations
@@ -71,14 +71,12 @@ exporters:
       - id
       - restaurant_id
       - cuisine_name
-      - opening_hours
-      - restaurant_tags
-      - restaurant_delivery_zones
       - img_url
       - description
       - free_field
+      - crawled_source
 
-  # A2 — restaurant rich data (hours, tags, delivery zones, media)
+  # A2 — restaurant rich data (hours, tags, delivery zones, cuisine list, free_field)
   - exporter_name: locations_a2
     exporter_type: json
     collection: locations
@@ -110,3 +108,9 @@ exporters:
       - restaurant_position
       - number_of_ratings
       - main_cuisine
+      - is_permanently_closed
+      - input_lat
+      - input_long
+      - img_url
+      - description
+      - crawled_source

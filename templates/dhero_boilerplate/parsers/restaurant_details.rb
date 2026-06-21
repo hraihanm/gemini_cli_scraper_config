@@ -118,6 +118,18 @@ restaurant_delivers = restaurant_tags&.include?('PLACEHOLDER_DELIVERY_TAG') ||
 # restaurant_delivery_zones — array of {delivery_zone, minimum_order_value, delivery_fee, currency}
 # PLACEHOLDER: Parse delivery zone data from page if available.
 restaurant_delivery_zones = nil
+
+# is_permanently_closed — always false for available restaurants
+# Client only wants open restaurants. If the site has a closed-indicator selector,
+# use it to skip permanently closed restaurants during the listings phase instead.
+# Set to null only when confirmed during feasibility that no suitable selector exists.
+is_permanently_closed = false
+
+# input_lat / input_long — from input list (geo-coordinate search only)
+# PLACEHOLDER: Uncomment if this scraper uses a geo-coordinate input list.
+# Confirm applicability during Phase 1 feasibility check.
+# input_lat  = page['vars']&.dig('input_lat')&.to_f
+# input_long = page['vars']&.dig('input_long')&.to_f
 # restaurant_delivery_zones = [{
 #   delivery_zone:        restaurant_city,
 #   minimum_order_value:  nil,
@@ -172,13 +184,21 @@ begin
     restaurant_long:           restaurant_long,
     phone_number:              phone_number,
     main_cuisine:              main_cuisine,
-    cuisine_name:              cuisine_name,
     restaurant_rating:         restaurant_rating,
     number_of_ratings:         number_of_ratings,
+    restaurant_delivers:       restaurant_delivers,
+    is_permanently_closed:     is_permanently_closed,
+    # input_lat:               input_lat,   # uncomment for geo-coord scraper
+    # input_long:              input_long,  # uncomment for geo-coord scraper
+
+    # --- A2 fields (also present in A1: opening_hours, restaurant_tags, restaurant_delivery_zones) ---
     opening_hours:             opening_hours,
     restaurant_tags:           restaurant_tags,
-    restaurant_delivers:       restaurant_delivers,
     restaurant_delivery_zones: restaurant_delivery_zones,
+    cuisine_name:              cuisine_name,
+    free_field:                nil,
+
+    # --- internal ---
     img_url:                   img_url,
     description:               description,
   }
