@@ -29,3 +29,23 @@ Move all 11 workflow `.md` files into `.agents/skills/<name>/SKILL.md` with `nam
 4. Update `scripts/setup-agy.ps1` — remove `$GlobalCliWorkflows` sync and `$PluginWorkflows` copy
 5. Update `CLAUDE.md` — collapse "Workflows" layer into "Skills", update paths
 6. Update this proposal to Done
+
+## 6. Post-Implementation: YAML Frontmatter Pitfall
+
+After migration, the 11 command skills did not appear in the AGY `/skills` panel even after restart and global sync. The 9 knowledge skills appeared fine.
+
+**Root cause:** AGY parses `SKILL.md` frontmatter as YAML. In YAML, `[` and `]` are **flow-indicator characters** reserved for inline sequences — they are forbidden in unquoted plain scalars. All command skill descriptions contained usage strings with optional-arg notation, e.g.:
+
+```
+description: Phase 1 ... [project=dmart-dloc|dhero|...] [auto_next=true]
+```
+
+A strict YAML parser treats the `[` as the start of a flow sequence token, fails to parse the value, and the skill is silently dropped — no error surfaced in the TUI. The knowledge skills happened not to use `[...]` in their descriptions, so they parsed fine.
+
+**Fix:** Double-quote all `description:` values that contain `[`, `]`, `{`, `}`, or `,`:
+
+```yaml
+description: "Phase 1 ... [project=dmart-dloc|dhero|...] [auto_next=true]"
+```
+
+**Rule added to `CLAUDE.md`:** Description values in `SKILL.md` must always be double-quoted. Commit: `d7388fa fix(skills): quote description values to fix YAML parsing of [optional-arg] syntax`.
