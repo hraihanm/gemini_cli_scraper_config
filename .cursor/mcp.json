@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "playwright-mod": {
+      "command": "npx",
+      "args": [
+        "D:\\DataHen\\projects\\playwright-mcp-mod",
+        "--caps",
+        "vision"
+      ]
+    }
+  }
+}
