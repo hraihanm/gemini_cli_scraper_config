@@ -332,7 +332,7 @@ After each `browser_navigate`, handle cookies/modals before deep work. Follow th
 
 ## Auto-chaining
 
-When `auto_next=true`, you **must** run the next phase (close browser, then spawn — see `docs/shared/agent-rules-gemini.md`). Use **`scripts/chain.ps1`** (Windows) or **`scripts/chain.sh`** (Unix) from repo root. On spawn failure, print the exact `/next-phase ...` line for the user.
+When `auto_next=true`, you **must** run the next phase **in this same session** (close browser, then begin the next phase via its state file — see `docs/shared/agent-rules-gemini.md`). Chaining is in-session: do **not** spawn a new `agy` process or shell script. On failure, STOP and print the exact `/next-phase ...` resume line for the user.
 
 ---
 

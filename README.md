@@ -1,14 +1,16 @@
-# Gemini CLI Scraper Config
+# Antigravity CLI Scraper Config
 
-**AI-driven web scraper generation** using [Gemini CLI](https://github.com/google-gemini/gemini-cli) + [DataHen V3](https://datahen.com).
+**AI-driven web scraper generation** using [Antigravity CLI](https://antigravity.google/docs/gcli-migration) (`agy`) + [DataHen V3](https://datahen.com).
 
 GitHub: [hraihanm/gemini_cli_scraper_config](https://github.com/hraihanm/gemini_cli_scraper_config)
+
+> Migrated from Gemini CLI (deprecated 2026-06-18). See `docs/antigravity-cli-setup.md` and `docs/proposals/2026-06-18-antigravity-native-architecture.md`.
 
 ---
 
 ## Overview
 
-This repository bundles Gemini CLI slash commands, workflow files, and boilerplate templates that let an AI agent autonomously build a working DataHen V3 scraper in three phases:
+This repository bundles Antigravity CLI **workflows** (slash commands), **skills** (reusable knowledge), and boilerplate templates that let an AI agent autonomously build a working DataHen V3 scraper in three phases:
 
 1. **Site Discovery** — Navigate the target site, understand structure, collect sample URLs, handle popups.
 2. **Navigation Parser** — Generate category/listing parsers to enumerate product/detail URLs.
@@ -26,10 +28,10 @@ Three project profiles are included:
 
 ## Prerequisites
 
-- **[Gemini CLI](https://github.com/google-gemini/gemini-cli)** — installed globally (`npm install -g @google/gemini-cli`)
+- **[Antigravity CLI](https://antigravity.google/docs/gcli-migration)** (`agy`) — installed and on PATH
 - **[Playwright MCP Mod](https://github.com/hraihanm/playwright-mcp-mod/tree/experiment)** — custom browser automation server (see setup below)
 - **Node.js 18+** and **npm**
-- A **Gemini API key** from [Google AI Studio](https://aistudio.google.com/app/apikey)
+- An **API key** set in `.agents/.env` (`AGY_API_KEY`, `AGY_MODEL`)
 
 ---
 
@@ -61,7 +63,7 @@ cd ..\gemini_cli_scraper_config
 
 ### 3. Configure the MCP server
 
-Edit `.gemini/settings.json` to point to the built mod. Adjust the path if you cloned elsewhere:
+Edit `.agents/mcp_config.json` to point to the built mod. Adjust the path if you cloned elsewhere:
 
 ```json
 {
@@ -74,12 +76,6 @@ Edit `.gemini/settings.json` to point to the built mod. Adjust the path if you c
         "vision"
       ]
     }
-  },
-  "context": {
-    "fileFiltering": {
-      "respectGitIgnore": false,
-      "respectGeminiIgnore": false
-    }
   }
 }
 ```
@@ -89,17 +85,17 @@ The `--caps vision` flag enables coordinate-based clicks (required for popup han
 ### 4. Set up environment
 
 ```powershell
-Copy-Item .gemini\.env.example .gemini\.env
+Copy-Item .agents\.env.example .agents\.env
 ```
 
-Edit `.gemini/.env`:
+Edit `.agents/.env`:
 
 ```env
-GEMINI_MODEL=gemini-2.5-pro
-GEMINI_API_KEY=your_api_key_here
+AGY_MODEL=gemini-3.5-flash
+AGY_API_KEY=your_api_key_here
 ```
 
-> Never commit `.gemini/.env` — it is gitignored.
+> Never commit `.agents/.env` — it is gitignored.
 
 ### 5. Verify tool sync (optional)
 
@@ -113,7 +109,7 @@ This checks that the tool list in `CLAUDE.md` matches what is actually implement
 
 ## Quick Start
 
-Run all commands from the **repository root** in a terminal. Gemini CLI resolves paths relative to where it is launched.
+Run all commands from the **repository root** in a terminal. Antigravity CLI (`agy`) resolves paths relative to where it is launched and auto-discovers `.agents/workflows/` and `.agents/skills/`.
 
 ### Greenfield pipeline (any site)
 
@@ -380,7 +376,7 @@ This template is also available as a standalone file: [`docs/greenfield-brief-te
 
 ## Command Reference
 
-All commands are slash commands run inside a Gemini CLI session.
+All commands are slash commands (workflows in `.agents/workflows/`) run inside an Antigravity CLI (`agy`) session. `auto_next=true` chains phases in-session; `/run-pipeline` runs the whole pipeline.
 
 ### HTML pipeline commands
 
@@ -546,7 +542,7 @@ Generated parsers follow these rules enforced by the agent:
 
 - Run all commands from the **repository root** — relative path resolution depends on this.
 - Use `auto_next=true` to chain phases without manual intervention.
-- Coordinate tools (clicks by X/Y) require `--caps vision` in the MCP args — already configured in `.gemini/settings.json`.
+- Coordinate tools (clicks by X/Y) require `--caps vision` in the MCP args — already configured in `.agents/mcp_config.json`.
 - After editing `playwright-mcp-mod`, always run `npm run build` before using new tools.
 - State files in `.scraper-state/` let you resume a phase mid-way — the agent reads them at startup.
 - For Greenfield, be specific about field types (`str`, `int`, `float`, `boolean`) to get accurate `field-spec.json` entries.

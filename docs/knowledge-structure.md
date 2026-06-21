@@ -9,9 +9,9 @@ This document explains where different types of knowledge live in this repo and 
 | Agent | Entry point | Purpose |
 |---|---|---|
 | **Claude Code** (you) | `CLAUDE.md` | Planning, code review, boilerplate authoring, cross-session memory |
-| **Gemini CLI** | `GEMINI.md` + TOML commands | Executing the scraping pipeline: discovery → parsers → testing |
+| **Antigravity CLI** (`agy`) | `AGENTS.md` + `.agents/workflows/` (commands) + `.agents/skills/` (knowledge) | Executing the scraping pipeline: discovery → parsers → testing |
 
-Both agents share the same codebase and `docs/` folder. Knowledge placed in `docs/shared/` is accessible to both.
+Both agents share the same codebase and `docs/` folder. Knowledge placed in `docs/shared/` is accessible to both (Antigravity skills are thin pointers into `docs/shared/`).
 
 ---
 
@@ -22,15 +22,15 @@ Both agents share the same codebase and `docs/` folder. Knowledge placed in `doc
 | File | Read by | Purpose |
 |---|---|---|
 | `CLAUDE.md` | Claude Code only | Mandatory rules: proposal lifecycle, parser conventions, tool protocols, memory pointer |
-| `GEMINI.md` | Gemini CLI only | Persona and competency frame: e-commerce expertise, PARSE methodology |
+| `AGENTS.md` | Antigravity CLI only | Persona + firmware: e-commerce expertise, PARSE methodology, popup/auto-chain rules |
 
-These are loaded automatically at session start. **CLAUDE.md overrides Claude's defaults; GEMINI.md sets Gemini's expertise frame.** Neither is imported by the other agent.
+These are loaded automatically at session start. **CLAUDE.md overrides Claude's defaults; AGENTS.md is prepended to every `agy` prompt.** Neither is imported by the other agent.
 
 ---
 
 ### 2. Shared Knowledge Base — `docs/shared/`
 
-Factual, reusable rules loaded into the Gemini agent via TOML `@`-imports and referenced from `CLAUDE.md`. Authoritative for both agents.
+Factual, reusable rules. Each is exposed to Antigravity as a semantic-loaded skill (`.agents/skills/<name>/SKILL.md`, a thin pointer) and referenced from `CLAUDE.md`. Authoritative for both agents.
 
 | File | Content |
 |---|---|
@@ -148,10 +148,11 @@ Created by the Gemini agent during a scraping run. Lives inside `generated_scrap
 
 ---
 
-## What Gemini Actually Reads (Load Order)
+## What Antigravity Actually Reads (Load Order)
 
-1. `GEMINI.md` — loaded as system prompt at CLI start
-2. The TOML for the invoked command (e.g. `dhero-details-parser.toml`) — imports `@docs/shared/*.md` files
-3. The `workflow` file linked from the active pipeline phase — step-by-step instructions
-4. Runtime state files from `.scraper-state/` — what was found in prior phases
-5. Field spec (`spec_full.json` or per-scraper `field-spec.json`) — what to extract
+1. `AGENTS.md` — prepended to every prompt at session start
+2. The invoked workflow (e.g. `.agents/workflows/details-parser.md`) — parses args, loads profile + skills
+3. Relevant skills (`.agents/skills/<name>/SKILL.md`) — semantic-loaded knowledge (each points into `docs/shared/`)
+4. The `workflow` (phase) doc linked from the active pipeline phase — step-by-step instructions
+5. Runtime state files from `.scraper-state/` — what was found in prior phases
+6. Field spec (`spec_full.json` or per-scraper `field-spec.json`) — what to extract

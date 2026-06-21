@@ -8,11 +8,5 @@
         "vision"
       ]
     }
-  },
-  "context": {
-    "fileFiltering": {
-      "respectGitIgnore": false,
-      "respectGeminiIgnore": false
-    }
   }
 }

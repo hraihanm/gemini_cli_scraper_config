@@ -1,5 +1,13 @@
 # Gemini CLI Web Scraping Agent - Complete Project Documentation
 
+> ⚠️ **HISTORICAL — describes the deprecated Gemini CLI architecture (binary deprecated 2026-06-18).**
+> The project now runs on **Antigravity CLI** (`agy`) with a native three-layer model:
+> `AGENTS.md` (firmware) + `.agents/workflows/` (slash commands) + `.agents/skills/` (knowledge).
+> For the current architecture see **`docs/antigravity-cli-setup.md`**, **`CLAUDE.md`**, and
+> **`docs/proposals/2026-06-18-antigravity-native-architecture.md`**. Mappings: `GEMINI.md`+`.gemini/system.md` → `AGENTS.md`;
+> `.gemini/commands/*.toml` → `.agents/workflows/*.md`; `.gemini/settings.json` → `.agents/mcp_config.json`;
+> `scripts/chain.*` → in-session chaining. The sections below are retained for reference only.
+
 ## Table of Contents
 
 1. [Project Overview](#project-overview)

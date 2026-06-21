@@ -1,7 +1,10 @@
 generated_scraper/*
 !generated_scraper/.gitkeep
 !cache/.gitkeep
-.gemini/.env
+.agents/.env
+# Generated/staged by scripts/setup-agy.ps1 before agy plugin install
+.agents/plugins/gemini_cli_testbed/skills/
+.agents/plugins/gemini_cli_testbed/workflows/
 .windsurf/*
 node_modules/
 docs/datahen_documentations/

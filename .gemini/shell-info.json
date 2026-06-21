@@ -1,5 +1,0 @@
-{
-  "shell_type": "PowerShell",
-  "standardized_at": "2026-04-24T15:42:00Z",
-  "spawn_command_template": "pwsh -File scripts/chain.ps1 -Phase <phase> -Scraper <slug> -Project <proj>"
-}
