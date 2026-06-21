@@ -1,6 +1,6 @@
 ---
 name: api-details-parser
-description: API Phase 3 detail parser. Usage: /api-details-parser scraper=<name> [project=dmart-dloc] [url=...] [spec=...] [auto_next=true]
+description: "API Phase 3 detail parser. Usage: /api-details-parser scraper=<name> [project=dmart-dloc] [url=...] [spec=...] [auto_next=true]"
 ---
 
 When the user types `/api-details-parser ...`, run **API Phase 3** — generic.

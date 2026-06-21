@@ -1,6 +1,6 @@
 ---
 name: run-pipeline
-description: Run a full scraper pipeline end-to-end in one session (all phases). Usage: /run-pipeline project=<dhero|dmart-dloc|greenfield|...> url=<url> name=<slug> [kind=html|api] [spec=<path>] [out=<dir>]
+description: "Run a full scraper pipeline end-to-end in one session (all phases). Usage: /run-pipeline project=<dhero|dmart-dloc|greenfield|...> url=<url> name=<slug> [kind=html|api] [spec=<path>] [out=<dir>]"
 ---
 
 When the user types `/run-pipeline ...`, execute **every phase** of a project's pipeline back-to-back **in a single `agy` session**, handing off between phases via state files. This is the native replacement for the old per-phase `chain.ps1`/`chain.sh` scripts.

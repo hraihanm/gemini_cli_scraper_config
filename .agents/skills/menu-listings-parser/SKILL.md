@@ -1,6 +1,6 @@
 ---
 name: menu-listings-parser
-description: DHero Phase 4 menu listings parser. Discovers menu category/page URLs and queues them. Usage: /menu-listings-parser scraper=<name> project=dhero [url=...] [resume-url=...] [auto_next=true]
+description: "DHero Phase 4 menu listings parser. Discovers menu category/page URLs and queues them. Usage: /menu-listings-parser scraper=<name> project=dhero [url=...] [resume-url=...] [auto_next=true]"
 ---
 
 When the user types `/menu-listings-parser ...`, run **DHero Phase 4 — menu listings parser**.

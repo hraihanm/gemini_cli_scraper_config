@@ -1,6 +1,6 @@
 ---
 name: greenfield-scrape
-description: Greenfield Phase 1 site discovery. Output schema derived from this invocation (prose, bullets, tables). Usage: /greenfield-scrape url=<url> name=<slug> [out=<dir>] [auto_next=true] — then URLs, caveats, output fields in free text below. Optional: spec=<path> for a file.
+description: "Greenfield Phase 1 site discovery. Output schema derived from this invocation (prose, bullets, tables). Usage: /greenfield-scrape url=<url> name=<slug> [out=<dir>] [auto_next=true] — then URLs, caveats, output fields in free text below. Optional: spec=<path> for a file."
 ---
 
 When the user types `/greenfield-scrape ...`, run **Greenfield site discovery** — force **`project=greenfield`**. The output schema is **not** loaded from a default file: derive it from **this entire invocation** (slash args + everything the user wrote below the slash line), in **any** format (prose, bullets, sections, tables, pasted tickets).

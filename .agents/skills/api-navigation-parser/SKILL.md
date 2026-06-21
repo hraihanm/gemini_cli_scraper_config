@@ -1,6 +1,6 @@
 ---
 name: api-navigation-parser
-description: API Phase 2 navigation and listings parsers. Usage: /api-navigation-parser scraper=<name> [project=dmart-dloc] [auto_next=true]
+description: "API Phase 2 navigation and listings parsers. Usage: /api-navigation-parser scraper=<name> [project=dmart-dloc] [auto_next=true]"
 ---
 
 When the user types `/api-navigation-parser ...`, run **API Phase 2** — generic.

@@ -1,6 +1,6 @@
 ---
 name: menu-parser
-description: DHero Phase 5 menu details parser (final phase). Extracts items from a single menu page. Usage: /menu-parser scraper=<name> project=dhero [url=...] [resume-url=...]
+description: "DHero Phase 5 menu details parser (final phase). Extracts items from a single menu page. Usage: /menu-parser scraper=<name> project=dhero [url=...] [resume-url=...]"
 ---
 
 When the user types `/menu-parser ...`, run **DHero Phase 5 — menu details parser** (the **final** phase).

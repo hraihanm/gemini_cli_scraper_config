@@ -1,6 +1,6 @@
 ---
 name: navigation-parser
-description: Phase 2 navigation parser generation. Usage: /navigation-parser scraper=<name> [project=dmart-dloc|dhero|...] [resume-url=<url>] [out=<dir>] [auto_next=true]
+description: "Phase 2 navigation parser generation. Usage: /navigation-parser scraper=<name> [project=dmart-dloc|dhero|...] [resume-url=<url>] [out=<dir>] [auto_next=true]"
 ---
 
 When the user types `/navigation-parser ...`, run **Phase 2: Navigation parsers**. Session-independent.

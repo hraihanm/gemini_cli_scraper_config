@@ -1,6 +1,6 @@
 ---
 name: api-scrape
-description: API Phase 1 boilerplate and API endpoint discovery. Usage: /api-scrape url=<url> name=<scraper> [project=dmart-dloc] [spec=...] [out=...] [auto_next=true]
+description: "API Phase 1 boilerplate and API endpoint discovery. Usage: /api-scrape url=<url> name=<scraper> [project=dmart-dloc] [spec=...] [out=...] [auto_next=true]"
 ---
 
 When the user types `/api-scrape ...`, run **API Phase 1** — generic, session-independent.

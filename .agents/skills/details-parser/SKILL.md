@@ -1,6 +1,6 @@
 ---
 name: details-parser
-description: Phase 3 detail parser (product-style). Usage: /details-parser scraper=<name> [project=dmart-dloc|...] [url=<detail_url>] [spec=<path>] [auto_next=true]
+description: "Phase 3 detail parser (product-style). Usage: /details-parser scraper=<name> [project=dmart-dloc|...] [url=<detail_url>] [spec=<path>] [auto_next=true]"
 ---
 
 When the user types `/details-parser ...`, run **Phase 3: Details parser**. Session-independent.

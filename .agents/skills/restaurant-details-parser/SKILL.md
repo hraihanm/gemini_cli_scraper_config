@@ -1,6 +1,6 @@
 ---
 name: restaurant-details-parser
-description: DHero Phase 3 restaurant details parser. project must be dhero. Usage: /restaurant-details-parser scraper=<name> project=dhero [url=...] [resume-url=...] [auto_next=true]
+description: "DHero Phase 3 restaurant details parser. project must be dhero. Usage: /restaurant-details-parser scraper=<name> project=dhero [url=...] [resume-url=...] [auto_next=true]"
 ---
 
 When the user types `/restaurant-details-parser ...`, run **DHero Phase 3 — restaurant details**. Session-independent.

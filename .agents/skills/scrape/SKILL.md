@@ -1,6 +1,6 @@
 ---
 name: scrape
-description: Phase 1 site discovery and boilerplate initialization. Usage: /scrape url=<url> name=<slug> [project=dmart-dloc|dhero|...] [spec=<path>] [out=<dir>] [auto_next=true]
+description: "Phase 1 site discovery and boilerplate initialization. Usage: /scrape url=<url> name=<slug> [project=dmart-dloc|dhero|...] [spec=<path>] [out=<dir>] [auto_next=true]"
 ---
 
 When the user types `/scrape ...`, run **Phase 1: Site Discovery**. Session-independent — drive everything from state files and the project profile.
