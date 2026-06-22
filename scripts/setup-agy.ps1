@@ -33,6 +33,7 @@ $PluginSkills    = Join-Path $PluginRoot "skills"
 
 $GlobalCliSkills    = Join-Path $env:USERPROFILE ".gemini\antigravity-cli\skills"
 $GlobalSharedSkills = Join-Path $env:USERPROFILE ".gemini\skills"
+$CursorSkills       = Join-Path $env:USERPROFILE ".cursor\skills"
 
 if (-not (Test-Path -LiteralPath $WorkspaceSkills)) { throw "Missing $WorkspaceSkills" }
 
@@ -54,6 +55,8 @@ Write-Host "Syncing skills to global CLI path: $GlobalCliSkills"
 Sync-Tree -SourceRoot $WorkspaceSkills -DestinationRoot $GlobalCliSkills
 Write-Host "Syncing skills to shared global path: $GlobalSharedSkills"
 Sync-Tree -SourceRoot $WorkspaceSkills -DestinationRoot $GlobalSharedSkills
+Write-Host "Syncing skills to Cursor global path: $CursorSkills"
+Sync-Tree -SourceRoot $WorkspaceSkills -DestinationRoot $CursorSkills
 
 Write-Host "Staging plugin bundle: $PluginRoot"
 if (Test-Path -LiteralPath $PluginSkills) { Remove-Item -LiteralPath $PluginSkills -Recurse -Force }
@@ -79,6 +82,6 @@ if (-not $SkipPluginInstall) {
 
 Write-Host ""
 Write-Host "Done. Restart agy from: $RepoRoot"
-Write-Host "  - Slash commands: /scrape, /run-pipeline, /navigation-parser, /details-parser, ..."
-Write-Host "  - Knowledge skills: datahen-conventions, selector-discovery, output-hash-rules, ..."
+Write-Host "  - Slash commands: /scrape, /run-pipeline, /navigation-parser, /details-parser, /qa, ..."
+Write-Host "  - Knowledge base: /kb loads docs/shared/KB_HUB.md (spokes read on demand)"
 Write-Host "  - MCP: check /mcp for playwright-mod"

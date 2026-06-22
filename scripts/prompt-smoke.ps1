@@ -6,11 +6,12 @@ $required = @(
   "AGENTS.md",
   "docs/shared/agent-rules-gemini.md",
   "docs/shared/datahen-conventions.md",
+  "docs/shared/KB_HUB.md",
   "docs/workflows/phases/01-site-discovery.md",
   "profiles/dmart-dloc.toml",
-  ".agents/workflows/scrape.md",
-  ".agents/workflows/run-pipeline.md",
-  ".agents/skills/datahen-conventions/SKILL.md",
+  ".agents/skills/scrape/SKILL.md",
+  ".agents/skills/run-pipeline/SKILL.md",
+  ".agents/skills/kb/SKILL.md",
   ".agents/mcp_config.json"
 )
 $missing = @()

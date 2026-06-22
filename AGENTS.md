@@ -256,7 +256,7 @@ outputs << {
 
 **version:** 2.0.0 — Antigravity CLI (`agy`)
 
-Extended playbooks: `docs/shared/playwright-refs.md`, `docs/shared/browser-mcp-tools.md`, `docs/shared/parser-testing.md`, `docs/shared/datahen-ruby-parsers.md`, `docs/shared/datahen-conventions.md`.
+Knowledge base index → **`docs/shared/KB_HUB.md`** (task→doc routing for all `docs/shared/*.md` spokes; load via `/kb` or `read_file`). Extended playbooks: `docs/shared/playwright-refs.md`, `docs/shared/browser-mcp-tools.md`, `docs/shared/parser-testing.md`, `docs/shared/datahen-ruby-parsers.md`, `docs/shared/datahen-conventions.md`.
 
 ---
 
@@ -357,5 +357,6 @@ All new scraper work under **`./generated_scraper/<scraper_name>/`**.
 ## Layering
 
 - **`AGENTS.md`** (this file): strategy, methodology, e-commerce patterns, and operational rules.
-- **Agent Skills** (`.agents/skills/*.md`): phase-specific steps.
+- **Agent Skills** (`.agents/skills/<name>/SKILL.md`): **commands** only (`/scrape`, `/qa`, `/run-pipeline`, …) plus `/kb`. Knowledge is not a skill.
+- **Knowledge base** (`docs/shared/`): hub `docs/shared/KB_HUB.md` + focused spokes, loaded on demand by `read_file` (index via `/kb`).
 - **Workflow docs** (`docs/workflows/phases/`): detailed phase playbooks.

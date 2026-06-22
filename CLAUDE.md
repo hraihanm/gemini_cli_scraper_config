@@ -110,7 +110,10 @@ Antigravity CLI (`agy`) uses two layers. Keep them separate:
 | Layer | Path | Role | Loaded |
 |---|---|---|---|
 | **AGENTS.md** | repo root | persona + firmware rules (merges old `GEMINI.md` + `.gemini/system.md`) | always (prepended) |
-| **Skills** | `.agents/skills/<name>/SKILL.md` | both **slash commands** (pipeline phases) and reusable **knowledge** — all skills become `/<name>` in the TUI | on `/<name>` or on-demand by semantic match on `description` |
+| **Skills** | `.agents/skills/<name>/SKILL.md` | **slash commands only** — pipeline phases (`/scrape`, `/qa`, `/run-pipeline`, …) plus the `/kb` bootstrap | on `/<name>` (or semantic match on `description`) |
+| **Knowledge base** | `docs/shared/` | hub `docs/shared/KB_HUB.md` + focused spokes (`datahen-conventions.md`, `selector-discovery.md`, …) — **not** skills | on demand via `read_file` (index loaded by `/kb`) |
+
+Knowledge is a **hub-and-spokes KB under `docs/shared/`**, not a set of skills (changed 2026-06-21, see `docs/proposals/2026-06-21-kb-hub-and-spokes-refactor.md`). Command skills and phase docs `read_file` the specific spoke they need by stable path; `docs/shared/KB_HUB.md` is the task→doc index. When adding knowledge, add a spoke + a row in `KB_HUB.md` — do **not** create a knowledge skill.
 
 **Config:** `.agents/mcp_config.json` (MCP). **Env:** `.agents/.env` (`AGY_API_KEY`, `AGY_MODEL`). **One-time setup:** `pwsh -File scripts/setup-agy.ps1` (syncs skills to global paths + `agy plugin install .agents/plugins/gemini_cli_testbed`). See `docs/antigravity-cli-setup.md`.
 
@@ -124,7 +127,11 @@ not:
 ```yaml
 description: Phase N ... [optional-arg] ...     # INVALID — skill is silently dropped
 ```
-After adding or editing skills, re-run `pwsh -File scripts/setup-agy.ps1` and restart `agy` to pick up changes.
+**Description length:** keep `description:` under **200 characters**. AGY and Cursor both enforce a per-description limit (the working reference project uses ≤190 chars); longer descriptions may be silently truncated or cause the skill to be dropped.
+
+**Body length:** keep the SKILL.md body under **~500 lines** (AGY truncates past this). If a skill's instructions grow large, split the content into `references/command_body.md` and load it with `read_file` from the SKILL.md.
+
+After adding or editing skills, re-run `pwsh -File scripts/setup-agy.ps1` and restart `agy` to pick up changes. The setup script syncs to AGY global paths **and** `~/.cursor/skills/` — so the same skills are available as slash commands in Cursor too.
 
 ---
 
@@ -143,7 +150,7 @@ Each command is a skill in `.agents/skills/<name>/SKILL.md`. `project=` selects 
 **Chaining:** `auto_next=true` (or `/run-pipeline`) runs the next phase **in the same `agy` session** via state files — no external chain scripts. dhero shorthand: `/scrape project=dhero` → `/navigation-parser project=dhero` → `/restaurant-details-parser` → `/menu-listings-parser project=dhero` → `/menu-parser`.
 
 **Locations:**
-- **All skills (commands + knowledge):** `.agents/skills/<name>/SKILL.md` — command skills have full orchestration instructions; knowledge skills are thin pointers to `docs/shared/X.md`
+- **Skills (commands only):** `.agents/skills/<name>/SKILL.md` — full orchestration instructions per command, plus `/kb`. **Knowledge** lives in `docs/shared/` (hub `KB_HUB.md` + spokes), not as skills — command skills `read_file` the spoke they need
 - **Pipeline configuration:** `profiles/<project>.toml` defines the phase array
 - **Phase reference docs:** `docs/workflows/phases/` — one file per phase type (read by the command skill)
 - **Firmware rules:** `docs/shared/agent-rules-gemini.md` (referenced by AGENTS.md, always in effect)
