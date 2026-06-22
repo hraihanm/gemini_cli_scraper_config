@@ -29,6 +29,19 @@ require './lib/headers'
 # ============================================================================
 # NOTE: content, page, pages, outputs are pre-defined by DataHen
 # DO NOT declare them - use directly
+
+# Error taxonomy: refetch transient 403, limbo persistent 500, log other non-200.
+refetch page['gid'] if page['failed_response_status_code'] == 403
+if page['failed_response_status_code'] == 500
+  limbo page['gid']
+  finish
+end
+if page['response_status_code'] && page['response_status_code'] != 200
+  outputs << { _collection: 'categories_fetch_failed', _id: page['url'],
+               url: page['url'], status: page['response_status_code'] }
+  finish
+end
+
 html = Nokogiri::HTML(content)
 vars = page['vars'] || {}
 

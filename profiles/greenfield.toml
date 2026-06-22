@@ -22,6 +22,14 @@ parsers     = [
 # Greenfield has no default spec file — output columns come from the user message (below the slash command).
 output_dir = "./generated_scraper"
 
+# Final QA gate — runs after the last phase (also invokable as /qa). Validates
+# output against the per-run .scraper-state/field-spec.json built from the prompt.
+[qa]
+command  = "qa"
+skill    = ".agents/skills/qa/SKILL.md"
+report   = "scripts/scraper_qa_report.rb"
+gate     = "deploy-readiness.json"   # deployable: true|false
+
 [[pipeline.phases]]
 phase    = "scrape"
 workflow = "docs/workflows/phases/greenfield-01-site-discovery.md"

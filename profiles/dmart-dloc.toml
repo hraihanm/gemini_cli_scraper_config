@@ -19,8 +19,16 @@ parsers     = [
 ]
 
 [defaults]
-field_spec = "spec_full.json"
+field_spec = "field-spec.json"
 output_dir = "./generated_scraper"
+
+# Final QA gate — runs after the last phase (also invokable as /qa). Emits
+# spec.csv, GENERATION_REPORT.md, deploy-readiness.json for the products collection.
+[qa]
+command  = "qa"
+skill    = ".agents/skills/qa/SKILL.md"
+report   = "scripts/scraper_qa_report.rb"
+gate     = "deploy-readiness.json"   # deployable: true|false
 
 # HTML scraping pipeline
 [[pipeline.phases]]

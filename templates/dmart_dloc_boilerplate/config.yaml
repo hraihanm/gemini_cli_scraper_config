@@ -16,6 +16,16 @@ parsers:
     file: ./parsers/details.rb
     disabled: false
 
+# Re-run parsers on fetch-failed pages so error-taxonomy + debug collections
+# (*_fetch_failed, product_not_found) capture them.
+parse_failed_pages: true
+
+# Optional post-job dedup pass over `products`. Enable only when the crawl can
+# emit the same product from multiple listing paths.
+finisher:
+  file: ./finisher/finisher.rb
+  disabled: true
+
 exporters:
   - exporter_name: products_csv
     export_filename: <d:yyyyMMdd>_<name>
