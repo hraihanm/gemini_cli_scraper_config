@@ -27,9 +27,26 @@ parsers     = [
 [defaults]
 field_spec = "dhero-field-spec.json"
 output_dir = "./generated_scraper"
+# dhero is API-FIRST: 13/14 production dhero scrapers fetch the restaurant list
+# from a JSON endpoint (geo/h3/city/session). The actual fetch model is chosen
+# per-scraper in Phase 1 via discovery-state.json.seeding.strategy
+# (see docs/workflows/phases/dhero-seeding-strategies.md). `url_listings` is the
+# HTML exception (openrice). The 5 pipeline phases below are FETCH-AGNOSTIC —
+# the parsers emit the same locations/items whether the source is JSON or HTML —
+# so `kind=api` and `kind=html` resolve to the same phases for dhero.
+kind = "api"
 
-# HTML scraping pipeline — 4 phases (listings → restaurant details → menu)
-# Note: dhero has no categories layer — listings (restaurant list) is the first page type
+# Final QA gate — runs after the last pipeline phase (also invokable directly as
+# /dhero-qa). Emits spec.csv, GENERATION_REPORT.md, deploy-readiness.json.
+[qa]
+command  = "qa"
+skill    = ".agents/skills/qa/SKILL.md"
+report   = "scripts/scraper_qa_report.rb"
+gate     = "deploy-readiness.json"   # deployable: true|false   (/dhero-qa aliases /qa project=dhero)
+
+# dhero pipeline — 5 fetch-agnostic phases (restaurant list → restaurant details
+# → menu). No categories layer: listings (restaurant list) is the first page type.
+# Seeding strategy (Phase 1 STEP 8b) decides API vs HTML and how the list is seeded.
 [[pipeline.phases]]
 phase    = "scrape"
 workflow = "docs/workflows/phases/01-site-discovery.md"
@@ -60,21 +77,37 @@ workflow = "docs/workflows/phases/05-menu-details.md"
 label    = "Phase 5: Menu Details Parser"
 command  = "menu-parser"
 
-# API scraping pipeline (if applicable)
+# API pipeline = the SAME dhero phases. The generic api-01/02/03 docs are
+# dmart-product-shaped (parsers/details.rb, commercial fields) and do NOT fit
+# dhero's locations/items output — do not point dhero at them. The dhero phase
+# docs already cover JSON extraction (JSON.parse(content) + JSON-LD last resort),
+# so `kind=api` runs the same correct 5 phases as the default.
 [[api_pipeline.phases]]
-phase    = "api-scrape"
-workflow = "docs/workflows/phases/api-01-scrape.md"
-label    = "API Phase 1: API Scrape"
-command  = "api-scrape"
+phase    = "scrape"
+workflow = "docs/workflows/phases/01-site-discovery.md"
+label    = "Phase 1: Site Discovery"
+command  = "scrape"
 
 [[api_pipeline.phases]]
-phase    = "api-navigation-parser"
-workflow = "docs/workflows/phases/api-02-navigation.md"
-label    = "API Phase 2: API Navigation Parser"
-command  = "api-navigation-parser"
+phase    = "navigation-parser"
+workflow = "docs/workflows/phases/02-navigation-parser.md"
+label    = "Phase 2: Navigation Parser (Restaurant Listings)"
+command  = "navigation-parser"
 
 [[api_pipeline.phases]]
-phase    = "api-details-parser"
-workflow = "docs/workflows/phases/api-03-details.md"
-label    = "API Phase 3: API Details Parser"
-command  = "api-details-parser"
+phase    = "restaurant-details-parser"
+workflow = "docs/workflows/phases/03-restaurant-details.md"
+label    = "Phase 3: Restaurant Details Parser"
+command  = "restaurant-details-parser"
+
+[[api_pipeline.phases]]
+phase    = "menu-listings-parser"
+workflow = "docs/workflows/phases/04-menu-listings.md"
+label    = "Phase 4: Menu Listings Parser"
+command  = "menu-listings-parser"
+
+[[api_pipeline.phases]]
+phase    = "menu-parser"
+workflow = "docs/workflows/phases/05-menu-details.md"
+label    = "Phase 5: Menu Details Parser"
+command  = "menu-parser"

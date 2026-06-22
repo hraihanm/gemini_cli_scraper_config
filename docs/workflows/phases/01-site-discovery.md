@@ -229,6 +229,27 @@ Discover sample URLs:
 
 ---
 
+## STEP 8b: Seeding Strategy (dhero only)
+
+**Run this step when `project=dhero`.** Choosing how to seed is the single highest-leverage architectural decision for a dhero scraper — most dhero sources are **not** crawled from a URL listing page. Inspect the site/app and pick exactly one strategy, then record it.
+
+| Strategy | When | How it seeds | Reference example |
+|---|---|---|---|
+| `geo_grid` | API takes lat/long; coverage needs many points | `input/geo.csv` of lat/long(/city) rows → one listings request per point | totersapp, mrsool |
+| `h3_hexagon` | API takes an H3 cell / hexagon id | city→hexagon map → widgets/merchant-list per cell | lezzoo |
+| `city_list` / `neighborhood_list` | API takes a city/neighborhood/zone id | iterate the id list → listings per id | talabatey, jahez |
+| `url_listings` | Real website with a paginated restaurant list (HTML) | seed the listings URL, paginate | openrice (HTML) |
+| `session_bootstrap` | API requires a user/token + set-location before listings | seed a bootstrap page that mints a token/sets location, then chains to listings | monchis |
+
+Detection cues:
+- Open the app/site, watch `browser_network_requests_simplified` while the restaurant list loads. If the listing request carries `lat`/`lng`, `hexagonId`, `city`/`zone`, or an `Authorization` token → it is API-driven (geo/h3/city/session), not `url_listings`.
+- GraphQL (`POST /graphql`) is a transport, not a seeding strategy — combine with whichever geo/city model the query variables use (yummy = geo_grid + GraphQL).
+- For `session_bootstrap`, capture the bootstrap request/response chain and note which header the token lands in (see STEP 7b).
+
+Record the decision in `discovery-state.json.seeding` (schema in STEP 9) and add a `seeding_strategy` `_log` entry (`{ "action": "seeding_strategy", "strategy": "...", "detail": "..." }`). When a geo/city input file is needed, note its expected columns so the seeder and `input/<file>.csv` can be filled in STEP 10.
+
+---
+
 ## STEP 9: Write discovery-state.json (USE ABSOLUTE PATH)
 
 Path: `{output_dir}/<scraper>/.scraper-state/discovery-state.json`
@@ -292,7 +313,15 @@ Path: `{output_dir}/<scraper>/.scraper-state/discovery-state.json`
     "bare_test": "not_tested",
     "headers_test": "not_tested"
   },
-  "_notes": "## Discovery summary (markdown)\\n\\n- Site structure, sample URLs, popups, fetch_type notes\\n- **Next:** `/<next_phase_from_profile> scraper=<scraper_slug> project=<project>`\\n"
+  "seeding": {
+    "strategy": "geo_grid | h3_hexagon | city_list | neighborhood_list | url_listings | session_bootstrap",
+    "input_file": "input/geo.csv",
+    "geo": { "lat_col": "lat", "long_col": "long", "city_col": "city" },
+    "auth": { "required": false, "bootstrap_page_type": null, "token_header": null },
+    "endpoints": { "listings": null, "merchant_list": null, "menu": null },
+    "pagination": "page_number | offset | cursor | hexagon_fanout | next_button"
+  },
+  "_notes": "## Discovery summary (markdown)\\n\\n- Site structure, sample URLs, popups, fetch_type notes\\n- (dhero) seeding strategy + input file\\n- **Next:** `/<next_phase_from_profile> scraper=<scraper_slug> project=<project>`\\n"
 }
 ```
 
@@ -337,6 +366,7 @@ Fix the gap (re-navigate the site if needed) and rewrite `discovery-state.json`.
 
 **Update `{boilerplate.seeder_rb}`** (USE ABSOLUTE PATH):
 - Read existing file
+- **dhero:** branch on `discovery-state.json.seeding.strategy` — uncomment the matching block in the boilerplate seeder (`geo_grid`/`h3_hexagon`/`city_list`/`session_bootstrap`/`url_listings`), delete the others, and fill PLACEHOLDERs. For geo/city strategies, also create `input/<file>.csv` with the columns noted in STEP 8b. See `docs/workflows/phases/dhero-seeding-strategies.md`. For non-dhero projects, continue below.
 - Update `url:` field with site URL
 - Update `page_type:` based on site structure:
   - has_categories → `"categories"`

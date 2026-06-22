@@ -246,12 +246,13 @@ raw_items.each_with_index do |item, idx|
     cuisine:         cuisine,
 
     item_id:          item_id,
-    category_name:    item['PLACEHOLDER_CATEGORY_FIELD'],
+    menu_category:    item['PLACEHOLDER_CATEGORY_FIELD'],
     item_name:        item_name,
     item_description: item['PLACEHOLDER_DESCRIPTION_FIELD']&.strip,
     item_price:       item_price,
     item_is_promoted: false,
-    img_url:          item['PLACEHOLDER_IMAGE_FIELD'],
+    original_price:   nil,
+    menu_item_image_url: item['PLACEHOLDER_IMAGE_FIELD'],
     is_available:     true,  # agent replaces with actual availability field
     item_attributes:  nil,   # agent populates if options/modifiers exist
     barcode:          nil,

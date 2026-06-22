@@ -177,19 +177,20 @@ html.css('PLACEHOLDER_SECTION_SELECTOR').each do |section|
         restaurant_url:   restaurant_url,
         cuisine:          cuisine,
         item_id:          item_id,
-        category_name:    section_name,
+        menu_category:    section_name,
         item_name:        item_name,
         item_description: item_description,
         item_price:       item_price,
         item_is_promoted: item_is_promoted,
-        img_url:          img_url,
+        original_price:   original_price,
+        menu_item_image_url: menu_item_image_url,
         is_available:     is_available,
         item_attributes:  item_attributes,
         barcode:          nil,
         sku:              item_id_attr,
       }
     rescue => e
-      warn "[LISTINGS ERROR] url=#{page['url']} idx=#{idx} error=#{e.message}"
+      warn "[MENU ERROR] url=#{page['url']} idx=#{idx} error=#{e.message}"
     end
   end
 end

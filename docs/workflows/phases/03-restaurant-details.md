@@ -133,27 +133,42 @@ Many food directory sites expose a dedicated menu page at `{base_url}/menu`. Che
 
 Follow `docs/shared/datahen-conventions.md` conventions (top-level script, no def parse, etc.).
 
-The output hash for restaurants typically includes:
+The output hash MUST use the **canonical `dhero-field-spec.json` `locations` field names** — not ad-hoc keys. Every field is always present (nil-explicit). The boilerplate `parsers/restaurant_details.rb` already encodes this exact hash; discover selectors and fill them rather than inventing field names. Canonical shape:
 ```ruby
 outputs << {
-  name:             name,
-  cuisine:          cuisine,
-  address:          address,
-  phone:            phone,
-  rating:           rating,
-  rating_count:     rating_count,
-  opening_hours:    opening_hours,
-  img_url:          img_url,
-  description:      description,
-  is_open_now:      is_open_now,
-  delivery_time:    delivery_time,
-  min_order:        min_order,
-  tags:             tags,
-  url:              page[:url],
-  scraped_at_timestamp: Time.now.utc.iso8601,
-  crawled_source:   'WEB',
+  _collection:               'locations',
+  _id:                       lead_id,                # Extraction.md5_id(name, city, address)
+  date:                      Time.parse(page['fetched_at']).strftime('%Y%m%d %H:%M:%S'),
+  url:                       page['url'],
+  crawled_source:            'WEB',                  # internal
+  restaurant_country:        'PLACEHOLDER_COUNTRY_ISO',  # INFER, 2-letter
+  restaurant_position:       page['vars']&.dig('rank_in_listing'),  # FROM_VARS
+  lead_id:                   lead_id,
+  restaurant_name:           restaurant_name,        # required — never nil
+  restaurant_address:        restaurant_address,
+  restaurant_city:           restaurant_city,
+  restaurant_area:           restaurant_area,
+  restaurant_post_code:      restaurant_post_code,
+  restaurant_lat:            restaurant_lat,
+  restaurant_long:           restaurant_long,
+  phone_number:              phone_number,
+  main_cuisine:              main_cuisine,
+  restaurant_rating:         restaurant_rating,
+  number_of_ratings:         number_of_ratings,
+  restaurant_delivers:       restaurant_delivers,
+  is_permanently_closed:     is_permanently_closed,  # false for available restaurants
+  input_lat:                 page['vars']&.dig('input_lat')&.to_f,   # geo-seed only
+  input_long:                page['vars']&.dig('input_long')&.to_f,  # geo-seed only
+  opening_hours:             opening_hours,          # A1+A2; {Mon:["HHMM-HHMM"]}
+  restaurant_tags:           restaurant_tags,        # A1+A2
+  restaurant_delivery_zones: restaurant_delivery_zones,  # A1+A2
+  cuisine_name:              cuisine_name,           # A2; Extraction.cuisine_hash(...)
+  free_field:                nil,                    # A2
+  img_url:                   img_url,                # internal
+  description:               description,            # internal
 }
 ```
+Use `require './lib/extraction'` and the shared normalizers (`Extraction.cuisine_hash`, `Extraction.opening_hours_*`, `Extraction.format_phone`, `Extraction.md5_id`) instead of re-deriving them. See `docs/shared/dhero-output-schema.md` for the A1/A2/A3 split.
 
 The parser must either queue a `menu_listings` page (when the menu is at a different URL) or extract items inline (when the menu is on the same page). Choose based on `menu_url_pattern`:
 
@@ -208,12 +223,13 @@ raw_items.each_with_index do |item, idx|
     restaurant_url:   page['url'],
     cuisine:          main_cuisine,
     item_id:          item_id,
-    category_name:    item['PLACEHOLDER_CATEGORY'],
+    menu_category:    item['PLACEHOLDER_CATEGORY'],
     item_name:        item_name,
     item_description: item['PLACEHOLDER_DESCRIPTION'],
     item_price:       item['PLACEHOLDER_PRICE']&.to_f,
     item_is_promoted: false,
-    img_url:          item['PLACEHOLDER_IMAGE'],
+    original_price:   nil,
+    menu_item_image_url: item['PLACEHOLDER_IMAGE'],
     is_available:     true,
     item_attributes:  nil,
     barcode:          nil,
