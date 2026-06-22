@@ -6,7 +6,7 @@ description: "API Phase 1 boilerplate and API endpoint discovery. Usage: /api-sc
 When the user types `/api-scrape ...`, run **API Phase 1** — generic, session-independent.
 
 ## Preamble
-Firmware rules apply via `AGENTS.md`; also `read_file` → `docs/shared/agent-rules-gemini.md`. The **datahen-conventions** skill applies (auto-loaded; fall back to `docs/shared/datahen-conventions.md`).
+Firmware rules apply via `AGENTS.md`; also `read_file` → `docs/shared/agent-rules-gemini.md`. Load KB spokes as needed (index: `docs/shared/KB_HUB.md`): `read_file` → `docs/shared/datahen-conventions.md`.
 
 ## Parse args
 From the invocation, extract: `url=`, `name=`, `project=` (default `dmart-dloc`), `spec=`, `out=`, `auto_next=`.

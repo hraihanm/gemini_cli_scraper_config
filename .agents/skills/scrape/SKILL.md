@@ -6,7 +6,7 @@ description: "Phase 1 site discovery and boilerplate initialization. Usage: /scr
 When the user types `/scrape ...`, run **Phase 1: Site Discovery**. Session-independent — drive everything from state files and the project profile.
 
 ## Preamble
-Firmware rules are always in effect via `AGENTS.md`. Also `read_file` → `docs/shared/agent-rules-gemini.md` and follow ALL rules unconditionally. The **datahen-conventions** skill applies (auto-loaded by semantic match; if not present, `read_file` → `docs/shared/datahen-conventions.md`).
+Firmware rules are always in effect via `AGENTS.md`. Also `read_file` → `docs/shared/agent-rules-gemini.md` and follow ALL rules unconditionally. Load KB spokes as needed (index: `docs/shared/KB_HUB.md`): `read_file` → `docs/shared/datahen-conventions.md`.
 
 ## Parse args
 From the invocation, extract: `url=` (required), `name=` (required), `project=` (default `dmart-dloc`), `spec=`, `out=`, `auto_next=` (default false).

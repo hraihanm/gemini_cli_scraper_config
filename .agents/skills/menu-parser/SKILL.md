@@ -6,7 +6,7 @@ description: "DHero Phase 5 menu details parser (final phase). Extracts items fr
 When the user types `/menu-parser ...`, run **DHero Phase 5 — menu details parser** (the **final** phase).
 
 ## Preamble
-Firmware rules apply via `AGENTS.md`; also `read_file` → `docs/shared/agent-rules-gemini.md`. The **datahen-conventions** and **selector-discovery** skills apply (auto-loaded; fall back to the matching `docs/shared/*.md`).
+Firmware rules apply via `AGENTS.md`; also `read_file` → `docs/shared/agent-rules-gemini.md`. Load KB spokes as needed (index: `docs/shared/KB_HUB.md`): `read_file` → `docs/shared/datahen-conventions.md`, `docs/shared/selector-discovery.md`.
 
 ## Parse args
 From the invocation, extract: `scraper=`, `project=` (**dhero**), `url=`, `resume-url=`, `out=`.

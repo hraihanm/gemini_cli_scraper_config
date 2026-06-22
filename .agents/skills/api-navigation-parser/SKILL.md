@@ -6,7 +6,7 @@ description: "API Phase 2 navigation and listings parsers. Usage: /api-navigatio
 When the user types `/api-navigation-parser ...`, run **API Phase 2** — generic.
 
 ## Preamble
-Firmware rules apply via `AGENTS.md`; also `read_file` → `docs/shared/agent-rules-gemini.md`. The **datahen-conventions** and **selector-discovery** skills apply (auto-loaded; fall back to the matching `docs/shared/*.md`).
+Firmware rules apply via `AGENTS.md`; also `read_file` → `docs/shared/agent-rules-gemini.md`. Load KB spokes as needed (index: `docs/shared/KB_HUB.md`): `read_file` → `docs/shared/datahen-conventions.md`, `docs/shared/selector-discovery.md`.
 
 ## Parse args
 From the invocation, extract: `scraper=`, `project=`, `out=`, `auto_next=`.

@@ -6,7 +6,7 @@ description: "Phase 2 navigation parser generation. Usage: /navigation-parser sc
 When the user types `/navigation-parser ...`, run **Phase 2: Navigation parsers**. Session-independent.
 
 ## Preamble
-Firmware rules apply via `AGENTS.md`; also `read_file` → `docs/shared/agent-rules-gemini.md`. The **datahen-conventions** and **selector-discovery** skills apply (auto-loaded; fall back to `read_file` of `docs/shared/datahen-conventions.md` and `docs/shared/selector-discovery.md`).
+Firmware rules apply via `AGENTS.md`; also `read_file` → `docs/shared/agent-rules-gemini.md`. Load KB spokes as needed (index: `docs/shared/KB_HUB.md`): `read_file` → `docs/shared/datahen-conventions.md`, `docs/shared/selector-discovery.md`.
 
 ## Parse args
 From the invocation, extract: `scraper=` (required), `project=` (default `dmart-dloc`), `resume-url=`, `out=`, `auto_next=`.

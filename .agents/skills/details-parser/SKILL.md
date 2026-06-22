@@ -6,7 +6,7 @@ description: "Phase 3 detail parser (product-style). Usage: /details-parser scra
 When the user types `/details-parser ...`, run **Phase 3: Details parser**. Session-independent.
 
 ## Preamble
-Firmware rules apply via `AGENTS.md`; also `read_file` → `docs/shared/agent-rules-gemini.md`. The **datahen-conventions**, **selector-discovery**, and **output-hash-rules** skills apply (auto-loaded; fall back to `read_file` of the matching `docs/shared/*.md`).
+Firmware rules apply via `AGENTS.md`; also `read_file` → `docs/shared/agent-rules-gemini.md`. Load KB spokes as needed (index: `docs/shared/KB_HUB.md`): `read_file` → `docs/shared/datahen-conventions.md`, `docs/shared/selector-discovery.md`, `docs/shared/output-hash-rules.md`.
 
 ## Parse args
 From the invocation, extract: `scraper=`, `project=` (default `dmart-dloc`), `url=`, `spec=`, `collection=`, `resume-url=`, `out=`, `auto_next=`.

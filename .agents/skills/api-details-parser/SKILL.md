@@ -6,7 +6,7 @@ description: "API Phase 3 detail parser. Usage: /api-details-parser scraper=<nam
 When the user types `/api-details-parser ...`, run **API Phase 3** — generic.
 
 ## Preamble
-Firmware rules apply via `AGENTS.md`; also `read_file` → `docs/shared/agent-rules-gemini.md`. The **datahen-conventions**, **selector-discovery**, and **output-hash-rules** skills apply (auto-loaded; fall back to the matching `docs/shared/*.md`).
+Firmware rules apply via `AGENTS.md`; also `read_file` → `docs/shared/agent-rules-gemini.md`. Load KB spokes as needed (index: `docs/shared/KB_HUB.md`): `read_file` → `docs/shared/datahen-conventions.md`, `docs/shared/selector-discovery.md`, `docs/shared/output-hash-rules.md`.
 
 ## Parse args
 From the invocation, extract: `scraper=`, `project=`, `url=`, `spec=`, `auto_next=`.
