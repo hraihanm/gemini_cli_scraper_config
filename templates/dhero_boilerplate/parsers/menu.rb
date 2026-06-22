@@ -8,7 +8,7 @@
 # Final phase of the DHero pipeline (Phase 5).
 # Receives URLs queued by menu_listings.rb (Phase 4).
 #
-# FIELD SPEC: spec_full.json — collection: "items"
+# FIELD SPEC: dhero-field-spec.json — collection: "items"
 #
 # DATAHEN v3 STRUCTURE:
 # - TOP-LEVEL SCRIPT, NOT a function
@@ -17,6 +17,14 @@
 # ============================================================================
 
 require './lib/headers'
+require './lib/extraction'
+
+# Error taxonomy: refetch transient 403, limbo persistent 500.
+refetch page['gid'] if page['failed_response_status_code'] == 403
+if page['failed_response_status_code'] == 500
+  limbo page['gid']
+  finish
+end
 
 html = Nokogiri::HTML(content)
 
@@ -83,8 +91,8 @@ menu_category   = page['vars']&.dig('category_name')
 #     end
 #   end
 #   save_outputs(outputs) if outputs.length > 99
-#   warn "[LISTINGS] url=#{page['url']} queued=#{outputs.length} items"
-#   return
+#   warn "[MENU] url=#{page['url']} emitted=#{outputs.length} items"
+#   finish
 # end
 
 # ============================================================================
@@ -166,11 +174,11 @@ html.css('PLACEHOLDER_MENU_SECTION_SELECTOR').each do |section|
         sku:                  sku,
       }
     rescue => e
-      warn "[LISTINGS ERROR] url=#{page['url']} idx=#{idx} error=#{e.message}"
+      warn "[MENU ERROR] url=#{page['url']} idx=#{idx} error=#{e.message}"
     end
   end
 end
 
-warn "[LISTINGS] url=#{page['url']} queued=#{outputs.length} items"
+warn "[MENU] url=#{page['url']} emitted=#{outputs.length} items"
 
 save_outputs(outputs) if outputs.length > 99

@@ -18,6 +18,31 @@
 # ============================================================================
 
 require './lib/headers'
+require './lib/extraction'
+
+# ============================================================================
+# Error taxonomy (see docs/shared/agent-rules-gemini.md → "Error Taxonomy")
+#   Transient (403/timeout/popup) → refetch once, then treat as structural
+#   Structural (persistent fail)  → limbo for later diagnosis
+# Emit a debug record instead of silently dropping the page.
+# ============================================================================
+refetch page['gid'] if page['failed_response_status_code'] == 403
+
+if page['failed_response_status_code'] == 500
+  limbo page['gid']
+  finish
+end
+
+if page['response_status_code'] == 404
+  outputs << { _collection: 'restaurant_not_found', _id: page['url'], url: page['url'] }
+  finish
+end
+
+if page['response_status_code'] != 200
+  outputs << { _collection: 'restaurant_fetch_failed', _id: page['url'],
+               url: page['url'], status: page['response_status_code'] }
+  finish
+end
 
 html     = Nokogiri::HTML(content)
 base_url = URLs::BASE_URL
@@ -87,8 +112,7 @@ cuisines_list = cuisine_raw.is_a?(Array) ? cuisine_raw : [cuisine_raw].compact
 if cuisines_list.empty?
   cuisines_list = html.css('PLACEHOLDER_CUISINES_SELECTOR').map { |el| el.text.strip }.reject(&:empty?)
 end
-cuisine_name = cuisines_list.each_with_index.each_with_object({}) { |(c, i), h| h["cuisine#{i + 1}"] = c }
-cuisine_name = nil if cuisine_name.empty?
+cuisine_name = Extraction.cuisine_hash(cuisines_list)   # → {cuisine1:..} or nil
 
 # restaurant_rating / number_of_ratings
 rating_obj        = json_ld&.dig('aggregateRating')
@@ -125,11 +149,12 @@ restaurant_delivery_zones = nil
 # Set to null only when confirmed during feasibility that no suitable selector exists.
 is_permanently_closed = false
 
-# input_lat / input_long — from input list (geo-coordinate search only)
-# PLACEHOLDER: Uncomment if this scraper uses a geo-coordinate input list.
-# Confirm applicability during Phase 1 feasibility check.
-# input_lat  = page['vars']&.dig('input_lat')&.to_f
-# input_long = page['vars']&.dig('input_long')&.to_f
+# input_lat / input_long — from the seed/input list (geo seeding only).
+# Always emitted (nil-safe) so the output stays spec-complete; populated only
+# when the seeder passes input_lat/input_long vars (geo_grid / h3 strategies).
+input_lat  = page['vars']&.dig('input_lat')&.to_f
+input_long = page['vars']&.dig('input_long')&.to_f
+# PLACEHOLDER (optional): synthesize a single delivery zone when the source lacks one:
 # restaurant_delivery_zones = [{
 #   delivery_zone:        restaurant_city,
 #   minimum_order_value:  nil,
@@ -151,7 +176,13 @@ description  = nil if description&.empty?
 # ============================================================================
 # DETERMINE — lead_id
 # ============================================================================
-lead_id = Digest::MD5.hexdigest([restaurant_name, restaurant_city, restaurant_address].compact.join(','))
+# Required field guard — never emit a location without a name (would break A1).
+if Extraction.str_empty_to_nil(restaurant_name).nil?
+  outputs << { _collection: 'restaurant_not_parsable', _id: page['url'], url: page['url'] }
+  finish
+end
+
+lead_id = Extraction.md5_id(restaurant_name, restaurant_city, restaurant_address)
 
 # ============================================================================
 # Output — locations collection
@@ -165,7 +196,6 @@ begin
     date:            Time.parse(page['fetched_at']).strftime('%Y%m%d %H:%M:%S'),
     url:             page['url'],
     crawled_source:  'WEB',
-    free_field:      nil,
 
     # --- INFER (set during Phase 1 site discovery) ---
     restaurant_country: 'PLACEHOLDER_COUNTRY_ISO',  # e.g. 'AE', 'PA', 'BD'
@@ -188,8 +218,8 @@ begin
     number_of_ratings:         number_of_ratings,
     restaurant_delivers:       restaurant_delivers,
     is_permanently_closed:     is_permanently_closed,
-    # input_lat:               input_lat,   # uncomment for geo-coord scraper
-    # input_long:              input_long,  # uncomment for geo-coord scraper
+    input_lat:                 input_lat,   # nil unless geo-seeded
+    input_long:                input_long,  # nil unless geo-seeded
 
     # --- A2 fields (also present in A1: opening_hours, restaurant_tags, restaurant_delivery_zones) ---
     opening_hours:             opening_hours,

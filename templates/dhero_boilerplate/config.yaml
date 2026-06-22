@@ -32,6 +32,16 @@ parsers:
     file: ./parsers/menu.rb
     disabled: false
 
+# Re-run parsers on fetch-failed pages so error-taxonomy handling + debug
+# collections (restaurant_not_found, *_fetch_failed) capture them.
+parse_failed_pages: true
+
+# Optional post-job dedup/normalize pass. Enable only when the source emits
+# duplicate restaurants across pages/cities.
+finisher:
+  file: ./finisher/finisher.rb
+  disabled: true
+
 exporters:
   # A3 — menu items (full row, internal fields stripped)
   - exporter_name: items_a3
