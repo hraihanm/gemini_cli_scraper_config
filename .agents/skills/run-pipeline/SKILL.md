@@ -1,31 +1,141 @@
 ---
 name: run-pipeline
-description: "Run a full scraper pipeline end-to-end in one session (all phases). Usage: /run-pipeline project=<dhero|dmart-dloc|greenfield|...> url=<url> name=<slug> [kind=html|api] [spec=<path>] [out=<dir>]"
+description: "Run a full scraper pipeline end-to-end, spawning each phase as a fresh agent session. Usage: /run-pipeline project=<dhero|dmart-dloc|greenfield|...> url=<url> name=<slug> [kind=html|api] [model=<model>] [spec=<path>] [out=<dir>]"
 ---
 
-When the user types `/run-pipeline ...`, execute **every phase** of a project's pipeline back-to-back **in a single `agy` session**, handing off between phases via state files. This is the native replacement for the old per-phase `chain.ps1`/`chain.sh` scripts.
+Orchestrate the full pipeline by spawning each phase as a **fresh `agent` subprocess** — one session per phase, no inline chaining. The user watches progress in this session; each phase runs cold with zero accumulated context from prior phases. State files are the only handoff.
 
 ## Preamble
-Firmware rules apply via `AGENTS.md`; also `read_file` → `docs/shared/agent-rules-gemini.md`. Load KB spokes per phase as needed (index: `docs/shared/KB_HUB.md`): `docs/shared/datahen-conventions.md`, `docs/shared/selector-discovery.md`, `docs/shared/output-hash-rules.md`, `docs/shared/parser-testing.md`.
+
+`read_file` → `docs/shared/agent-rules-gemini.md` (firmware rules, error taxonomy).
+`read_file` → `docs/shared/KB_HUB.md` (spoke index — load spokes as needed between phases).
+`read_file` → `docs/shared/pagination-network-exhaustion.md` (pagination mandate — gate-check after list phases).
 
 ## Parse args
-From the invocation, extract: `project=` (required), `url=` (required for phase 1), `name=` (required), `kind=` (optional), `spec=`, `out=`.
+
+Extract from invocation:
+- `project=` — REQUIRED
+- `url=` — REQUIRED (passed to Phase 1)
+- `name=` — REQUIRED (scraper slug)
+- `kind=` — optional; default from profile `[defaults] kind` else `html`
+- `model=` — optional; default `claude-sonnet-4-6`
+- `spec=` — optional; passed through to Phase 1
+- `out=` — optional; default from profile
 
 ## Load profile
-`read_file` → `profiles/<project>.toml`. Resolve `kind`: use the `kind=` arg if given, else the profile's `[defaults] kind` if set, else `html`. Select the phase array:
+
+`read_file` → `profiles/<project>.toml`. Resolve `kind` and select phase array:
 - `kind=html` → `pipeline.phases[]`
-- `kind=api`  → `api_pipeline.phases[]`
+- `kind=api` → `api_pipeline.phases[]`
+- dhero: both arrays are identical; default `kind=api` is safe.
 
-(For dhero both arrays are the same fetch-agnostic 5 phases; the seeding strategy from Phase 1 decides API vs HTML, so the default `kind=api` is safe.)
+## Orchestration loop
 
-## Execute all phases
-For each phase entry **in order**:
-1. `read_file` → the phase's `workflow` doc (authoritative path from the profile).
-2. Run that phase to completion exactly as its dedicated skill would (same arg semantics: phase 1 uses `url=`/`name=`; later phases use `scraper=<name>`/`project=<project>`).
-3. On success, continue to the next entry **in this same session** via its state file — do **not** spawn a new process.
-4. On failure of any phase: **STOP**, write the `_log` structural-error entry per `docs/shared/datahen-conventions.md`, surface the error, and print the manual `/<failed.command> scraper=<name> project=<project>` line so the user can resume.
+Print the pipeline plan upfront:
+```
+🗂  Pipeline: <project> → <name>
+   Phase 1: <label>
+   Phase 2: <label>
+   ...
+   QA gate
+```
 
-## Final QA gate
-If the profile defines a `[qa]` section (dhero, dmart-dloc, and greenfield all do), after the final phase succeeds run its `[qa].command` **in the same session** before summarizing — i.e. `/qa scraper=<name> project=<project>`. The eval gate is **mandatory** here: `/qa` runs the report with `--require-eval`, so a scraper with no eval fixture/score is **not deployable**. Pass `--model` and any `--telemetry` you tracked. This produces `spec.csv`, `GENERATION_REPORT.md`, and `deploy-readiness.json`. Treat `deployable:false` as a pipeline failure: surface the `_blocking` items and STOP rather than reporting success.
+Then for each phase in order:
 
-After the final phase (and QA gate, if any), emit a one-paragraph run summary (phases completed, queued/parsed counts, nil-rate warnings, and the `deployable` verdict).
+### 1. Print progress banner
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⏳ Spawning Phase <N>/<total>: <label>
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+### 2. Build the agent command
+
+**Phase 1 (index 0):**
+```
+agent -p --yolo --trust --model <model> "/<command> project=<project> url=<url> name=<name>[  spec=<spec>][ out=<out>]"
+```
+
+**All other phases:**
+```
+agent -p --yolo --trust --model <model> "/<command> scraper=<name> project=<project>"
+```
+
+### 3. Invoke via `run_terminal_cmd`
+
+Run the command. This blocks until the subprocess exits. Do NOT proceed until it exits.
+
+### 4. Gate-check phase-status.json
+
+After the subprocess exits, `read_file` → `generated_scraper/<name>/.scraper-state/phase-status.json`.
+
+Look up the phase's status key (e.g. `site_discovery`, `navigation_discovery`, `restaurant_details`, `menu_listings_discovery`, `menu_details`).
+
+**If `status == "completed"`:**
+```
+✅ Phase <N> complete — <label>
+```
+Continue to next phase.
+
+**If status is anything else (or file missing):**
+```
+⛔ Phase <N> FAILED — <label>
+   Status: <status or "file missing">
+```
+Write a `structural_error` `_log` entry in the phase's state file if possible. Print the manual resume command:
+```
+agent --yolo "/<command> scraper=<name> project=<project> auto_next=true"
+```
+**STOP** — do not proceed to the next phase.
+
+### 5. Pagination gate (after any list phase)
+
+After a phase that produces a list-surface state file (`discovery-state.json`, `navigation-state.json`, `menu-listings-state.json`), `read_file` that state file and verify `pagination_surfaces` is present with at least one entry. If missing or all entries have `strategy:"none"` with empty `evidence`: print a warning but do not block (log it as `pagination_warning` in the orchestrator summary).
+
+---
+
+## QA gate
+
+After the final phase succeeds, run the QA gate the same way:
+```
+agent -p --yolo --trust --model <model> "/qa scraper=<name> project=<project> --require-eval"
+```
+
+Read `generated_scraper/<name>/deploy-readiness.json` after it exits. If `deployable: false`: print blocking items and treat as pipeline failure.
+
+---
+
+## README
+
+After QA passes, run:
+```
+agent -p --yolo --trust --model <model> "Write the scraper README at generated_scraper/<name>/README.md using templates/scraper-readme-template.md for scraper <name> project <project>"
+```
+
+---
+
+## Final summary
+
+Print:
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Pipeline complete: <name> (<project>)
+Phases: <N>/<N> completed
+QA: deployable=<true|false>
+Blocking: <list or "none">
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+---
+
+## Pagination mandate
+
+Before marking any list phase gate-check as passed, verify `pagination_surfaces` in that phase's state file. `strategy:"none"` with empty `evidence` is a pipeline warning — log it in the summary. Full protocol: `docs/shared/pagination-network-exhaustion.md`. For dhero: apply to both restaurant list (Phase 1) and menu categories (Phase 4). Never re-queue the same URL for a different `page_type` — distinct per-category API URLs or URL-buster suffixes required to avoid DataHen GID deduplication.
+
+---
+
+## Error handling
+
+- **Subprocess non-zero exit + phase-status missing**: treat as structural failure, STOP.
+- **`deployable: false` from QA**: surface `_blocking` items, do not report success.
+- **Any phase failure**: print resume command as `agent --yolo "/<command> scraper=<name> project=<project> auto_next=true"` so the user can watch that phase interactively.

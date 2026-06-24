@@ -254,7 +254,7 @@ outputs << {
 
 # Operational Rules (Firmware)
 
-**version:** 2.0.0 — Antigravity CLI (`agy`)
+**version:** 2.0.0 — Legacy / agy reference (Cursor CLI uses `.cursor/rules/firmware.mdc` + `.cursor/rules/context.mdc`)
 
 Knowledge base index → **`docs/shared/KB_HUB.md`** (task→doc routing for all `docs/shared/*.md` spokes; load via `/kb` or `read_file`). Extended playbooks: `docs/shared/playwright-refs.md`, `docs/shared/browser-mcp-tools.md`, `docs/shared/parser-testing.md`, `docs/shared/datahen-ruby-parsers.md`, `docs/shared/datahen-conventions.md`.
 
@@ -332,7 +332,10 @@ After each `browser_navigate`, handle cookies/modals before deep work. Follow th
 
 ## Auto-chaining
 
-When `auto_next=true`, you **must** run the next phase **in this same session** (close browser, then begin the next phase via its state file — see `docs/shared/agent-rules-gemini.md`). Chaining is in-session: do **not** spawn a new `agy` process or shell script. On failure, STOP and print the exact `/next-phase ...` resume line for the user.
+When `auto_next=true`: `browser_close()`, then spawn the next phase as a **fresh subprocess**:
+`run_terminal_cmd('agent -p --yolo --trust "/<next_phase> scraper=<name> project=<project> auto_next=true"')`
+Exit this session after spawning — do not continue in the current context window.
+Full rules: `docs/shared/agent-rules-gemini.md`
 
 ---
 

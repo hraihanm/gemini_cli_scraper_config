@@ -250,6 +250,25 @@ Record the decision in `discovery-state.json.seeding` (schema in STEP 9) and add
 
 ---
 
+## STEP 8c: Pagination Surface Probe (all projects)
+
+**Run this step after STEP 8 (and STEP 8b for dhero).** Load `docs/shared/pagination-network-exhaustion.md` for the full protocol. For every list surface identified in STEP 8 (product category listings, restaurant list, menu root, search results, etc.), run the three mandatory probes:
+
+1. `browser_detect_pagination()` — static detection
+2. Scroll + interaction — scroll to bottom 2–3 times; click each visible category/tab/filter; after each action run `browser_network_requests_simplified()` to capture newly triggered requests
+3. Network capture — `browser_network_search({ query: "<api_keyword>", searchIn: ["requestUrl","responseBody"] })` on any promising endpoints; `browser_get_request_context` to classify stable vs ephemeral headers
+
+Classify each surface (see protocol: `page_number | offset | cursor | infinite_scroll | geo_fanout | next_button | none`).
+
+`none` is only valid when all three probes are logged with evidence. A `none` without evidence is a **structural error — STOP**.
+
+Record in `discovery-state.json` under `pagination_surfaces` (schema in STEP 9). Add a `_log` entry:
+```json
+{ "action": "pagination_probe", "surface": "<surface>", "strategy": "<strategy>", "evidence": "<what triggered / what was absent>" }
+```
+
+---
+
 ## STEP 9: Write discovery-state.json (USE ABSOLUTE PATH)
 
 Path: `{output_dir}/<scraper>/.scraper-state/discovery-state.json`
@@ -321,6 +340,18 @@ Path: `{output_dir}/<scraper>/.scraper-state/discovery-state.json`
     "endpoints": { "listings": null, "merchant_list": null, "menu": null },
     "pagination": "page_number | offset | cursor | hexagon_fanout | next_button"
   },
+  "pagination_surfaces": [
+    {
+      "surface": "restaurant_list | product_listings | category_listings",
+      "strategy": "page_number | offset | cursor | infinite_scroll | geo_fanout | next_button | none",
+      "endpoint": null,
+      "params": [],
+      "stable_headers": {},
+      "probe_log": ["static_detect", "scroll", "tab_click", "network_capture"],
+      "evidence": "<what triggered / what was absent>",
+      "pagination_warning": null
+    }
+  ],
   "_notes": "## Discovery summary (markdown)\\n\\n- Site structure, sample URLs, popups, fetch_type notes\\n- (dhero) seeding strategy + input file\\n- **Next:** `/<next_phase_from_profile> scraper=<scraper_slug> project=<project>`\\n"
 }
 ```
@@ -344,6 +375,7 @@ Re-read the just-written `discovery-state.json` and confirm every Required field
 | popup_handling | `.popup_handling` | Yes — object (may be `{popups_encountered: false}`) |
 | fetch_type flag | `.fetch_requirements.initial_page_needs_browser` | Yes (boolean) |
 | Human notes | `._notes` | Yes — non-empty string |
+| Pagination surfaces | `.pagination_surfaces` | Yes — array, ≥1 entry per list surface found; `strategy:"none"` requires non-empty `evidence` |
 
 **If any Required field is missing or null: STOP — do not proceed.**
 Fix the gap (re-navigate the site if needed) and rewrite `discovery-state.json`. Only continue when all Required fields are confirmed.
@@ -504,6 +536,7 @@ Follow the auto-chain execution steps in `docs/shared/agent-rules-gemini.md`.
 - ✅ `seeder/seeder.rb` updated with site URL, page_type, fetch_type
 - ✅ `config.yaml` verified
 - ✅ `discovery-state.json` written with non-empty `_notes` (REQUIRED for next phase)
+- ✅ Pagination surfaces probed (STEP 8c) — static detect + scroll + interaction + network; `pagination_surfaces` array written
 - ✅ Output contract validated (STEP 9b) — all Required fields confirmed non-null
 - ✅ `session-audit-html_scrape.json` written with accurate `tool_call_counts` (or `tool_call_counts_incomplete`)
 - ✅ `field-spec.json` copied to `.scraper-state/`

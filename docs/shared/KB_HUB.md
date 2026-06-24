@@ -26,6 +26,7 @@ datahen-assistant's `DATAHEN_KB_HUB.md`.
 | Running the QA gate / deploy readiness | `.agents/skills/qa/SKILL.md` + `scripts/scraper_qa_report.rb` |
 | Designing/reviewing the agent system itself | `docs/shared/agent-best-practices.md` |
 | Popups, error taxonomy, auto-chaining, `_log` | `docs/shared/agent-rules-gemini.md` (firmware) |
+| Exhausting list-surface pagination (any project) | `docs/shared/pagination-network-exhaustion.md` |
 
 ## Spokes (one line each)
 
@@ -42,6 +43,7 @@ datahen-assistant's `DATAHEN_KB_HUB.md`.
 | `docs/shared/greenfield-prompt-spec.md` | Deriving `field-spec.json` from the user's chat message. |
 | `docs/shared/parser-testing.md` | `parser_tester` MCP usage; `quiet` modes; 3-sample rule. |
 | `docs/shared/agent-best-practices.md` | 10 production-agent principles + this system's maturity/gap table. |
+| `docs/shared/pagination-network-exhaustion.md` | Mandatory probe sequence (static → scroll → interaction → network) for every list surface; classification taxonomy; `pagination_surfaces` state schema; QA gates; GID collision guard. |
 
 ## Other knowledge surfaces (load by stable path)
 

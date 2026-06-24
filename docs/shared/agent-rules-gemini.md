@@ -115,16 +115,22 @@ Before deciding how to respond to a failure, classify it:
 
 ### Auto-chain execution steps (when auto_next=true)
 
-Antigravity CLI runs the whole pipeline in **one session**. Chaining is **in-session** — do **not** spawn a new `agy` process or shell script.
+Each phase runs in its own fresh `agent` session — **never** continue the next phase inside the current context window. Chaining is done by spawning a new subprocess.
 
 **Step A — Close browser**:
-- Call `browser_close()` MCP tool — REQUIRED before starting the next phase.
+- Call `browser_close()` MCP tool — REQUIRED before spawning the next phase.
 
-**Step B — Begin the next phase in this same session**:
+**Step B — Spawn the next phase as a fresh subprocess**:
 - Resolve `<next_phase>` from the profile pipeline lookup above (e.g. `navigation-parser`).
-- Immediately start that phase here, exactly as its dedicated workflow (`.agents/workflows/<next_phase>.md`) defines, driving handoff through the phase's **state file** (`scraper=<scraper_slug>`, `project=<project>` semantics). No new console, no `chain.*` script.
-- If the next phase **fails**, STOP, write the `_log` structural-error entry, and print this line so the user can resume manually:
-  `agy --dangerously-skip-permissions --prompt-interactive "/<next_phase> scraper=<scraper_slug> project=<project> auto_next=true"`
+- Invoke via `run_terminal_cmd`:
+  ```
+  agent -p --yolo --trust "/<next_phase> scraper=<scraper_slug> project=<project> auto_next=true"
+  ```
+- **Exit this session immediately after** — do NOT continue work in the current context window. The next phase runs in a completely fresh session with no accumulated context.
+- If the next phase **fails**, STOP, write the `_log` structural-error entry, and print this resume command so the user can restart from that phase interactively:
+  ```
+  agent --yolo "/<next_phase> scraper=<scraper_slug> project=<project> auto_next=true"
+  ```
 
 ---
 
