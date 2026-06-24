@@ -290,6 +290,33 @@ Browser tools are **MCP tools** — never invoke them via `run_terminal_cmd`.
 
 ---
 
+## Scratch files — mandatory path
+
+**All** temporary artifacts for a scraper go under `generated_scraper/<scraper_name>/scratch/`:
+
+| Artifact type | Example path |
+|---|---|
+| Downloaded HTML files | `generated_scraper/snoonu_kw/scratch/page1.html` |
+| JSON API responses / probes | `generated_scraper/snoonu_kw/scratch/api_probe.json` |
+| One-off Ruby/JS scripts | `generated_scraper/snoonu_kw/scratch/probe_menu.rb` |
+| QA build scripts | `generated_scraper/snoonu_kw/scratch/build_qa.rb` |
+
+Use three subdirectories — always:
+
+```
+generated_scraper/<scraper>/scratch/
+  html/       ← downloaded HTML pages (browser_network_download, parser_tester inputs)
+  api/        ← JSON/XML API response bodies, probe outputs
+  scripts/    ← one-off Ruby/JS probe and QA scripts
+```
+
+**Never write scratch files to:**
+- The repo root (no root-level `scratch/` — deleted, do not recreate)
+- A global `/tmp` or OS temp dir
+- The scraper root (only `parsers/`, `lib/`, `seeder/`, `finisher/`, `evals/`, `input/`, `.scraper-state/` belong there)
+
+---
+
 ## Reading `.scraper-state/` and ignored paths
 
 **Rules:**

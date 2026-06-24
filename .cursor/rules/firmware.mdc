@@ -29,6 +29,22 @@ Every `write_file` under `generated_scraper/` must be absolute.
 
 ---
 
+## Scratch files — MANDATORY PATH
+
+All temporary artifacts (HTML downloads, JSON probes, one-off scripts) go in:
+`generated_scraper/<scraper_name>/scratch/`
+
+**Never** write to: repo root `scratch/` (deleted), `/tmp`, OS temp dirs, or the scraper root.
+
+```
+generated_scraper/<scraper>/scratch/
+  html/     ← downloaded HTML pages
+  api/      ← JSON/XML API responses and probes
+  scripts/  ← one-off Ruby/JS probe and QA scripts
+```
+
+---
+
 ## DataHen parsers — CRITICAL
 
 Parsers are **top-level scripts**. Never: `def parse(...)`, never redeclare `pages`, `outputs`, `page`, `content`.
