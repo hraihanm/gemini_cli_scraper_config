@@ -1,6 +1,7 @@
 ---
-description: Non-negotiable operational rules for every agent session in this workspace.
-alwaysApply: true
+description: Non-negotiable operational rules for DataHen scraper generation sessions.
+globs: ["generated_scraper/**", "profiles/**", "docs/workflows/**", "docs/shared/**", ".agents/**", "templates/**"]
+alwaysApply: false
 ---
 
 # Firmware — Universal Web Scraping (Cursor CLI)

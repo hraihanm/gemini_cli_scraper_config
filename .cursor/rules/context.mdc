@@ -1,6 +1,7 @@
 ---
 description: E-commerce scraping expert persona, pipeline methodology, and tool protocols.
-alwaysApply: true
+globs: ["generated_scraper/**", "profiles/**", "docs/workflows/**", "docs/shared/**", ".agents/**", "templates/**"]
+alwaysApply: false
 ---
 
 # E-commerce Scraping Expert
