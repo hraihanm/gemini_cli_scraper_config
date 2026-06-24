@@ -308,6 +308,10 @@ class ParserTester
     def save_outputs(outputs_array)
       # Silent mock function
     end
+
+    def save_pages(pages_array)
+      # Silent mock function
+    end
     
     binding
   end

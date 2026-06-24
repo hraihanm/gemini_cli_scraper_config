@@ -282,6 +282,95 @@ def pct(rate)
   rate.nil? ? 'n/a' : "#{(rate * 100).round(1)}%"
 end
 
+STABLE_METHODS = %w[json_ld json-ld meta og api json xpath graphql].freeze
+
+def fragility_class(method)
+  return 'STABLE' if method.nil? || method.strip.empty?
+  m = method.to_s.downcase.strip
+  STABLE_METHODS.any? { |s| m.include?(s) } ? 'STABLE' : 'FRAGILE'
+end
+
+def write_handoff_section(io, rows, log, collections, name, project)
+  io << "## Human Handoff Guide\n\n"
+  io << "_For developers inheriting or debugging this scraper._\n\n"
+
+  # --- 4a: Fragile selectors ---
+  active = rows.reject { |r| r[:sample_count].zero? }
+  fragile = active.select { |r| fragility_class(r[:extraction_method]) == 'FRAGILE' }
+               .sort_by { |r| [r[:priority] || 99, (r[:nil_rate] || 0) * -1] }
+
+  io << "### Fragile selectors (most likely to break on site redesign)\n\n"
+  if fragile.empty?
+    io << "_All fields backed by structured data (JSON-LD / API / meta) — low redesign risk._\n\n"
+  else
+    io << "These fields use CSS selectors or raw HTML — they will break if the site layout changes.\n\n"
+    io << "| Field | Collection | Priority | Nil% | Watch |\n|---|---|---|---|---|\n"
+    fragile.each do |r|
+      watch = (!r[:nil_rate].nil? && r[:nil_rate] > 0) ? '⚠ already partial' : ''
+      io << "| `#{r[:name]}` | #{r[:collection]} | #{r[:priority]} | #{pct(r[:nil_rate])} | #{watch} |\n"
+    end
+    io << "\n**To fix a broken selector:** open `generated_scraper/#{name}/parsers/` — find the field, "
+    io << "update the CSS selector, then re-test with:\n"
+    io << "```bash\nruby scripts/scraper_qa_report.rb generated_scraper/#{name} --project #{project || 'PROJECT'}\n```\n\n"
+  end
+
+  # --- 4b: Partial-availability fields ---
+  partial = active.select { |r| r[:availability] == 'Partial' }
+                  .sort_by { |r| r[:priority] || 99 }
+  io << "### Partial-availability fields (work sometimes — monitor)\n\n"
+  if partial.empty?
+    io << "_No partial-availability fields — every sampled field is either fully present or fully absent._\n\n"
+  else
+    io << "These fields extracted a value on *some* samples. Could be genuine data gaps (e.g. optional fields)\n"
+    io << "or a fragile selector degrading. Verify by hand against 2-3 URLs.\n\n"
+    io << "| Field | Collection | Priority | Nil% | Extraction |\n|---|---|---|---|---|\n"
+    partial.each do |r|
+      io << "| `#{r[:name]}` | #{r[:collection]} | #{r[:priority]} | #{pct(r[:nil_rate])} | #{r[:extraction_method] || '?'} |\n"
+    end
+    io << "\n"
+  end
+
+  # --- 4c: Structural errors ---
+  errors = log.select { |e| e['action'] == 'structural_error' }
+  io << "### Structural errors (recorded during generation)\n\n"
+  if errors.empty?
+    io << "_No structural errors recorded in the decision log._\n\n"
+  else
+    io << "> ⛔ **#{errors.length} structural error(s) were recorded during generation** — these indicate a field or\n"
+    io << "> phase that could not be resolved. The scraper may be incomplete.\n\n"
+    errors.each do |e|
+      detail = e.reject { |k, _| %w[_source step action].include?(k) }
+                 .map { |k, v| "**#{k}:** #{v}" }.join(' · ')
+      io << "- `#{e['_source']}` step #{e['step']}: #{detail}\n"
+    end
+    io << "\n"
+  end
+
+  # --- 4d: Recovery quick-reference ---
+  io << "### Recovery quick-reference\n\n"
+  io << "| Symptom | File to edit | Re-run command |\n|---|---|---|\n"
+  args = "scraper=#{name}#{project ? " project=#{project}" : ''}"
+  if collections.include?('locations') || collections.include?('items')
+    io << "| 0 restaurants scraped | `seeder/seeder.rb` or discovery state | `/scrape #{args}` |\n"
+    io << "| Restaurant field nil | `parsers/restaurant_details.rb` | `/restaurant-details-parser #{args}` |\n"
+    io << "| No menu listings | `parsers/menu_listings.rb` | `/menu-listings-parser #{args}` |\n"
+    io << "| Menu item field nil | `parsers/menu.rb` | `/menu-parser #{args}` |\n"
+  else
+    io << "| 0 products in listings | `parsers/listings.rb` or `seeder/seeder.rb` | `/scrape #{args}` |\n"
+    io << "| Category links wrong | `parsers/categories.rb` | `/navigation-parser #{args}` |\n"
+    io << "| Product field nil | `parsers/details.rb` | `/details-parser #{args}` |\n"
+  end
+  io << "| deploy-readiness wrong | re-collect QA samples, then re-run QA | `/qa #{args}` |\n"
+  io << "| Eval score dropped | update `evals/` fixture or fix parser | `ruby scripts/scraper_qa_report.rb generated_scraper/#{name} --eval-score N` |\n"
+  io << "\n**State files** (in `generated_scraper/#{name}/.scraper-state/`):\n\n"
+  io << "| File | Purpose |\n|---|---|\n"
+  io << "| `discovery-state.json` | Phase 1 output: target URLs, seeding strategy, popup handling |\n"
+  io << "| `*-state.json` | Per-phase outputs: selectors found, fields resolved, `_log` decisions |\n"
+  io << "| `qa-samples/<collection>.json` | Sample parser output records used by this report |\n"
+  io << "| `phase-status.json` | Which phases have completed (used by auto-chain) |\n"
+  io << "\n"
+end
+
 def write_spec_csv(path, rows)
   CSV.open(path, 'w') do |csv|
     csv << ['#', 'Field', 'Collection', 'Available?', 'Nil%', 'Type', 'Priority', 'Export', 'Notes']
@@ -313,11 +402,95 @@ def avail_summary(rows)
   rows.group_by { |r| r[:availability] }.transform_values(&:count)
 end
 
-def write_report(path, ctx)
+# rubocop:disable Metrics/MethodLength,Metrics/AbcSize,Metrics/CyclomaticComplexity,Metrics/PerceivedComplexity
+def write_discovery_section(io, discovery)
+  return unless discovery.is_a?(Hash)
+
+  io << "## Endpoint & URL Structure\n\n"
+  io << "_Discovered during Phase 1. Reference when debugging seeding, auth, or URL pattern issues._\n\n"
+
+  io << "| Key | Value |\n|---|---|\n"
+  io << "| Site URL | `#{discovery['site_url']}` |\n" if discovery['site_url']
+  if (s = discovery['site_structure'])
+    io << "| Navigation depth | #{s['navigation_depth']} |\n" if s['navigation_depth']
+    io << "| Listing pattern | #{s['listing_pattern']} |\n" if s['listing_pattern']
+  end
+  types = Array(discovery['page_types_found'])
+  io << "| Page types | #{types.join(', ')} |\n" unless types.empty?
+
+  if (seed = discovery['seeding']) && seed['strategy']
+    io << "| Seeding strategy | `#{seed['strategy']}` |\n"
+    io << "| Input file | `#{seed['input_file']}` |\n" if seed['input_file']
+    io << "| Pagination | #{seed['pagination']} |\n" if seed['pagination']
+    if (sa = seed['auth']) && sa['required']
+      io << "| Auth token header | `#{sa['token_header']}` |\n" if sa['token_header']
+    end
+    if (eps = seed['endpoints'])
+      eps.each { |k, v| io << "| Seed endpoint `#{k}` | `#{v}` |\n" if v }
+    end
+  end
+  io << "\n"
+
+  if (api = discovery['api_config']) && api['has_api']
+    io << "### API configuration\n\n"
+    io << "| Setting | Value |\n|---|---|\n"
+    io << "| Endpoint pattern | `#{api['endpoint_pattern']}` |\n" if api['endpoint_pattern']
+    io << "| Requires custom headers | #{api['requires_custom_headers']} |\n"
+    io << "| Requires browser session | #{api['requires_browser_session']} |\n"
+    io << "| Bare test result | `#{api['bare_test']}` |\n" if api['bare_test']
+    io << "| Headers test result | `#{api['headers_test']}` |\n" if api['headers_test']
+
+    stable = (api['stable_headers'] || {}).keys
+    unless stable.empty?
+      io << "\n**Stable header keys** (values in `lib/headers.rb`):\n\n"
+      stable.each { |k| io << "- `#{k}`\n" }
+      io << "\n"
+    end
+
+    ephemeral = Array(api['ephemeral_headers_noted'])
+    unless ephemeral.empty?
+      io << "**Ephemeral headers** (session-bound — do not hardcode): "
+      io << ephemeral.map { |k| "`#{k}`" }.join(', ') << "\n\n"
+    end
+  end
+
+  endpoints = Array(discovery['api_endpoints'])
+  unless endpoints.empty?
+    io << "### Discovered API endpoints\n\n"
+    io << "| Name | URL pattern | Method |\n|---|---|---|\n"
+    endpoints.each do |ep|
+      io << "| #{ep['name']} | `#{ep['url_pattern']}` | #{ep['method'] || 'GET'} |\n"
+    end
+    io << "\n"
+  end
+
+  if (urls = discovery['sample_urls']) && urls.any? { |_, v| v }
+    io << "### Sample URLs\n\n"
+    urls.each { |k, v| io << "- **#{k}:** `#{v}`\n" if v }
+    io << "\n"
+  end
+
+  fr_notes = []
+  if (fr = discovery['fetch_requirements'])
+    fr_notes << 'initial page needs browser' if fr['initial_page_needs_browser']
+    fr_notes << 'categories need browser' if fr['categories_need_browser']
+    if fr.dig('button_to_reveal_categories', 'exists')
+      fr_notes << "reveal button: `#{fr.dig('button_to_reveal_categories', 'selector')}`"
+    end
+  end
+  io << "**Fetch requirements:** #{fr_notes.join(' · ')}\n\n" unless fr_notes.empty?
+
+  if (pop = discovery['popup_handling']) && pop['popups_encountered']
+    io << "**Popups encountered:** handled via #{pop['handling_method']}\n\n"
+  end
+end
+# rubocop:enable Metrics/MethodLength,Metrics/AbcSize,Metrics/CyclomaticComplexity,Metrics/PerceivedComplexity
+
+def write_report(path, ctx) # rubocop:disable Metrics/MethodLength
   rows = ctx[:rows]; gates = ctx[:gates]; ids = ctx[:ids]; log = ctx[:log]
   samples = ctx[:samples]; name = ctx[:name]; eval_score = ctx[:eval_score]
   project = ctx[:project]; collections = ctx[:collections]
-  versions = ctx[:versions] || {}; telemetry = ctx[:telemetry]
+  versions = ctx[:versions] || {}; telemetry = ctx[:telemetry]; discovery = ctx[:discovery]
   badge = gates['deployable'] ? '✅ DEPLOYABLE' : '⛔ NOT DEPLOYABLE'
 
   vstr = versions.reject { |_, v| v.nil? }.map { |k, v| "#{k}=#{v}" }.join(' · ')
@@ -329,6 +502,8 @@ def write_report(path, ctx)
   io << "**Collections:** #{collections.join(', ')}  \n"
   io << "**Versions:** #{vstr.empty? ? 'n/a' : vstr}  \n"
   io << "**Deploy gate:** #{badge}\n\n"
+
+  write_discovery_section(io, discovery)
 
   io << "## Deploy-readiness gates\n\n| Gate | Result |\n|---|---|\n"
   %w[samples_ok schema_ok types_ok required_fields_ok ids_ok eval_ok deployable].each do |g|
@@ -398,6 +573,8 @@ def write_report(path, ctx)
     end
     io << "\n"
   end
+
+  write_handoff_section(io, rows, log, collections, name, project)
 
   io << "## Deploy sequence\n\n"
   if gates['deployable']
@@ -469,7 +646,8 @@ def main
   write_report(report_md, name: name, rows: rows, gates: gates, ids: ids, log: log,
                           samples: samples, eval_score: opts[:eval_score],
                           project: opts[:project], collections: collections,
-                          versions: meta['versions'], telemetry: telemetry)
+                          versions: meta['versions'], telemetry: telemetry,
+                          discovery: discovery)
   write_datahen_project(project_txt, discovery, name, opts[:project], collections)
 
   puts "=== QA report — #{name} (#{opts[:project] || 'project?'}) ==="
