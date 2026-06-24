@@ -21,3 +21,6 @@ Follow the phase doc **exactly**.
 
 ## Auto-chain (in-session)
 Only if this is **not** the last phase and `auto_next=true`: read the next `pipeline.phases[]` entry and begin it **in this same session** via its state file — no new process. Otherwise emit the final summary only. On failure, print the manual `/<next.command> ...` line.
+
+## Write scraper README (if last phase)
+If this **is** the last phase: write `generated_scraper/<scraper>/README.md` using the template at `templates/scraper-readme-template.md`. Fill in the Summary table (site URL from `lib/headers.rb`, country/language/currency from the output hash, pipeline from active parsers in `config.yaml`). Add Key implementation notes for anything non-obvious (JSON-LD vs CSS strategy, CDN pattern, discount logic, etc.). List 2–3 real URLs used during `parser_tester` validation in "Tested against". Set Status to **Functional** if all active parsers passed; otherwise **Draft**.

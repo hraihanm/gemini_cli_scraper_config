@@ -18,3 +18,6 @@ From the invocation, extract: `scraper=`, `project=`, `url=`, `spec=`, `auto_nex
 
 ## Auto-chain (in-session)
 If this is the **last** API phase, do not chain — emit the final summary. Otherwise, if `auto_next=true`, read the next `api_pipeline.phases[]` entry and begin it **in this same session** via its state file — no new process.
+
+## Write scraper README (if last phase)
+If this **is** the last phase: write `generated_scraper/<scraper>/README.md` using the template at `templates/scraper-readme-template.md`. Fill in the Summary table (site URL from `lib/headers.rb`, country/language/currency from the output hash, active parsers from `config.yaml`). Add Key implementation notes for non-obvious details (auth headers, fieldset flags, cursor/page pagination, CDN pattern, dedup guard, etc.). List 2–3 real API URLs used during `parser_tester` validation in "Tested against". Set Status to **Functional** if all active parsers passed; otherwise **Draft**.
