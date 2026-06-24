@@ -57,10 +57,10 @@ Full sequence: `docs/shared/agent-rules-gemini.md`
 
 When `auto_next=true` — at end of phase, all state files written:
 1. `browser_close()`
-2. `run_terminal_cmd('agent -p --yolo --trust "/<next_phase> scraper=<name> project=<project> auto_next=true"')`
+2. `run_terminal_cmd('agent --yolo "/<next_phase> scraper=<name> project=<project> auto_next=true"')`
 3. **Exit this session** — never continue in the current context window.
 
-Resume (interactive): `agent --yolo "/<phase> scraper=<name> project=<project> auto_next=true"`
+Resume: `agent --yolo "/<phase> scraper=<name> project=<project> auto_next=true"`
 Next phase name: read `profiles/<project>.toml` pipeline array — never hardcode.
 
 ---

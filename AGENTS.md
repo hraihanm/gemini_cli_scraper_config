@@ -333,7 +333,7 @@ After each `browser_navigate`, handle cookies/modals before deep work. Follow th
 ## Auto-chaining
 
 When `auto_next=true`: `browser_close()`, then spawn the next phase as a **fresh subprocess**:
-`run_terminal_cmd('agent -p --yolo --trust "/<next_phase> scraper=<name> project=<project> auto_next=true"')`
+`run_terminal_cmd('agent --yolo "/<next_phase> scraper=<name> project=<project> auto_next=true"')`
 Exit this session after spawning — do not continue in the current context window.
 Full rules: `docs/shared/agent-rules-gemini.md`
 

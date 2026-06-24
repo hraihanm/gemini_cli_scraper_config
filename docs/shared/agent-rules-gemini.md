@@ -124,10 +124,10 @@ Each phase runs in its own fresh `agent` session — **never** continue the next
 - Resolve `<next_phase>` from the profile pipeline lookup above (e.g. `navigation-parser`).
 - Invoke via `run_terminal_cmd`:
   ```
-  agent -p --yolo --trust "/<next_phase> scraper=<scraper_slug> project=<project> auto_next=true"
+  agent --yolo "/<next_phase> scraper=<scraper_slug> project=<project> auto_next=true"
   ```
 - **Exit this session immediately after** — do NOT continue work in the current context window. The next phase runs in a completely fresh session with no accumulated context.
-- If the next phase **fails**, STOP, write the `_log` structural-error entry, and print this resume command so the user can restart from that phase interactively:
+- If the next phase **fails**, STOP, write the `_log` structural-error entry, and print this resume command:
   ```
   agent --yolo "/<next_phase> scraper=<scraper_slug> project=<project> auto_next=true"
   ```

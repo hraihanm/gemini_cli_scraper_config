@@ -53,12 +53,12 @@ Then for each phase in order:
 
 **Phase 1 (index 0):**
 ```
-agent -p --yolo --trust --model <model> "/<command> project=<project> url=<url> name=<name>[  spec=<spec>][ out=<out>]"
+agent --yolo --model <model> "/<command> project=<project> url=<url> name=<name>[  spec=<spec>][ out=<out>]"
 ```
 
 **All other phases:**
 ```
-agent -p --yolo --trust --model <model> "/<command> scraper=<name> project=<project>"
+agent --yolo --model <model> "/<command> scraper=<name> project=<project>"
 ```
 
 ### 3. Invoke via `run_terminal_cmd`
@@ -98,7 +98,7 @@ After a phase that produces a list-surface state file (`discovery-state.json`, `
 
 After the final phase succeeds, run the QA gate the same way:
 ```
-agent -p --yolo --trust --model <model> "/qa scraper=<name> project=<project> --require-eval"
+agent --yolo --model <model> "/qa scraper=<name> project=<project> --require-eval"
 ```
 
 Read `generated_scraper/<name>/deploy-readiness.json` after it exits. If `deployable: false`: print blocking items and treat as pipeline failure.
@@ -109,7 +109,7 @@ Read `generated_scraper/<name>/deploy-readiness.json` after it exits. If `deploy
 
 After QA passes, run:
 ```
-agent -p --yolo --trust --model <model> "Write the scraper README at generated_scraper/<name>/README.md using templates/scraper-readme-template.md for scraper <name> project <project>"
+agent --yolo --model <model> "Write the scraper README at generated_scraper/<name>/README.md using templates/scraper-readme-template.md for scraper <name> project <project>"
 ```
 
 ---
