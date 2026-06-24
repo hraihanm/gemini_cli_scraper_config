@@ -1,5 +1,8 @@
 {
   "markdown.marp.enableHtml": true,
+  "markdown.preview.breaks": true,
+  "markdown-mermaid.darkModeTheme": "dark",
+  "markdown-mermaid.lightModeTheme": "default",
   "workbench.colorCustomizations": {
     "activityBar.activeBackground": "#8068dd",
     "activityBar.background": "#8068dd",
@@ -19,5 +22,6 @@
     "titleBar.inactiveBackground": "#5d3fd399",
     "titleBar.inactiveForeground": "#e7e7e799"
   },
-  "peacock.color": "#5D3FD3"
+  "peacock.color": "#5D3FD3",
+  "specstory.cloudSync.enabled": "always"
 }
