@@ -60,15 +60,32 @@ def clean_html_description(html_str)
 end
 
 # ---------------------------------------------------------------------------
-# Error handling
+# Error handling — see docs/shared/datahen-autorecovery.md
 # ---------------------------------------------------------------------------
 
-def autorefetch(reason)
-  puts "AUTO-REFETCH: #{reason}" if ENV['debug']
-  if page['refetch_count'].to_i > 3
+MAX_REFETCH = 3
+
+def autorecovery(reason: nil, status: nil)
+  status ||= page['failed_response_status_code']
+  msg = [reason, status && "HTTP #{status}"].compact.join(' | ')
+  puts "RECOVERY: #{msg}" if ENV['debug']
+  case status
+  when 404
     limbo page['gid']
-  else
+  when 403, 429
     refetch page['gid']
+  else
+    page['refetch_count'].to_i >= MAX_REFETCH ? limbo(page['gid']) : refetch(page['gid'])
   end
+  finish
+end
+
+def autorefetch(reason = nil)
+  autorecovery(reason: reason)
+end
+
+def autolimbo(reason = nil)
+  puts "LIMBO: #{reason}" if ENV['debug']
+  limbo page['gid']
   finish
 end

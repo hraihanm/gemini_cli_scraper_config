@@ -23,14 +23,28 @@ def empty_to_nil(str)
   s.empty? || s == '{}' || s == '[]' || s == '.' ? nil : s
 end
 
-# Standard autorefetch — call after HTTP status check in every parser
-def autorefetch(reason)
-  puts "AUTO-REFETCH: #{reason}" if ENV['debug']
-  if page['refetch_count'].to_i > 3
+# Standard recovery — see docs/shared/datahen-autorecovery.md
+MAX_REFETCH = 3
+
+def autorecovery(reason: nil, status: nil)
+  status ||= page['failed_response_status_code']
+  msg = [reason, status && "HTTP #{status}"].compact.join(' | ')
+  puts "RECOVERY: #{msg}" if ENV['debug']
+  case status
+  when 404
     limbo page['gid']
-  else
+  when 403, 429
     refetch page['gid']
+  else
+    page['refetch_count'].to_i >= MAX_REFETCH ? limbo(page['gid']) : refetch(page['gid'])
   end
+  finish
+end
+
+def autorefetch(reason = nil) = autorecovery(reason: reason)
+def autolimbo(reason = nil)
+  puts "LIMBO: #{reason}" if ENV['debug']
+  limbo page['gid']
   finish
 end
 
