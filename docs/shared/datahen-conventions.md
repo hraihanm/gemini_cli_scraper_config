@@ -77,6 +77,31 @@ scraped_at_timestamp: Time.parse(page['fetched_at']).strftime('%Y-%m-%d %H:%M:%S
 
 ---
 
+## Ruby Version Compatibility
+
+DataHen workers run **Ruby 2.6.5**. All parser and lib files must be Ruby 2.6 compatible.
+
+**Pin the version** — every scraper project root must contain a `.ruby-version` file:
+```
+2.6.5
+```
+DataHen reads this file via rbenv and selects the correct interpreter. Supported versions: `2.4.4, 2.4.9, 2.5.3, 2.5.7, 2.6.5, 2.7.2, 3.0.1`.
+
+**Forbidden Ruby 3+ syntax** — do NOT use in any parser or lib file:
+```ruby
+# ❌ Endless method (Ruby 3.0+) — syntax error on 2.6.5
+def autorefetch(reason = nil) = autorecovery(reason: reason)
+
+# ✅ Use standard def/end instead
+def autorefetch(reason = nil)
+  autorecovery(reason: reason)
+end
+```
+
+Other Ruby 3+ features to avoid: numbered block params (`_1`, `_2`), pattern matching (`in` keyword), `Hash#except`.
+
+---
+
 ## Required Gems
 
 ```ruby
