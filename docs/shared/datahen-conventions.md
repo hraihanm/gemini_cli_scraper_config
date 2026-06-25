@@ -52,6 +52,28 @@ outputs << { name: "Product", price: 9.99 }
 | `page` | Hash | Metadata about the current page (url, vars, page_type, etc.) |
 | `pages` | Array | Queue pages to fetch next — use `pages <<` to add |
 | `outputs` | Array | Data to save — use `outputs <<` to add |
+| `failed_content` | String | Body of a **failed** HTTP response (non-2xx). Check `page['failed_response_status_code']` first. |
+
+### Key `page` hash fields
+
+| Key | Type | Purpose |
+|---|---|---|
+| `page['url']` | String | Original URL as queued — may differ from final URL after redirects |
+| `page['effective_url']` | String | **Actual URL after redirects** — use for ID extraction when site redirects |
+| `page['vars']` | Hash | Context forwarded from prior parsers (`page['vars']['category_name']`, etc.) |
+| `page['fetched_at']` | String | ISO timestamp when DataHen fetched the page — use for `scraped_at_timestamp`, never `Time.now` |
+| `page['response_status_code']` | Integer | HTTP status of a successful response |
+| `page['failed_response_status_code']` | Integer | HTTP status of a failed response (nil when successful) |
+| `page['refetch_count']` | Integer | How many times DataHen has retried this page |
+
+```ruby
+# ALWAYS use effective_url when extracting IDs from URL (site may redirect)
+uid = page['url'].scan(/-d(\d+)-/).first&.first
+uid ||= page['effective_url']&.scan(/-d(\d+)-/)&.first&.first
+
+# ALWAYS use fetched_at for scraped_at_timestamp — never Time.now
+scraped_at_timestamp: Time.parse(page['fetched_at']).strftime('%Y-%m-%d %H:%M:%S')
+```
 
 ---
 
@@ -165,6 +187,120 @@ outputs << { _collection: 'locations', ... }
 # ... also extract menu items from the same content ...
 outputs << { _collection: 'items', ... }
 # No pages << needed
+```
+
+---
+
+## Response Status Handling — `finish` after `limbo` is mandatory
+
+```ruby
+# Check status at top of every parser that could receive failed pages
+unless page['response_status_code'] == 200
+  autorefetch("HTTP #{page['response_status_code']} on #{page['url']}")
+  finish   # ← REQUIRED: finish stops parser execution after limbo/refetch
+end
+
+# For structured error responses, read failed_content
+if page['failed_response_status_code']
+  if (failed_content || '').include?('ProductNotFoundError')
+    outputs << { _collection: 'products_not_found', url: page['url'] }
+  end
+  finish
+end
+```
+
+**`finish` is mandatory after `limbo` or `refetch`.** Without it, the parser continues executing on the failed content.
+
+### `autorefetch` helper — standard pattern
+
+```ruby
+def autorefetch(reason)
+  puts "AUTO-REFETCH: #{reason}" if ENV['debug']
+  if page['refetch_count'].to_i > 3
+    limbo page['gid']
+  else
+    refetch page['gid']
+  end
+  finish
+end
+```
+
+Put this in `lib/helpers.rb` and `require './lib/helpers'` in each parser. The threshold `> 3` (4 attempts total) is the production standard seen across all surveyed projects. `limbo` puts the page in a limbo state for manual review; `refetch` re-queues it for another fetch attempt.
+
+---
+
+## Priority tuning — standard convention
+
+Set `priority:` on every `pages <<` entry. DataHen processes higher-priority pages first.
+**Always assign priority at queue time** — it cannot be changed after queuing.
+
+| Page type | Priority |
+|---|---|
+| OAuth / token pages | 1000 |
+| Seeder initial pages | 900 |
+| Categories | 800 |
+| Subcategories | 700 |
+| Listings page 1 | 600 |
+| Listings page 2+ | 500 |
+| Restaurant details / product details | 100 |
+| Menu listings | 80 |
+| Menu details | 50 |
+
+---
+
+## `needs_reparse` — deduplication-safe re-run trick
+
+DataHen deduplicates `outputs` by comparing all field values. A re-parse that produces identical
+output is silently dropped. To force the output through, add 1 second to `scraped_at_timestamp`:
+
+```ruby
+scraped_at_timestamp: if ENV['needs_reparse'] == '1'
+  (Time.parse(page['fetched_at']) + 1).strftime('%Y-%m-%d %H:%M:%S')
+else
+  Time.parse(page['fetched_at']).strftime('%Y-%m-%d %H:%M:%S')
+end
+```
+
+---
+
+## `raise` for fatal nil fields
+
+Use `raise` (not `warn`) when a field is so critical that proceeding without it would corrupt the dataset:
+
+```ruby
+raise "empty product_id on #{page['url']}" if product_id.nil? || product_id.empty?
+raise "availability nil on #{page['url']}"  if is_available.nil?
+```
+
+DataHen catches the exception, marks the page as failed, and surfaces it for manual review.
+`warn` is for non-fatal data gaps (optional fields). `raise` is for fields that must exist.
+
+---
+
+## Page options reference
+
+```ruby
+pages << {
+  url:                url,
+  page_type:          'details',
+  fetch_type:         'standard',   # raw JSON APIs — never 'browser' for APIs
+  method:             'POST',        # default GET
+  body:               { id: 123 }.to_json,
+  headers:            { 'Accept' => 'application/json' },
+  http2:              true,          # API performance — always set for API pages
+  custom_headers:     true,          # use ONLY the headers above, not DataHen defaults
+  no_default_headers: true,          # suppress DataHen's UA/Accept defaults
+  freshness:          Time.now.utc.strftime('%FT%TZ'),  # force re-fetch even if cached
+  priority:           100,
+  no_url_encode:      true,          # prevents double-encoding pre-encoded URLs
+  driver:             { name: "details_#{vars['id']}" },  # unique name avoids browser cache
+  vars:               { 'id' => id }
+}
+```
+
+**Driver name uniqueness:** DataHen caches browser sessions by driver name. Give retry pages a unique driver name so they get fresh sessions:
+```ruby
+driver: { name: "retry_#{page['refetch_count']}_#{page['url'].hash.abs}" }
 ```
 
 ---

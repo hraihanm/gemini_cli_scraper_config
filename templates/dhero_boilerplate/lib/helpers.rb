@@ -13,6 +13,31 @@
 
 require './lib/site_config'
 
+# ---------------------------------------------------------------------------
+# Standalone helpers — usable outside the Helpers class
+# ---------------------------------------------------------------------------
+
+# Convert nil/empty/sentinel strings to nil
+def empty_to_nil(str)
+  s = str.to_s.strip
+  s.empty? || s == '{}' || s == '[]' || s == '.' ? nil : s
+end
+
+# Standard autorefetch — call after HTTP status check in every parser
+def autorefetch(reason)
+  puts "AUTO-REFETCH: #{reason}" if ENV['debug']
+  if page['refetch_count'].to_i > 3
+    limbo page['gid']
+  else
+    refetch page['gid']
+  end
+  finish
+end
+
+# ---------------------------------------------------------------------------
+# Page-builder factory — all page queuing goes through Helpers class methods
+# ---------------------------------------------------------------------------
+
 class Helpers
   PRIORITY_LISTINGS   = 100
   PRIORITY_RESTAURANT = 50
