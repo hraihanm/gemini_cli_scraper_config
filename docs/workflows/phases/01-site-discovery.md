@@ -136,9 +136,16 @@ After popups cleared: `browser_snapshot()` to understand page structure.
 
 ## STEP 7: Detect Fetch Strategy
 
-**Rule: scan the network first — only fall back to browser DOM or reveal-button automation if no API is found.**
+**Priority order — stop at the first that works:**
 
-### 7a: Network scan (mandatory first step)
+| Priority | Method | When it applies |
+|---|---|---|
+| 1 | **Network API** | Site fires a JSON API call on page load (zero extra cost — requests already captured) |
+| 2 | **Framework JSON** | Next.js / Nuxt / Redux hydration blob baked into initial HTML |
+| 3 | **DOM links** | Category links already rendered in the DOM |
+| 4 | **Reveal button** | Links hidden behind a click — `fetch_type: "browser"` last resort |
+
+### 7a: Network scan (highest priority)
 
 Immediately after navigate and popup handling, run:
 
@@ -146,23 +153,52 @@ Immediately after navigate and popup handling, run:
 browser_network_requests_simplified()
 ```
 
-Scan results for endpoints that serve navigation or category data. Indicators:
+Requests fired during page load are already captured — this is zero-overhead. Scan for API endpoints serving navigation or category data:
 - URL contains: `/api/`, `/v1/`–`/v5/`, `/navigation`, `/categories`, `/menu`, `/graphql`, `/search`
 - Content-type: `application/json`
-- Response body: an array or object containing category/navigation items
+- Response body: array or object containing category/navigation items
 
-**If a navigation/category API is found:**
+**If a navigation API is found:**
 1. Note the full URL
-2. Proceed to **STEP 7b** (API Header Verification) with that URL
+2. Proceed to **STEP 7d** (API Header Verification)
 3. Once verified: set `api_config.has_api: true`, `api_config.navigation_api_url: <url>`, `fetch_requirements.initial_page_needs_browser: false`
-4. The seeder will use this URL with `fetch_type: "standard"` (STEP 10 handles this)
-5. Skip 7b DOM inspection — proceed to STEP 8
+4. Seeder will use this URL with `fetch_type: "standard"` (STEP 10)
+5. Skip 7b and 7c — proceed to STEP 8
 
-**If no navigation API found → proceed to 7b DOM inspection.**
+**If no navigation API found → proceed to 7b.**
 
-### 7b: DOM inspection (only when 7a found no navigation API)
+### 7b: Framework JSON (second priority)
 
-Check if category links are visible in DOM:
+Probe for framework hydration data baked into the initial HTML:
+
+```javascript
+browser_evaluate(() => {
+  // Next.js
+  const next = document.querySelector('#__NEXT_DATA__');
+  if (next) return { framework: 'nextjs', found: true, preview: next.textContent.substring(0, 300) };
+  // Nuxt
+  const nuxt = document.querySelector('#__NUXT_DATA__') || document.querySelector('script[data-nuxt-data]');
+  if (nuxt) return { framework: 'nuxt', found: true, preview: nuxt.textContent.substring(0, 300) };
+  // Generic embedded state
+  const scripts = [...document.querySelectorAll('script[type="application/json"]')];
+  if (scripts.length) return { framework: 'generic', found: true, count: scripts.length, preview: scripts[0].textContent.substring(0, 300) };
+  return { found: false };
+})
+```
+
+**If framework JSON found:**
+1. Extract the full blob: `browser_evaluate(() => JSON.parse(document.querySelector('#__NEXT_DATA__').textContent))`
+2. Navigate the JSON tree for category/navigation data (keys: `categories`, `navigation`, `menu`, `nav`, `catalog`)
+3. Two outcomes:
+   - **Categories baked in** → extract URLs and names directly; seeder fetches the homepage with `fetch_type: "standard"` and the categories parser reads `#__NEXT_DATA__`; set `api_config.navigation_api_url: "__NEXT_DATA__"` (or `__NUXT_DATA__`) as the source marker
+   - **API URL embedded in props/config** → note the URL, proceed to **STEP 7d** (API Header Verification), then treat as a network API
+4. Skip 7c — proceed to STEP 8 (or 7d if an API URL was extracted)
+
+**If no framework JSON found → proceed to 7c.**
+
+### 7c: DOM inspection (third priority)
+
+Check if category links are already rendered:
 
 ```javascript
 browser_evaluate(() => {
@@ -182,17 +218,18 @@ browser_evaluate(() => {
       }
     } catch (e) {}
   }
-  return { found: false, message: "No category links found in DOM" };
+  return { found: false };
 })
 ```
 
-If links are visible → `fetch_type: "standard"`, no driver needed. Proceed to STEP 8.
+If links visible → `fetch_type: "standard"`, no driver. Proceed to STEP 8.
 
-If not visible → look for reveal buttons using `browser_snapshot()` and `browser_evaluate()`.
+If not visible → proceed to 7d reveal button.
 
-### 7c: Reveal button (only when links are hidden)
+### 7d: API Header Verification / Reveal button
 
-If a reveal button exists: test click, verify content appears, document selector and puppeteer_code. Set `fetch_type: "browser"`. **Puppeteer driver code only — no Playwright pseudo-selectors (`:has-text()`, `:text()`, `locator()`). Use XPath `page.$x()` or `page.evaluate()` for text-based clicks (see `docs/shared/datahen-conventions.md` → "Browser Fetch").**
+- **If here from 7a or 7b (API found):** run the API Header Verification protocol from STEP 7b (below). Confirm the endpoint returns real data with stable headers.
+- **If here from 7c (links hidden, last resort):** find the reveal button via `browser_snapshot()` and `browser_evaluate()`. Test click, verify content appears, document selector and puppeteer_code. Set `fetch_type: "browser"`. **Puppeteer driver code only — no Playwright pseudo-selectors (`:has-text()`, `:text()`, `locator()`). Use XPath `page.$x()` or `page.evaluate()` for text-based clicks (see `docs/shared/datahen-conventions.md` → "Browser Fetch").**
 
 Document findings in `discovery-state.json` under `fetch_requirements`:
 - `initial_page_needs_browser`: true/false
@@ -572,7 +609,7 @@ Follow the auto-chain execution steps in `docs/shared/agent-rules-gemini.md`.
 ## Completion Checklist
 
 - ✅ Boilerplate template copied to `generated_scraper/<scraper>/`
-- ✅ Network scan completed (STEP 7a) — `api_config.navigation_api_url` set or confirmed null
+- ✅ Fetch strategy probe completed (STEP 7) — framework JSON → network scan → DOM → reveal button; `api_config.navigation_api_url` set or confirmed null
 - ✅ `lib/headers.rb` updated with site URL
 - ✅ `seeder/seeder.rb` updated — URL is navigation_api_url (if found) or homepage; fetch_type matches
 - ✅ `config.yaml` verified — `browser_fetcher_image` uncommented if any page uses fetch_type: browser

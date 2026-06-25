@@ -25,15 +25,19 @@ Browser fetch is slower, more fragile, requires `browser_fetcher_image` in confi
 
 ## 4. Proposal
 
-Restructure STEP 7 so network scan runs **first**:
+Restructure STEP 7 as a four-level priority cascade — stop at the first that works:
 
 ```
-navigate → browser_network_requests_simplified()
-  ├─ navigation API found?
-  │    yes → STEP 7b (verify headers) → fetch_type: standard, navigation_api_url set → STEP 8
-  │    no  → DOM check (browser_evaluate category selectors)
-  │             ├─ links visible → fetch_type: standard, no driver
-  │             └─ links hidden → find reveal button → fetch_type: browser + driver code
+navigate
+  7a: network API? (browser_network_requests_simplified — zero overhead, already captured)
+       └─ yes → verify headers → fetch_type: standard, navigation_api_url set → STEP 8
+  7b: framework JSON? (__NEXT_DATA__, __NUXT_DATA__, embedded JSON)
+       ├─ categories baked in → parse directly, fetch_type: standard on homepage
+       └─ API URL in props  → verify headers → fetch_type: standard → STEP 8
+  7c: DOM links visible?
+       └─ yes → fetch_type: standard, no driver → STEP 8
+  7d: reveal button (last resort)
+       └─ fetch_type: browser + Puppeteer driver (XPath/evaluate only, no :has-text())
 ```
 
 Also:
