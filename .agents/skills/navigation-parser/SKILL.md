@@ -19,5 +19,10 @@ From the invocation, extract: `scraper=` (required), `project=` (default `dmart-
 ## Execute
 Follow the phase doc **exactly**.
 
+## Phase report (required before marking done)
+After all state files are written: write `.scraper-state/reports/02-navigation-parser.md`.
+Follow the two-zone schema in `docs/shared/phase-report-spec.md` (template: `templates/phase-report-template.md`).
+Zone 1 = structured table (required rows). Zone 2 = free narrative.
+
 ## Auto-chain (in-session)
 If `auto_next=true`: read the next `pipeline.phases[]` entry after the current one and begin it **in this same session** via its state file — no new process. On failure, print the manual `/<next.command> scraper=<scraper> project=<project>` line.

@@ -19,5 +19,10 @@ From the invocation, extract: `url=` (required), `name=` (required), `project=` 
 ## Execute
 Follow the phase doc **exactly** (all STEPs). Apply the template substitutions it defines (`{output_dir}`, `{scraper}`, `{project}`, `<next_phase_from_profile>`, etc.).
 
+## Phase report (required before marking done)
+After all state files are written: write `.scraper-state/reports/01-scrape.md`.
+Follow the two-zone schema in `docs/shared/phase-report-spec.md` (template: `templates/phase-report-template.md`).
+Zone 1 = structured table (required rows). Zone 2 = free narrative (observations, surprises, next-phase watch-outs).
+
 ## Auto-chain (in-session)
 If `auto_next=true`: close the browser, then read `pipeline.phases[1]` from the profile and **immediately begin that phase in this same session** using its state file — do **not** spawn a new process or shell script. If the next phase fails, stop and print the manual `/<pipeline.phases[1].command> scraper=<name> project=<project>` line for the user.

@@ -16,5 +16,10 @@ From the invocation, extract: `scraper=`, `project=` (must be **`dhero`**), `url
 2. Find the pipeline phase **`menu-listings-parser`** — read its **`workflow`** path (authoritative).
 3. `read_file` → that phase doc; execute every STEP.
 
+## Phase report (required before marking done)
+After all state files are written and parser tests pass: write `.scraper-state/reports/04-menu-listings.md`.
+Follow the two-zone schema in `docs/shared/phase-report-spec.md` (template: `templates/phase-report-template.md`).
+Zone 1 = structured table (required rows). Zone 2 = free narrative.
+
 ## Auto-chain (in-session)
 If `auto_next=true`: begin **`menu-parser`** (the next `pipeline.phases[]` entry) **in this same session** via its state file — no new process. On failure, print the manual `/menu-parser scraper=<scraper> project=dhero` line.
