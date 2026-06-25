@@ -14,8 +14,9 @@ GitHub: [hraihanm/gemini_cli_scraper_config](https://github.com/hraihanm/gemini_
 2. [Architecture at a glance](#architecture-at-a-glance)
 3. [Prerequisites](#prerequisites)
 4. [Installation](#installation)
-   - [1. Clone](#1-clone-this-repo) · [2. Playwright MCP Mod](#2-build-playwright-mcp-mod) · [3. MCP config](#3-point-the-mcp-config-at-the-build) · [4. Env](#4-set-environment-variables) · [5. Antigravity CLI](#5-register-skills--mcp-antigravity-cli) · [6. Cursor](#6-cursor-setup) · [7. Verify](#7-verify)
-5. [Usage](#usage)
+   - [1. Clone](#1-clone-this-repo) · [2. Playwright MCP Mod](#2-install-playwright-mcp-mod) · [3. MCP config](#3-point-mcp-configs-at-the-build) · [4. Env](#4-set-environment-variables) · [5. AGY skills](#5-register-skills--mcp-antigravity-cli) · [6. Cursor](#6-cursor--full-setup) · [7. Verify](#7-verify-everything)
+5. [Compatible clients](#compatible-clients)
+6. [Usage](#usage)
    - [Greenfield](#greenfield-pipeline-any-site) · [Retail / dmart](#retail-pipeline-dmart-dloc) · [Restaurant / dhero](#restaurant-pipeline-dhero) · [API](#api-pipeline) · [Full pipeline](#full-pipeline-one-command)
 6. [The QA gate & deploy-readiness](#the-qa-gate--deploy-readiness)
 7. [Knowledge base (`/kb`)](#knowledge-base-kb)
@@ -70,11 +71,18 @@ Everything is driven by **stable files in this repo** — the LLM orchestrates, 
 
 ## Prerequisites
 
-- **[Antigravity CLI](https://antigravity.google/docs/gcli-migration)** (`agy`) on PATH — and/or **[Cursor](https://cursor.com)**
-- **Node.js 18+** and **npm** (for the Playwright MCP Mod)
-- **Ruby 3.x** (for local parser syntax checks / the QA report script / CI)
-- **Git**, **PowerShell 7+** (`pwsh`) for the setup script on Windows
-- An **API key** for your model provider (set in `.agents/.env`)
+| Tool | Required for | Check |
+|---|---|---|
+| **[Antigravity CLI](https://antigravity.google/docs/gcli-migration)** (`agy`) | Primary AI client | `agy --version` |
+| **[Cursor](https://cursor.com)** | Alternative AI client | — |
+| **Node.js 18+** | Playwright MCP Mod | `node --version` |
+| **npm 9+** | Playwright MCP Mod | `npm --version` |
+| **Ruby 3.x** | QA report script + CI syntax checks | `ruby --version` |
+| **Git** | Clone repos | `git --version` |
+| **PowerShell 7+** (`pwsh`) | Setup script (Windows) | `pwsh --version` |
+| **API key** | Model provider | Set in `.agents/.env` |
+
+You need either `agy` or Cursor (or both). All other tools are required regardless.
 
 ---
 
@@ -83,15 +91,27 @@ Everything is driven by **stable files in this repo** — the LLM orchestrates, 
 ### 1. Clone this repo
 
 ```powershell
+# Windows (PowerShell)
 git clone https://github.com/hraihanm/gemini_cli_scraper_config.git
 cd gemini_cli_scraper_config
 ```
 
-### 2. Build Playwright MCP Mod
+```bash
+# macOS / Linux
+git clone https://github.com/hraihanm/gemini_cli_scraper_config.git
+cd gemini_cli_scraper_config
+```
 
-This project's browser/parser tools come from a custom fork of Microsoft's Playwright MCP. Clone it **as a sibling directory** and build it.
+---
+
+### 2. Install Playwright MCP Mod
+
+This project's browser and parser tools come from a custom fork of Microsoft's Playwright MCP. It must be cloned **as a sibling** to this repo and built before any agent session.
+
+#### 2a. Clone and build
 
 ```powershell
+# Windows — run from the parent of gemini_cli_scraper_config
 git clone -b experiment https://github.com/hraihanm/playwright-mcp-mod.git ..\playwright-mcp-mod
 cd ..\playwright-mcp-mod
 npm install
@@ -99,14 +119,59 @@ npm run build
 cd ..\gemini_cli_scraper_config
 ```
 
-> See `README - Playwrgiht MCP Mod.md` in this repo for the mod's own details. Re-run `npm run build` in `../playwright-mcp-mod` after any change to the mod.
+```bash
+# macOS / Linux
+git clone -b experiment https://github.com/hraihanm/playwright-mcp-mod.git ../playwright-mcp-mod
+cd ../playwright-mcp-mod
+npm install
+npm run build
+cd ../gemini_cli_scraper_config
+```
 
-### 3. Point the MCP config at the build
+Expected result: `lib/index.js` now exists inside `playwright-mcp-mod/`.
 
-Two MCP config files reference the mod by **absolute path** — update both if you cloned elsewhere:
+#### 2b. Install the Playwright browser
 
-- `.agents/mcp_config.json` — Antigravity CLI
-- `.cursor/mcp.json` — Cursor
+```bash
+cd ..\playwright-mcp-mod   # or ../playwright-mcp-mod on Mac/Linux
+npx playwright install chromium
+cd ..\gemini_cli_scraper_config
+```
+
+This downloads the Chromium binary. Required once; skip on subsequent machines if already installed.
+
+#### 2c. Verify the build
+
+```bash
+node ..\playwright-mcp-mod\lib\index.js --help
+```
+
+You should see the Playwright MCP CLI help output. If you get `Cannot find module`, the build didn't complete — re-run `npm run build`.
+
+#### 2d. Rebuild after mod changes
+
+Whenever you pull new changes to `playwright-mcp-mod` or add a new tool:
+
+```bash
+cd ..\playwright-mcp-mod
+npm run build
+cd ..\gemini_cli_scraper_config
+```
+
+Then **restart your client** (agy / Cursor / Claude Code). New tools are only available after a rebuild + restart. Run `npm run check-drift` to verify the README tool list matches the implementation.
+
+---
+
+### 3. Point MCP configs at the build
+
+Two config files reference the mod by **absolute path**. If you cloned to a different location, update both:
+
+| File | Used by |
+|---|---|
+| `.agents/mcp_config.json` | Antigravity CLI (`agy`) |
+| `.cursor/mcp.json` | Cursor |
+
+Both files use the same structure:
 
 ```json
 {
@@ -119,7 +184,11 @@ Two MCP config files reference the mod by **absolute path** — update both if y
 }
 ```
 
-`--caps vision` enables coordinate-based clicks (needed for popup handling and image checks).
+Replace `D:\\DataHen\\projects\\playwright-mcp-mod` with your actual absolute path. On Windows, use `\\` in JSON strings (or forward slashes — both work).
+
+`--caps vision` enables coordinate-based click tools (`browser_mouse_click_xy`, etc.) needed for popup handling. Do not remove it.
+
+---
 
 ### 4. Set environment variables
 
@@ -136,6 +205,10 @@ AGY_API_KEY="your_api_key_here"
 
 > `.agents/.env` is gitignored — never commit it.
 
+Available model IDs depend on your API provider. For Google AI: `gemini-2.0-flash`, `gemini-2.5-pro`, etc.
+
+---
+
 ### 5. Register skills + MCP (Antigravity CLI)
 
 From the repo root:
@@ -144,34 +217,198 @@ From the repo root:
 pwsh -NoProfile -File scripts/setup-agy.ps1
 ```
 
-What it does:
+What the script does:
 
 | Step | Why |
 |---|---|
-| Syncs `.agents/skills/<name>/SKILL.md` → `~/.gemini/antigravity-cli/skills/` and `~/.gemini/skills/` | AGY global skills (available from any cwd) |
-| Syncs the same skills → `~/.cursor/skills/` | Cursor gets the identical `/<name>` commands |
-| Stages `.agents/plugins/gemini_cli_testbed/skills/` and runs `agy plugin install` | Registers the `playwright-mod` MCP + plugin commands |
+| Syncs `.agents/skills/<name>/SKILL.md` → `~/.gemini/antigravity-cli/skills/` | AGY global skills, available from any working directory |
+| Syncs the same skills → `~/.cursor/skills/` | Cursor gets the identical `/` commands |
+| Runs `agy plugin install .agents/plugins/gemini_cli_testbed` | Registers the `playwright-mod` MCP server + plugin |
 
-Then restart `agy` **from the repo root** (it also auto-discovers the workspace `.agents/skills/`):
+Re-run this script any time you add or edit a skill.
+
+Then start agy **from the repo root**:
 
 ```powershell
 agy
 ```
 
-### 6. Cursor setup
+---
 
-The setup script already copied the skills to `~/.cursor/skills/`, so `/scrape`, `/qa`, `/kb`, etc. work in Cursor too. For the browser tools, Cursor reads `.cursor/mcp.json` (step 3) — open **Cursor → Settings → MCP** and confirm **playwright-mod** is connected. Re-run `setup-agy.ps1` after any skill change to re-sync Cursor.
+### 6. Cursor — full setup
 
-### 7. Verify
+Cursor is the recommended IDE for using this system. Skills work as slash commands; the browser tools are available via MCP.
 
-- In `agy`/Cursor, open **`/mcp`** → `playwright-mod` listed and connected.
-- Type **`/`** → you should see the command skills (`/scrape`, `/navigation-parser`, `/details-parser`, `/qa`, `/run-pipeline`, `/kb`, …) and **no** knowledge skills.
-- Run **`/kb`** → it loads `docs/shared/KB_HUB.md` (the knowledge index).
-- Deterministic repo self-check (no agent needed):
+#### 6a. Open the project
+
+Open the `gemini_cli_scraper_config` folder in Cursor (`File → Open Folder`). Cursor reads `.cursor/mcp.json` from the project root automatically.
+
+#### 6b. Connect the MCP server
+
+1. Go to **Cursor → Settings → MCP** (or `Ctrl+Shift+P` → "Open MCP Settings")
+2. You should see `playwright-mod` in the list
+3. Status should be **connected** (green dot) — if not, click **Restart**
+4. If still disconnected: open **View → Output**, select `MCP` from the dropdown, and read the launch error. Common causes:
+   - Wrong path in `.cursor/mcp.json`
+   - `npm run build` was not run (missing `lib/index.js`)
+   - Node.js not on PATH
+
+#### 6c. Sync skills (slash commands)
+
+Skills are synced to `~/.cursor/skills/` by `setup-agy.ps1` (step 5). If you skipped it:
+
+```powershell
+pwsh -NoProfile -File scripts/setup-agy.ps1
+```
+
+Restart Cursor after running the script.
+
+#### 6d. Verify slash commands
+
+In any Cursor chat window, type `/` — you should see the command skills appear:
+
+```
+/scrape
+/navigation-parser
+/details-parser
+/qa
+/run-pipeline
+/kb
+/greenfield-scrape
+/api-scrape
+...
+```
+
+If no skills appear: re-run `setup-agy.ps1` and restart Cursor.
+
+#### 6e. Verify browser tools
+
+In a Cursor chat, ask:
+
+```
+List available MCP tools
+```
+
+You should see `browser_grep_html`, `browser_snapshot`, `parser_tester`, `browser_network_requests_simplified`, etc. in the response.
+
+#### 6f. Run your first command
+
+```
+/scrape url=https://example.com name=test-scraper project=greenfield
+
+Extract: product name, price, URL
+```
+
+Cursor will open a browser window, navigate to the site, and begin Phase 1 discovery.
+
+#### 6g. How skills interact with Cursor rules
+
+The project has `.cursor/rules/` files that act as scoped context (equivalent to AGENTS.md but Cursor-native). The agent skills (`.agents/skills/`) are the slash commands. They are separate layers:
+
+| Layer | File(s) | Loaded |
+|---|---|---|
+| Cursor rules | `.cursor/rules/*.mdc` | Automatically, scoped to matching files |
+| Agent firmware | `AGENTS.md` | When using `agy`; also readable by Cursor as context |
+| Skills | `~/.cursor/skills/<name>/SKILL.md` | On `/<name>` invocation |
+| Knowledge base | `docs/shared/` | On demand via `read_file` from inside a skill |
+
+---
+
+### 7. Verify everything
 
 ```bash
+# Deterministic checks — no agent needed
 bash scripts/ci-check.sh
 ```
+
+In `agy` or Cursor:
+
+```
+/mcp                     → playwright-mod shows connected
+/                        → skills list appears (scrape, qa, kb, ...)
+/kb                      → loads docs/shared/KB_HUB.md
+```
+
+---
+
+## Compatible clients
+
+This system is designed around two native clients but the knowledge base and skills are accessible from any tool that can read files and/or supports MCP.
+
+### Antigravity CLI (`agy`) — primary
+
+**AGENTS.md support:** Native — `AGENTS.md` is auto-loaded as firmware at session start.
+**Skills support:** Native — `.agents/skills/<name>/SKILL.md` files register as `/name` slash commands.
+**MCP support:** Via `.agents/mcp_config.json`.
+
+Full setup: steps 4–5 above.
+
+### Cursor — secondary
+
+**AGENTS.md support:** Indirect — `AGENTS.md` content is referenced by `.cursor/rules/` files. The setup script syncs these.
+**Skills support:** Via `~/.cursor/skills/` (synced by `setup-agy.ps1`). Same skill files, same slash commands.
+**MCP support:** Via `.cursor/mcp.json`.
+
+Full setup: steps 3 + 6 above.
+
+### Claude Code
+
+**AGENTS.md support:** Claude Code reads `CLAUDE.md` as its primary instruction file (present in this repo). `AGENTS.md` is visible as a project file and Claude Code will respect it as additional context.
+**Skills support:** Skills can be invoked by referencing the skill file path or by running `agy` in a terminal tab. No native slash command registration.
+**MCP support:** Add to `.mcp.json` in the project root:
+
+```json
+{
+  "mcpServers": {
+    "playwright-mod": {
+      "command": "npx",
+      "args": ["D:\\DataHen\\projects\\playwright-mcp-mod", "--caps", "vision"]
+    }
+  }
+}
+```
+
+Then restart Claude Code. The browser and parser tools will be available in Claude Code sessions.
+
+**Knowledge base:** Claude Code can `read_file` any spoke in `docs/shared/` directly — the same KB the agent skills use.
+
+### Windsurf
+
+**AGENTS.md support:** Windsurf has `.windsurfrules` (analogous to `.cursorrules`). Copy the relevant sections of `AGENTS.md` into `.windsurfrules` to give Windsurf the same persona and constraints.
+**Skills support:** Not natively. Adapt skills by copying relevant SKILL.md content into Windsurf custom instructions or system prompts.
+**MCP support:** Edit `~/.windsurf/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "playwright-mod": {
+      "command": "npx",
+      "args": ["D:\\DataHen\\projects\\playwright-mcp-mod", "--caps", "vision"]
+    }
+  }
+}
+```
+
+Restart Windsurf after saving.
+
+### GitHub Copilot (VS Code)
+
+**AGENTS.md support:** Via `.github/copilot-instructions.md` — copy the relevant parts of `AGENTS.md` there.
+**Skills support:** Not natively. The slash commands won't work; use the phase docs in `docs/workflows/phases/` as manual step-by-step references.
+**MCP support:** GitHub Copilot in VS Code supports MCP as of early 2026. Add the playwright-mod config in VS Code's MCP settings (`settings.json → "github.copilot.mcp"`).
+
+### Any MCP-compatible client
+
+The playwright-mod tools work with any client that supports the MCP protocol (HTTP/SSE or stdio transport). Configure the server the same way:
+
+```json
+{
+  "command": "npx",
+  "args": ["<absolute-path-to-playwright-mcp-mod>", "--caps", "vision"]
+}
+```
+
+The knowledge base (`docs/shared/`) can be read by any agent that can call `read_file` or access the local filesystem.
 
 ---
 
