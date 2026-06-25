@@ -1,3 +1,6 @@
+# Uncomment when any page uses fetch_type: "browser"
+# browser_fetcher_image: gcr.io/answers-engine-cloud/fetch-browser-chrome1
+
 seeder:
   file: ./seeder/seeder.rb
   disabled: false

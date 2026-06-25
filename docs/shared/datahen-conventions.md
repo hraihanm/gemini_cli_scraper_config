@@ -81,11 +81,7 @@ scraped_at_timestamp: Time.parse(page['fetched_at']).strftime('%Y-%m-%d %H:%M:%S
 
 DataHen workers run **Ruby 2.6.5**. All parser and lib files must be Ruby 2.6 compatible.
 
-**Pin the version** — every scraper project root must contain a `.ruby-version` file:
-```
-2.6.5
-```
-DataHen reads this file via rbenv and selects the correct interpreter. Supported versions: `2.4.4, 2.4.9, 2.5.3, 2.5.7, 2.6.5, 2.7.2, 3.0.1`.
+DataHen workers default to **Ruby 2.6.5** when no `.ruby-version` is present. Do **not** add a `.ruby-version` file unless you need to select a different supported version. Supported versions: `2.4.4, 2.4.9, 2.5.3, 2.5.7, 2.6.5, 2.7.2, 3.0.1`.
 
 **Forbidden Ruby 3+ syntax** — do NOT use in any parser or lib file:
 ```ruby
@@ -327,6 +323,47 @@ pages << {
 ```ruby
 driver: { name: "retry_#{page['refetch_count']}_#{page['url'].hash.abs}" }
 ```
+
+---
+
+## Browser Fetch (`fetch_type: "browser"`)
+
+When any page uses `fetch_type: "browser"`, the scraper needs a browser fetcher image. Add this to `config.yaml` at the top level:
+
+```yaml
+browser_fetcher_image: gcr.io/answers-engine-cloud/fetch-browser-chrome1
+```
+
+Without this line the job will fail to fetch browser pages. The dmart/greenfield/dhero boilerplate `config.yaml` files have this line commented out — uncomment it whenever you add a `fetch_type: "browser"` page.
+
+### Driver code constraints — Puppeteer, not Playwright
+
+DataHen's browser driver runs on **Puppeteer** (via Browserless). Playwright pseudo-selectors are **not valid** in driver code.
+
+**Forbidden** (Playwright-only, crashes on DataHen):
+```javascript
+// ❌ :has-text() is Playwright syntax — Puppeteer throws DOMException
+await page.click('nav button:has-text("Kategóriák")');
+await page.$('span:text("Add to cart")');
+```
+
+**Use XPath or evaluate instead:**
+```javascript
+// ✅ XPath — supported by Puppeteer's page.$x()
+const [btn] = await page.$x('//nav//button[contains(., "Kategóriák")]');
+if (btn) { await btn.click(); }
+await sleep(2000);
+
+// ✅ evaluate — use querySelectorAll + text filter
+await page.evaluate(() => {
+  const btn = [...document.querySelectorAll('nav button')]
+    .find(b => b.textContent.includes('Kategóriák'));
+  if (btn) btn.click();
+});
+await sleep(2000);
+```
+
+Other Playwright-specific APIs that don't work: `:text()`, `locator()`, `getByRole()`, `waitForLoadState('networkidle')` (use `waitUntil: 'networkidle0'` in `goto_options` instead).
 
 ---
 

@@ -1,5 +1,8 @@
 scraper_image: gcr.io/answers-engine-cloud/dhero-scraper-worker:latest
 
+# Uncomment when any page uses fetch_type: "browser"
+# browser_fetcher_image: gcr.io/answers-engine-cloud/fetch-browser-chrome1
+
 env_vars:
   - name: DBHOST
     global_name: DBHOST
