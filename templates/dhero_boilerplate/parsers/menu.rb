@@ -52,8 +52,8 @@ menu_category   = page['vars']&.dig('category_name')
 #   categories.each do |section|
 #     category_name = section['name']
 #     (section['items'] || []).each_with_index do |item_data, idx|
-#       item_name        = item_data['name']
-#       next if item_name.nil? || item_name.empty?
+#       item_name        = Extraction.str_empty_to_nil(item_data['name'])
+#       next if item_name.nil?
 #       item_description = item_data['description']
 #       item_price       = item_data['price']&.to_f
 #       item_price       = nil if item_price == 0
@@ -106,8 +106,8 @@ html.css('PLACEHOLDER_MENU_SECTION_SELECTOR').each do |section|
 
   section.css('PLACEHOLDER_MENU_ITEM_SELECTOR').each_with_index do |el, idx|
     begin
-      item_name = el.at_css('PLACEHOLDER_ITEM_NAME_SELECTOR')&.text&.strip
-      next if item_name.nil? || item_name.empty?
+      item_name = Extraction.str_empty_to_nil(el.at_css('PLACEHOLDER_ITEM_NAME_SELECTOR')&.text&.strip)
+      next if item_name.nil?
 
       item_description  = el.at_css('PLACEHOLDER_ITEM_DESCRIPTION_SELECTOR')&.text&.strip
       item_description  = nil if item_description&.empty?

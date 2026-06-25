@@ -145,7 +145,28 @@ e) **Manual pagination strategies** (only if `browser_detect_pagination` returne
 
    **Page-1-only guard:** After implementing pagination, if the listings parser still only ever queues **page-1** detail URLs, set `navigation-selectors.json` → `listings.pagination_warning` to a **non-empty** string describing which strategies were tried and what failed. Include the same warning in `_notes` and echo it in **bold** in the completion report.
 
-f) Edit `parsers/listings.rb` (USE ABSOLUTE PATH):
+f) **Listings completeness probe — can details phase be skipped?**
+
+Before editing `listings.rb`, check whether the listing page already delivers all required fields. If yes, output inline here and disable the details parser entirely.
+
+**Run this probe on 3 sample listing pages:**
+- dmart/greenfield: does each product card contain `name`, `price`, `image`, `brand`? Check with `browser_grep_html` or inspect the JSON response.
+- dhero listings: does each restaurant card contain `name`, `address`, `city`, `lat/long`, `phone`, `rating`?
+
+**Completeness threshold:**
+- Required fields (`priority: 1`) present on ≥ 90% of items → skip details phase
+- Desirable fields (`priority: 2`) present on ≥ 50% of items → preferred but not blocking
+
+**If completeness check passes:**
+1. Add inline output extraction to `listings.rb` — emit `outputs <<` with all spec fields; set unavailable fields to `nil`
+2. Do NOT queue detail URLs (`pages <<`) for items already fully extracted
+3. Set `details_parser_needed: false` in `navigation-selectors.json`
+4. Set `disabled: true` on the details parser in `config.yaml`
+5. Add `_log` entry: `{ action: "phase_skip", phase: "details", reason: "listings page delivers all required fields", evidence: "<what you found>" }`
+
+**If completeness check fails** (missing required fields on listings page) → proceed with full pipeline as normal.
+
+g) Edit `parsers/listings.rb` (USE ABSOLUTE PATH):
    - Replace product link selector
    - Update Strategy 1 with discovered `product_count_selector`, `product_count_regex`, `products_per_page`, pagination pattern
    - Keep Strategy 1 as primary — **activate fallbacks in code** when count-based pagination yields no second page
