@@ -1,38 +1,58 @@
 # ============================================================================
-# Helper Functions - DataHen v3 Boilerplate
-# ============================================================================
+# Helper Functions — dmart / greenfield boilerplate
+# require './lib/helpers'  in every parser
 #
-# PURPOSE: Common utility functions used across parser files for data extraction.
-#
-# USAGE:
-# - Require in parsers: require './lib/helpers'
-# - Use directly: text_of(element), number_from(text), boolean_from(text)
-#
-# NO CHANGES NEEDED:
-# - These functions are generic and work for most sites
-# - Only modify if site has specific text/number/boolean patterns
+# Shared extraction normalizers (json_ld_for_type, og_value, price_from,
+# fix_image_url, md5_id, str_empty_to_nil, etc.) live in ./lib/extraction.rb
 # ============================================================================
 
-# Extract text content from an element safely
-# Returns nil if element is nil, otherwise returns stripped text
-# Usage: text_of(html.at_css('.selector'))
+require './lib/extraction'
+
+# Convenience wrappers — thin delegation to Extraction module so parsers
+# can call empty_to_nil() without module prefix if preferred.
+def empty_to_nil(str)
+  Extraction.str_empty_to_nil(str)
+end
+
 def text_of(element)
   element&.text&.strip
 end
 
-# Extract number from text (removes currency symbols, commas, etc.)
-# Returns float value or nil if text is nil/empty
-# Usage: number_from("$1,234.56") => 1234.56
-# Usage: number_from(html.at_css('.price')&.text) => 1234.56
-def number_from(text)
-  text.to_s.gsub(/[^\d.]/, '').to_f if text
-end
-
-# Convert text to boolean based on common availability patterns
-# Returns true if text matches "available", "in stock", etc.
-# Usage: boolean_from("In Stock") => true
-# Usage: boolean_from(html.at_css('.availability')&.text) => true/false
 def boolean_from(text)
   text.to_s.downcase.match?(/true|yes|available|in.?stock/i)
 end
 
+# ---------------------------------------------------------------------------
+# Error handling — see docs/shared/datahen-autorecovery.md
+# ---------------------------------------------------------------------------
+
+MAX_REFETCH = 3
+
+# Standard fetch-error recovery. Route by HTTP status; retry up to MAX_REFETCH times.
+# Always calls finish — stops parser execution after recovery action.
+def autorecovery(reason: nil, status: nil)
+  status ||= page['failed_response_status_code']
+  msg = [reason, status && "HTTP #{status}"].compact.join(' | ')
+  puts "RECOVERY: #{msg}" if ENV['debug']
+  case status
+  when 404
+    limbo page['gid']
+  when 403, 429
+    refetch page['gid']
+  else
+    page['refetch_count'].to_i >= MAX_REFETCH ? limbo(page['gid']) : refetch(page['gid'])
+  end
+  finish
+end
+
+# Backward-compat alias
+def autorefetch(reason = nil)
+  autorecovery(reason: reason)
+end
+
+# Explicit no-retry limbo — for permanent failures or out-of-scope pages
+def autolimbo(reason = nil)
+  puts "LIMBO: #{reason}" if ENV['debug']
+  limbo page['gid']
+  finish
+end

@@ -1,5 +1,8 @@
 scraper_image: gcr.io/answers-engine-cloud/dhero-scraper-worker:latest
 
+# Uncomment when any page uses fetch_type: "browser"
+# browser_fetcher_image: gcr.io/answers-engine-cloud/fetch-browser-chrome1
+
 env_vars:
   - name: DBHOST
     global_name: DBHOST
@@ -32,6 +35,16 @@ parsers:
     file: ./parsers/menu.rb
     disabled: false
 
+# Re-run parsers on fetch-failed pages so error-taxonomy handling + debug
+# collections (restaurant_not_found, *_fetch_failed) capture them.
+parse_failed_pages: true
+
+# Optional post-job dedup/normalize pass. Enable only when the source emits
+# duplicate restaurants across pages/cities.
+finisher:
+  file: ./finisher/finisher.rb
+  disabled: true
+
 exporters:
   # A3 — menu items (full row, internal fields stripped)
   - exporter_name: items_a3
@@ -52,7 +65,7 @@ exporters:
       - id
       - restaurant_id
 
-  # A1 — restaurant core location data (address, contact, rating)
+  # A1 — restaurant core location data (address, contact, rating, hours, tags, delivery zones)
   - exporter_name: locations_a1
     exporter_type: json
     collection: locations
@@ -71,14 +84,12 @@ exporters:
       - id
       - restaurant_id
       - cuisine_name
-      - opening_hours
-      - restaurant_tags
-      - restaurant_delivery_zones
       - img_url
       - description
       - free_field
+      - crawled_source
 
-  # A2 — restaurant rich data (hours, tags, delivery zones, media)
+  # A2 — restaurant rich data (hours, tags, delivery zones, cuisine list, free_field)
   - exporter_name: locations_a2
     exporter_type: json
     collection: locations
@@ -110,3 +121,9 @@ exporters:
       - restaurant_position
       - number_of_ratings
       - main_cuisine
+      - is_permanently_closed
+      - input_lat
+      - input_long
+      - img_url
+      - description
+      - crawled_source

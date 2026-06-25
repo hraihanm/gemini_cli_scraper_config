@@ -1,0 +1,61 @@
+name: agent-ci
+
+# Gates the agent's own assets: parser/script syntax, required files, profile/spec
+# validity, and (best-effort) parser eval fixtures. Runs the same scripts/ci-check.sh
+# that contributors run locally.
+
+on:
+  push:
+    branches: [main, dev, "feat/**"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  checks:
+    name: Deterministic checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run ci-check.sh
+        run: bash scripts/ci-check.sh
+
+  evals:
+    name: Parser evals (best-effort)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+      - name: Install parser gems
+        run: gem install nokogiri addressable --no-document
+      - name: Run eval fixtures where present
+        shell: bash
+        run: |
+          set -uo pipefail
+          shopt -s nullglob
+          status=0
+          found=0
+          # Any scraper dir containing an evals/ folder gets its fixtures run.
+          for evdir in $(find generated_scraper original_scraper -type d -name evals 2>/dev/null); do
+            sdir="$(dirname "$evdir")"
+            found=1
+            echo "::group::evals for $sdir"
+            if ruby scripts/run_evals.rb "$sdir"; then
+              echo "ok: $sdir"
+            else
+              echo "::error::eval regression in $sdir"
+              status=1
+            fi
+            echo "::endgroup::"
+          done
+          if [ "$found" -eq 0 ]; then
+            echo "No eval fixtures found — nothing to run."
+          fi
+          exit $status

@@ -1,27 +1,31 @@
 ---
 name: details-parser
-description: Phase 3 detail parser (product-style). Usage: /details-parser scraper=<name> [project=dmart-dloc|...] [url=<detail_url>] [spec=<path>] [auto_next=true]
+description: "Phase 3 detail parser (product-style). Usage: /details-parser scraper=<name> [project=dmart-dloc|...] [url=<detail_url>] [spec=<path>] [auto_next=true]"
 ---
 
-Phase 3: Details parser. Session-independent.
+When the user types `/details-parser ...`, run **Phase 3: Details parser**. Session-independent.
 
 ## Preamble
-Read these shared rule files before executing anything:
-1. `read_file` → `docs/shared/agent-rules-gemini.md`
-2. `read_file` → `docs/shared/datahen-conventions.md`
-3. `read_file` → `docs/shared/selector-discovery.md`
-4. `read_file` → `docs/shared/output-hash-rules.md`
+Firmware rules apply via `AGENTS.md`; also `read_file` → `docs/shared/agent-rules-gemini.md`. Load KB spokes as needed (index: `docs/shared/KB_HUB.md`): `read_file` → `docs/shared/datahen-conventions.md`, `docs/shared/selector-discovery.md`, `docs/shared/output-hash-rules.md`.
 
 ## Parse args
-From the slash command invocation, extract: `scraper=`, `project=` (default `dmart-dloc`), `url=`, `spec=`, `collection=`, `resume-url=`, `out=`, `auto_next=`.
+From the invocation, extract: `scraper=`, `project=` (default `dmart-dloc`), `url=`, `spec=`, `collection=`, `resume-url=`, `out=`, `auto_next=`.
 
-## Profile and workflow
+## Load profile and phase doc
 1. `read_file` → `profiles/<project>.toml`.
-2. Find pipeline phase for **details-parser** — read its `workflow` path from the profile (authoritative). Check if this is the **last** phase.
-3. `read_file` → that workflow file.
+2. Find the pipeline phase for **`details-parser`** — read its `workflow` path from the profile (authoritative). Note whether this is the **last** phase.
+3. `read_file` → that phase doc.
 
 ## Execute
-Follow the workflow **exactly**.
+Follow the phase doc **exactly**.
 
-## Auto-chain
-Only if **not** last phase and `auto_next=true` — chain via **`scripts/chain.ps1`** / **`scripts/chain.sh`** per agent rules; else final summary only.
+## Auto-chain (in-session)
+Only if this is **not** the last phase and `auto_next=true`: read the next `pipeline.phases[]` entry and begin it **in this same session** via its state file — no new process. Otherwise emit the final summary only. On failure, print the manual `/<next.command> ...` line.
+
+## Phase report (required before marking done)
+After all state files are written and parser tests pass: write `.scraper-state/reports/03-details-parser.md` (or the appropriate slug from the profile).
+Follow the two-zone schema in `docs/shared/phase-report-spec.md` (template: `templates/phase-report-template.md`).
+Zone 1 = structured table (required rows). Zone 2 = free narrative.
+
+## Write scraper README (if last phase)
+If this **is** the last phase: write `generated_scraper/<scraper>/README.md` using the template at `templates/scraper-readme-template.md`. Fill in the Summary table (site URL from `lib/headers.rb`, country/language/currency from the output hash, pipeline from active parsers in `config.yaml`). Add Key implementation notes for anything non-obvious (JSON-LD vs CSS strategy, CDN pattern, discount logic, etc.). List 2–3 real URLs used during `parser_tester` validation in "Tested against". Set Status to **Functional** if all active parsers passed; otherwise **Draft**.

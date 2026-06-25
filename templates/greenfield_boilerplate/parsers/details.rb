@@ -6,6 +6,22 @@
 require 'digest'
 require './lib/headers'
 
+# Error taxonomy: refetch transient 403, limbo persistent 500, debug-log other non-200.
+refetch page['gid'] if page['failed_response_status_code'] == 403
+if page['failed_response_status_code'] == 500
+  limbo page['gid']
+  finish
+end
+if page['response_status_code'] == 404
+  outputs << { _collection: 'product_not_found', _id: page['url'], url: page['url'] }
+  finish
+end
+if page['response_status_code'] && page['response_status_code'] != 200
+  outputs << { _collection: 'product_fetch_failed', _id: page['url'],
+               url: page['url'], status: page['response_status_code'] }
+  finish
+end
+
 html = Nokogiri::HTML(content) rescue nil
 vars = page['vars'] || {}
 

@@ -1,26 +1,28 @@
 ---
 name: navigation-parser
-description: Phase 2 navigation parser generation. Usage: /navigation-parser scraper=<name> [project=dmart-dloc|dhero|...] [resume-url=<url>] [out=<dir>] [auto_next=true]
+description: "Phase 2 navigation parser generation. Usage: /navigation-parser scraper=<name> [project=dmart-dloc|dhero|...] [resume-url=<url>] [out=<dir>] [auto_next=true]"
 ---
 
-Phase 2: Navigation parsers. Session-independent.
+When the user types `/navigation-parser ...`, run **Phase 2: Navigation parsers**. Session-independent.
 
 ## Preamble
-Read these shared rule files before executing anything:
-1. `read_file` → `docs/shared/agent-rules-gemini.md`
-2. `read_file` → `docs/shared/datahen-conventions.md`
-3. `read_file` → `docs/shared/selector-discovery.md`
+Firmware rules apply via `AGENTS.md`; also `read_file` → `docs/shared/agent-rules-gemini.md`. Load KB spokes as needed (index: `docs/shared/KB_HUB.md`): `read_file` → `docs/shared/datahen-conventions.md`, `docs/shared/selector-discovery.md`.
 
 ## Parse args
-From the slash command invocation, extract: `scraper=` (required), `project=` (default `dmart-dloc`), `resume-url=`, `out=`, `auto_next=`.
+From the invocation, extract: `scraper=` (required), `project=` (default `dmart-dloc`), `resume-url=`, `out=`, `auto_next=`.
 
-## Profile and workflow
+## Load profile and phase doc
 1. `read_file` → `profiles/<project>.toml`.
 2. In `pipeline.phases`, locate the entry whose `command` (or `phase`) equals **`navigation-parser`** — use its `workflow` path from the profile (authoritative; do not assume a fixed index).
-3. `read_file` → that workflow file.
+3. `read_file` → that phase doc.
 
 ## Execute
-Follow the workflow **exactly**.
+Follow the phase doc **exactly**.
 
-## Auto-chain
-If `auto_next=true`: use **`scripts/chain.ps1`** / **`scripts/chain.sh`** per `docs/shared/agent-rules-gemini.md` with next `pipeline.phases[current_index+1].phase`, scraper, project.
+## Phase report (required before marking done)
+After all state files are written: write `.scraper-state/reports/02-navigation-parser.md`.
+Follow the two-zone schema in `docs/shared/phase-report-spec.md` (template: `templates/phase-report-template.md`).
+Zone 1 = structured table (required rows). Zone 2 = free narrative.
+
+## Auto-chain (in-session)
+If `auto_next=true`: read the next `pipeline.phases[]` entry after the current one and begin it **in this same session** via its state file — no new process. On failure, print the manual `/<next.command> scraper=<scraper> project=<project>` line.

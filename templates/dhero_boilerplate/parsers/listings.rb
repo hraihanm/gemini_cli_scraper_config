@@ -15,6 +15,18 @@
 
 require './lib/headers'
 
+# Error taxonomy: refetch transient 403, limbo persistent 500.
+refetch page['gid'] if page['failed_response_status_code'] == 403
+if page['failed_response_status_code'] == 500
+  limbo page['gid']
+  finish
+end
+if page['response_status_code'] && page['response_status_code'] != 200
+  outputs << { _collection: 'listings_fetch_failed', _id: page['url'],
+               url: page['url'], status: page['response_status_code'] }
+  finish
+end
+
 html     = Nokogiri::HTML(content)
 base_url = URLs::BASE_URL
 
@@ -33,7 +45,7 @@ restaurant_links.each_with_index do |link, idx|
     restaurant_url = href.start_with?('http') ? href : "#{base_url}#{href}"
 
     restaurant_name = link.text.strip
-    rank = (page[:vars]&.dig('page_number').to_i - 1) * 20 + idx + 1 rescue idx + 1
+    rank = (page['vars']&.dig('page_number').to_i - 1) * 20 + idx + 1 rescue idx + 1
 
     pages << {
       url:       restaurant_url,
@@ -42,14 +54,14 @@ restaurant_links.each_with_index do |link, idx|
       vars: {
         restaurant_name:  restaurant_name,
         rank_in_listing:  rank,
-        page_number:      page[:vars]&.dig('page_number') || 1,
+        page_number:      page['vars']&.dig('page_number') || 1,
       }
     }
   rescue => e
-    warn "[LISTINGS ERROR] url=#{page[:url]} idx=#{idx} error=#{e.message}"
+    warn "[LISTINGS ERROR] url=#{page['url']} idx=#{idx} error=#{e.message}"
   end
 end
-warn "[LISTINGS] url=#{page[:url]} queued=#{pages.length} restaurants"
+warn "[LISTINGS] url=#{page['url']} queued=#{pages.length} restaurants"
 
 # ============================================================================
 # Pagination
@@ -63,7 +75,7 @@ warn "[LISTINGS] url=#{page[:url]} queued=#{pages.length} restaurants"
 #   total = total_count_text.match(/(\d[\d,]*)/)[1].gsub(',','').to_i rescue 0
 #   per_page = restaurant_links.length
 #   total_pages = (total.to_f / per_page).ceil
-#   current_page = page[:vars]&.dig('page_number')&.to_i || 1
+#   current_page = page['vars']&.dig('page_number')&.to_i || 1
 #   ((current_page + 1)..total_pages).each do |pnum|
 #     pages << {
 #       url: "#{base_url}PLACEHOLDER_PAGINATION_PATTERN#{pnum}",
@@ -83,7 +95,7 @@ warn "[LISTINGS] url=#{page[:url]} queued=#{pages.length} restaurants"
 #     url:       next_url,
 #     page_type: "listings",
 #     headers:   ReqHeaders::MINIMAL_HEADERS,
-#     vars:      { page_number: (page[:vars]&.dig('page_number')&.to_i || 1) + 1 }
+#     vars:      { page_number: (page['vars']&.dig('page_number')&.to_i || 1) + 1 }
 #   }
 # end
 

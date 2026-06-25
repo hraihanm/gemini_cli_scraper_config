@@ -88,16 +88,28 @@ queued = 0
 # ============================================================================
 # Strategy B: Single-page menu — all items on this page (fallback)
 # Used when no separate category/page URLs are found.
-# The 'menu' parser will discover category_name from page CSS.
+#
+# 🚨 GID COLLISION: DataHen GID = hash(url). Re-queuing page['url'] with a
+# different page_type is silently dropped and the 'menu' page is NEVER fetched
+# (see docs/shared/datahen-conventions.md → "Page GID and URL Deduplication").
+#
+# PREFERRED for a truly single-page menu: extract items inline in
+# restaurant_details.rb (Strategy E in docs/workflows/phases/03-restaurant-details.md)
+# and disable menu_listings + menu in config.yaml — do NOT route through here.
+#
+# If you must queue from here, force a distinct GID with a harmless query param.
+# Confirm the site ignores the extra param before relying on it.
 # ============================================================================
 if queued == 0
+  sep = page['url'].include?('?') ? '&' : '?'
   pages << {
-    url:       page['url'],
+    url:       "#{page['url']}#{sep}_dh_menu=1",
     page_type: 'menu',
     headers:   ReqHeaders::MINIMAL_HEADERS,
     vars:      base_vars.merge(category_name: nil),
   }
   queued = 1
+  warn "[MENU_LISTINGS] single-page fallback used a _dh_menu=1 GID-buster — prefer inline Strategy E"
 end
 
 warn "[MENU_LISTINGS] url=#{page['url']} queued=#{queued} menu page(s)"

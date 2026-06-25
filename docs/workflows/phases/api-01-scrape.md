@@ -133,4 +133,4 @@ Write `session-audit-api_scrape.json` with real `tool_call_counts`. Display comp
 
 ### 10. Auto-chain (if auto_next=true)
 
-Spawn next phase via `scripts/chain.ps1` / `scripts/chain.sh` using `<next.command>` from profile pipeline.
+Begin the next phase **in this same session** using `<next.command>` from the profile `api_pipeline.phases`, handing off via its state file. Do not spawn a new process. See `docs/shared/agent-rules-gemini.md` → Auto-chain.

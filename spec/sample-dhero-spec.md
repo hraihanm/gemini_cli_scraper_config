@@ -20,19 +20,23 @@
 | A1.14 | restaurant_position | Position the restaurant was in the listing | integer, e.g.: 1, 2, 3, 4, 5 | Restaurant_Position can be empty when not available in the source | based on restaurant position, count it with scraper |  |
 | A1.15 | number_of_ratings | Number of user ratings | integer | It is usually displayed next to rating If missing, validate against the source - if the source does not have it, it should be null. | ratingCount |  |
 | A1.16 | main_cuisine | Main_cuisine is displayed under the restaurant information. Example “ Italian” , “ Vegan” etc | string | **one cuisine** | tags get the first one |  |
+| A1.17 | is_permanently_closed (added ~May 2023) | Whether the restaurant is permanently closed | boolean | `false` for all available restaurants. `null` if no suitable selector exists. Client does not want permanently closed locations in output. | HARDCODED false |  |
+| A1.18 | input_lat + input_long (added Aug 2023) | Latitude, longitude from the input list | float | Only applicable for geo-coordinate search scrapers. Confirm during feasibility check. `null` if not applicable. | page['vars']['input_lat'] / page['vars']['input_long'] |  |
 
-**A2: File structure format:: JSON :: RESTAURANT - VARIABLE FIELDS (standardized naming) **
+**A2: File structure format:: JSON :: RESTAURANT - VARIABLE FIELDS (standardized naming)**
+
+Note: `opening_hours`, `restaurant_tags`, and `restaurant_delivery_zones` appear in **both A1 and A2**.
 
 |  | **JSON field** | **Explanation** | **Format** | **QA Check** | **Retrieved From CI** | **Retrieved From BO** |
 | --- | --- | --- | --- | --- | --- | --- |
-| A2.1 | date | Date of scraping | String (YYYYMMDD) | Should be “date":"YYYYMMDD HH:MM:SS" ("date":"20191129 14:52:43") | fetched_at from scraper |  |
+| A2.1 | date | Date of scraping | String (YYYYMMDD) | Should be “date”:”YYYYMMDD HH:MM:SS” (“date”:”20191129 14:52:43”) | fetched_at from scraper |  |
 | A2.2 | lead_id | Unique lead identifier | UUID v4 | Should not repeat Should match the lead_id in A1 file More detailed check in QA Process “ **Lead ID Continuity Check”** | id |  |
 | A2.3 | url | Url from which restaurant info scraped | string | Present in website sources Should be null when the source is an APP | - |  |
-| A2.4 | cuisine_name | Json format, ordered as visible on website |  |  | tags |  |
-| A2.5 | opening_hours | JSON data containing a key per day of the week with a list of string values consisting of 24h open-close pairs Days on which restaurant is closed should be blank | .{ "Sun": ["1000-2200"], "Mon": ["0800-1130", "1600-2330"] } | **“opening_hours":null** Example: "opening_hours":{"Tue":["1100-1700"],"Wed":["1100-1700"],"Thu":["1100-1700"],"Fri":["1100-1700"]} | footerDescription get business hour from text with regex |  |
-| A2.6 | restaurant_tags | list of tags associated with the restaurant No standardized names, different per website | Array | **“restaurant_tags":null** Example: "restaurant_tags":["Burger", "Online payment"] | - |  |
-| A2.7 | restaurant_delivery_zones | Delivery zones associated with restaurants. Standardized names must include: delivery_zone, minimum_order_value, delivery_fee, currency (ISO 4217) | Hash | **“restaurant_delivery_zones":null** Example: "restaurant_delivery_zones":[{"delivery_zone":”Sanidego”,"minimum_order_value":0.0,"delivery_fee":null,"currency":"IQD"}] | - |  |
-| A2.8 | free_field |  | Hash | **“free_field":null** **null** . | - |  |
+| A2.4 | cuisine_name | Json format, ordered as visible on website. Keys: cuisine1, cuisine2, ... | e.g. { “cuisine1”: “pizza”, “cuisine2”: “burger” } | All cuisines captured. **”cuisine_name”:{}** if none found | tags |  |
+| A2.5 | opening_hours *(also in A1)* | JSON data containing a key per day of the week with a list of string values consisting of 24h open-close pairs Days on which restaurant is closed should be omitted | .{ “Sun”: [“1000-2200”], “Mon”: [“0800-1130”, “1600-2330”] } | **”opening_hours”:null** Example: “opening_hours”:{“Tue”:[“1100-1700”],”Wed”:[“1100-1700”],”Thu”:[“1100-1700”],”Fri”:[“1100-1700”]} | footerDescription get business hour from text with regex |  |
+| A2.6 | restaurant_tags *(also in A1)* | list of tags associated with the restaurant No standardized names, different per website | Array | **”restaurant_tags”:null** Example: “restaurant_tags”:[“Burger”, “Online payment”] | - |  |
+| A2.7 | restaurant_delivery_zones *(also in A1)* | Delivery zones associated with restaurants. Standardized names must include: delivery_zone, minimum_order_value, delivery_fee, currency (ISO 4217) | Hash | **”restaurant_delivery_zones”:null** Example: “restaurant_delivery_zones”:[{“delivery_zone”:”Sanidego”,”minimum_order_value”:0.0,”delivery_fee”:null,”currency”:”IQD”}] | - |  |
+| A2.8 | free_field |  | Hash | **”free_field”:null** **null** . | - |  |
 
 **A3: File structure format:: JSON :: menu ITEM LEVEL (dish) - VARIABLE FIELDS (standardized naming) **
 

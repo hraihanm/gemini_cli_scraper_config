@@ -96,6 +96,25 @@ browser_network_requests_simplified()
 // Look for /api/menu, /menu/categories, /items — JSON responses
 ```
 
+**Mandatory: Scroll + Interaction + Network Exhaustion Probe** — run BEFORE classifying structure.
+
+Full protocol: `docs/shared/pagination-network-exhaustion.md`. Required steps:
+
+1. **Scroll** — `browser_evaluate(() => window.scrollTo(0, document.body.scrollHeight))` × 3; run `browser_network_requests_simplified()` after each scroll
+2. **Tab/category clicks** — click each visible menu category chip/tab/section link one by one; after each click run:
+   ```javascript
+   browser_network_search({ query: "category|menu|items", searchIn: ["requestUrl", "responseBody"] })
+   ```
+   Record any new JSON endpoints (URL, params, method) — these are per-category API calls
+3. **Classify API** — if tab clicks trigger XHR, run `browser_get_request_context` on the discovered URL to separate stable vs ephemeral headers; record in `menu-listings-state.json.menu_api`
+
+Do **not** classify as Structure B or E until this probe is complete. A tab-click that triggers `/api/menu?categoryId=X` means Structure D (API) or Strategy A (queue per-category URL), never B.
+
+Add a `_log` entry per probe:
+```json
+{ "action": "pagination_probe", "surface": "menu_categories", "strategy": "<result>", "evidence": "<what triggered>" }
+```
+
 **Detect menu structure — classify into one of:**
 
 ### Structure A: Multi-category / tabbed
@@ -246,12 +265,13 @@ raw_items.each_with_index do |item, idx|
     cuisine:         cuisine,
 
     item_id:          item_id,
-    category_name:    item['PLACEHOLDER_CATEGORY_FIELD'],
+    menu_category:    item['PLACEHOLDER_CATEGORY_FIELD'],
     item_name:        item_name,
     item_description: item['PLACEHOLDER_DESCRIPTION_FIELD']&.strip,
     item_price:       item_price,
     item_is_promoted: false,
-    img_url:          item['PLACEHOLDER_IMAGE_FIELD'],
+    original_price:   nil,
+    menu_item_image_url: item['PLACEHOLDER_IMAGE_FIELD'],
     is_available:     true,  # agent replaces with actual availability field
     item_attributes:  nil,   # agent populates if options/modifiers exist
     barcode:          nil,
@@ -305,13 +325,31 @@ scraper_run_evals({ scraper_dir: "<absolute_path>/generated_scraper/<scraper>" }
     "has_separate_category_urls": true
   },
   "details_parser_needed": true,
+  "menu_api": {
+    "found": false,
+    "endpoint": null,
+    "method": "GET | POST",
+    "params": [],
+    "stable_headers": {},
+    "triggered_by": "tab_click | scroll | page_load | none"
+  },
+  "pagination_surfaces": [
+    {
+      "surface": "menu_categories",
+      "strategy": "page_number | offset | cursor | infinite_scroll | next_button | none",
+      "endpoint": null,
+      "probe_log": ["static_detect", "scroll", "tab_click", "network_capture"],
+      "evidence": "<what triggered / what was absent>",
+      "pagination_warning": null
+    }
+  ],
   "selectors_summary": {
     "category_tab": "<selector>",
     "category_url_attr": "href"
   },
   "test_urls": ["<menu_url1>", "<menu_url2>", "<menu_url3>"],
   "completed_at": "<timestamp>",
-  "_notes": "## Menu Listings phase\n\n- Structure detected\n- Strategy used\n- Selectors\n- Category count\n"
+  "_notes": "## Menu Listings phase\n\n- Structure detected\n- Strategy used\n- Selectors\n- Category count\n- menu_api found: yes/no\n"
 }
 ```
 
@@ -334,6 +372,8 @@ If `details_parser_needed: false` (Strategy E): Phase 5 is skipped. Report pipel
 ## Completion Checklist
 
 - ✅ Menu root URL correctly determined from `restaurant-details-state.json`
+- ✅ Scroll + tab-click + network probe completed before classifying structure (STEP 4 mandatory probe)
+- ✅ `menu_api` and `pagination_surfaces` recorded in state file
 - ✅ Menu structure classified (A/B/C/D/E)
 - ✅ `menu_listings.rb` implements the correct strategy
 - ✅ Tested on 3 restaurant menu URLs — each produces ≥ 1 `menu` page queued (A/B/C/D) OR ≥ 1 item output (E)

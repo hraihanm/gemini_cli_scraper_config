@@ -46,8 +46,12 @@ This allowed agents to read `.gitignore`d paths (`.scraper-state/`). The Antigra
 
 ```
 .agents/
-  plugin.json           ← REQUIRED plugin manifest — without it agy ignores all skills/MCP
   mcp_config.json       ← .gemini/settings.json (mcpServers only; url→serverUrl for HTTP)
+  plugins/
+    gemini_cli_testbed/
+      plugin.json       ← plugin manifest (NOT at .agents/plugin.json — breaks Skills panel)
+      mcp_config.json
+      skills/           ← staged by scripts/setup-agy.ps1 before plugin install
   skills/               ← .gemini/commands/*.toml converted to {name}/SKILL.md directories
     scrape/SKILL.md
     navigation-parser/SKILL.md
@@ -126,11 +130,16 @@ The old `.gemini/` directory is left in place (not deleted) as a fallback refere
 | 6 | Update `docs/shared/agent-rules-gemini.md` | Low |
 | 7 | Update `CLAUDE.md` | Low |
 | 8 | Install `agy` and smoke-test `/scrape` | Medium |
-| 9 | Run `agy plugin install .agents` — one-time registration per machine | Low |
+| 9 | Run `pwsh -File scripts/setup-agy.ps1` — sync skills to global paths + plugin install | Low |
 
-### Plugin install vs validate
+### Skills panel vs plugin install
 
-`agy plugin validate <path>` — validates structure only (dry run, does NOT register).
-`agy plugin install <path>` — registers the plugin with agy; persists across sessions. Required once per machine after cloning the repo.
+| Command | Effect |
+|---------|--------|
+| `agy plugin validate <path>` | Dry-run only; does **not** register |
+| `agy plugin install .agents/plugins/gemini_cli_testbed` | Registers MCP + plugin slash commands under `~/.gemini/config/plugins/` |
+| `scripts/setup-agy.ps1` | Copies skills to `~/.gemini/antigravity-cli/skills/` and `~/.gemini/skills/` so the TUI **Skills** panel lists them |
 
-The TUI "Skills" panel and slash-command completion both source from installed plugins. Without running `install`, the workspace is registered in `projects.json` but the plugin skills are invisible to agy.
+**Do not** put `plugin.json` at `.agents/plugin.json` (repo root of `.agents`) — that prevents workspace skill discovery. **Do not** keep duplicate flat `skills/foo.md` next to `skills/foo/SKILL.md`.
+
+Full runbook: `docs/antigravity-cli-setup.md`.

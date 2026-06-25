@@ -134,9 +134,71 @@ After popups cleared: `browser_snapshot()` to understand page structure.
 
 ---
 
-## STEP 7: Detect Browser Fetch Requirements
+## STEP 7: Detect Fetch Strategy
 
-Check if category links (or the first page type for this project) are visible in DOM:
+**Priority order — stop at the first that works:**
+
+| Priority | Method | When it applies |
+|---|---|---|
+| 1 | **Network API** | Site fires a JSON API call on page load (zero extra cost — requests already captured) |
+| 2 | **Framework JSON** | Next.js / Nuxt / Redux hydration blob baked into initial HTML |
+| 3 | **DOM links** | Category links already rendered in the DOM |
+| 4 | **Reveal button** | Links hidden behind a click — `fetch_type: "browser"` last resort |
+
+### 7a: Network scan (highest priority)
+
+Immediately after navigate and popup handling, run:
+
+```javascript
+browser_network_requests_simplified()
+```
+
+Requests fired during page load are already captured — this is zero-overhead. Scan for API endpoints serving navigation or category data:
+- URL contains: `/api/`, `/v1/`–`/v5/`, `/navigation`, `/categories`, `/menu`, `/graphql`, `/search`
+- Content-type: `application/json`
+- Response body: array or object containing category/navigation items
+
+**If a navigation API is found:**
+1. Note the full URL
+2. Proceed to **STEP 7d** (API Header Verification)
+3. Once verified: set `api_config.has_api: true`, `api_config.navigation_api_url: <url>`, `fetch_requirements.initial_page_needs_browser: false`
+4. Seeder will use this URL with `fetch_type: "standard"` (STEP 10)
+5. Skip 7b and 7c — proceed to STEP 8
+
+**If no navigation API found → proceed to 7b.**
+
+### 7b: Framework JSON (second priority)
+
+Probe for framework hydration data baked into the initial HTML:
+
+```javascript
+browser_evaluate(() => {
+  // Next.js
+  const next = document.querySelector('#__NEXT_DATA__');
+  if (next) return { framework: 'nextjs', found: true, preview: next.textContent.substring(0, 300) };
+  // Nuxt
+  const nuxt = document.querySelector('#__NUXT_DATA__') || document.querySelector('script[data-nuxt-data]');
+  if (nuxt) return { framework: 'nuxt', found: true, preview: nuxt.textContent.substring(0, 300) };
+  // Generic embedded state
+  const scripts = [...document.querySelectorAll('script[type="application/json"]')];
+  if (scripts.length) return { framework: 'generic', found: true, count: scripts.length, preview: scripts[0].textContent.substring(0, 300) };
+  return { found: false };
+})
+```
+
+**If framework JSON found:**
+1. Extract the full blob: `browser_evaluate(() => JSON.parse(document.querySelector('#__NEXT_DATA__').textContent))`
+2. Navigate the JSON tree for category/navigation data (keys: `categories`, `navigation`, `menu`, `nav`, `catalog`)
+3. Two outcomes:
+   - **Categories baked in** → extract URLs and names directly; seeder fetches the homepage with `fetch_type: "standard"` and the categories parser reads `#__NEXT_DATA__`; set `api_config.navigation_api_url: "__NEXT_DATA__"` (or `__NUXT_DATA__`) as the source marker
+   - **API URL embedded in props/config** → note the URL, proceed to **STEP 7d** (API Header Verification), then treat as a network API
+4. Skip 7c — proceed to STEP 8 (or 7d if an API URL was extracted)
+
+**If no framework JSON found → proceed to 7c.**
+
+### 7c: DOM inspection (third priority)
+
+Check if category links are already rendered:
 
 ```javascript
 browser_evaluate(() => {
@@ -156,13 +218,18 @@ browser_evaluate(() => {
       }
     } catch (e) {}
   }
-  return { found: false, message: "No category links found in DOM" };
+  return { found: false };
 })
 ```
 
-If not found → look for reveal buttons using `browser_snapshot()` and `browser_evaluate()`.
+If links visible → `fetch_type: "standard"`, no driver. Proceed to STEP 8.
 
-If reveal button found: test click, verify content appears, document selector and puppeteer_code.
+If not visible → proceed to 7d reveal button.
+
+### 7d: API Header Verification / Reveal button
+
+- **If here from 7a or 7b (API found):** run the API Header Verification protocol from STEP 7b (below). Confirm the endpoint returns real data with stable headers.
+- **If here from 7c (links hidden, last resort):** find the reveal button via `browser_snapshot()` and `browser_evaluate()`. Test click, verify content appears, document selector and puppeteer_code. Set `fetch_type: "browser"`. **Puppeteer driver code only — no Playwright pseudo-selectors (`:has-text()`, `:text()`, `locator()`). Use XPath `page.$x()` or `page.evaluate()` for text-based clicks (see `docs/shared/datahen-conventions.md` → "Browser Fetch").**
 
 Document findings in `discovery-state.json` under `fetch_requirements`:
 - `initial_page_needs_browser`: true/false
@@ -229,6 +296,46 @@ Discover sample URLs:
 
 ---
 
+## STEP 8b: Seeding Strategy (dhero only)
+
+**Run this step when `project=dhero`.** Choosing how to seed is the single highest-leverage architectural decision for a dhero scraper — most dhero sources are **not** crawled from a URL listing page. Inspect the site/app and pick exactly one strategy, then record it.
+
+| Strategy | When | How it seeds | Reference example |
+|---|---|---|---|
+| `geo_grid` | API takes lat/long; coverage needs many points | `input/geo.csv` of lat/long(/city) rows → one listings request per point | totersapp, mrsool |
+| `h3_hexagon` | API takes an H3 cell / hexagon id | city→hexagon map → widgets/merchant-list per cell | lezzoo |
+| `city_list` / `neighborhood_list` | API takes a city/neighborhood/zone id | iterate the id list → listings per id | talabatey, jahez |
+| `url_listings` | Real website with a paginated restaurant list (HTML) | seed the listings URL, paginate | openrice (HTML) |
+| `session_bootstrap` | API requires a user/token + set-location before listings | seed a bootstrap page that mints a token/sets location, then chains to listings | monchis |
+
+Detection cues:
+- Open the app/site, watch `browser_network_requests_simplified` while the restaurant list loads. If the listing request carries `lat`/`lng`, `hexagonId`, `city`/`zone`, or an `Authorization` token → it is API-driven (geo/h3/city/session), not `url_listings`.
+- GraphQL (`POST /graphql`) is a transport, not a seeding strategy — combine with whichever geo/city model the query variables use (yummy = geo_grid + GraphQL).
+- For `session_bootstrap`, capture the bootstrap request/response chain and note which header the token lands in (see STEP 7b).
+
+Record the decision in `discovery-state.json.seeding` (schema in STEP 9) and add a `seeding_strategy` `_log` entry (`{ "action": "seeding_strategy", "strategy": "...", "detail": "..." }`). When a geo/city input file is needed, note its expected columns so the seeder and `input/<file>.csv` can be filled in STEP 10.
+
+---
+
+## STEP 8c: Pagination Surface Probe (all projects)
+
+**Run this step after STEP 8 (and STEP 8b for dhero).** Load `docs/shared/pagination-network-exhaustion.md` for the full protocol. For every list surface identified in STEP 8 (product category listings, restaurant list, menu root, search results, etc.), run the three mandatory probes:
+
+1. `browser_detect_pagination()` — static detection
+2. Scroll + interaction — scroll to bottom 2–3 times; click each visible category/tab/filter; after each action run `browser_network_requests_simplified()` to capture newly triggered requests
+3. Network capture — `browser_network_search({ query: "<api_keyword>", searchIn: ["requestUrl","responseBody"] })` on any promising endpoints; `browser_get_request_context` to classify stable vs ephemeral headers
+
+Classify each surface (see protocol: `page_number | offset | cursor | infinite_scroll | geo_fanout | next_button | none`).
+
+`none` is only valid when all three probes are logged with evidence. A `none` without evidence is a **structural error — STOP**.
+
+Record in `discovery-state.json` under `pagination_surfaces` (schema in STEP 9). Add a `_log` entry:
+```json
+{ "action": "pagination_probe", "surface": "<surface>", "strategy": "<strategy>", "evidence": "<what triggered / what was absent>" }
+```
+
+---
+
 ## STEP 9: Write discovery-state.json (USE ABSOLUTE PATH)
 
 Path: `{output_dir}/<scraper>/.scraper-state/discovery-state.json`
@@ -284,6 +391,7 @@ Path: `{output_dir}/<scraper>/.scraper-state/discovery-state.json`
   },
   "api_config": {
     "has_api": false,
+    "navigation_api_url": null,
     "endpoint_pattern": null,
     "requires_custom_headers": false,
     "stable_headers": {},
@@ -292,7 +400,27 @@ Path: `{output_dir}/<scraper>/.scraper-state/discovery-state.json`
     "bare_test": "not_tested",
     "headers_test": "not_tested"
   },
-  "_notes": "## Discovery summary (markdown)\\n\\n- Site structure, sample URLs, popups, fetch_type notes\\n- **Next:** `/<next_phase_from_profile> scraper=<scraper_slug> project=<project>`\\n"
+  "seeding": {
+    "strategy": "geo_grid | h3_hexagon | city_list | neighborhood_list | url_listings | session_bootstrap",
+    "input_file": "input/geo.csv",
+    "geo": { "lat_col": "lat", "long_col": "long", "city_col": "city" },
+    "auth": { "required": false, "bootstrap_page_type": null, "token_header": null },
+    "endpoints": { "listings": null, "merchant_list": null, "menu": null },
+    "pagination": "page_number | offset | cursor | hexagon_fanout | next_button"
+  },
+  "pagination_surfaces": [
+    {
+      "surface": "restaurant_list | product_listings | category_listings",
+      "strategy": "page_number | offset | cursor | infinite_scroll | geo_fanout | next_button | none",
+      "endpoint": null,
+      "params": [],
+      "stable_headers": {},
+      "probe_log": ["static_detect", "scroll", "tab_click", "network_capture"],
+      "evidence": "<what triggered / what was absent>",
+      "pagination_warning": null
+    }
+  ],
+  "_notes": "## Discovery summary (markdown)\\n\\n- Site structure, sample URLs, popups, fetch_type notes\\n- (dhero) seeding strategy + input file\\n- **Next:** `/<next_phase_from_profile> scraper=<scraper_slug> project=<project>`\\n"
 }
 ```
 
@@ -314,7 +442,9 @@ Re-read the just-written `discovery-state.json` and confirm every Required field
 | Listings sample URL | `.sample_urls.listings` | Yes — non-null, non-empty |
 | popup_handling | `.popup_handling` | Yes — object (may be `{popups_encountered: false}`) |
 | fetch_type flag | `.fetch_requirements.initial_page_needs_browser` | Yes (boolean) |
+| Navigation API URL | `.api_config.navigation_api_url` | Yes — string or null; non-null means seeder uses this URL |
 | Human notes | `._notes` | Yes — non-empty string |
+| Pagination surfaces | `.pagination_surfaces` | Yes — array, ≥1 entry per list surface found; `strategy:"none"` requires non-empty `evidence` |
 
 **If any Required field is missing or null: STOP — do not proceed.**
 Fix the gap (re-navigate the site if needed) and rewrite `discovery-state.json`. Only continue when all Required fields are confirmed.
@@ -337,12 +467,17 @@ Fix the gap (re-navigate the site if needed) and rewrite `discovery-state.json`.
 
 **Update `{boilerplate.seeder_rb}`** (USE ABSOLUTE PATH):
 - Read existing file
-- Update `url:` field with site URL
+- **dhero:** branch on `discovery-state.json.seeding.strategy` — uncomment the matching block in the boilerplate seeder (`geo_grid`/`h3_hexagon`/`city_list`/`session_bootstrap`/`url_listings`), delete the others, and fill PLACEHOLDERs. For geo/city strategies, also create `input/<file>.csv` with the columns noted in STEP 8b. See `docs/workflows/phases/dhero-seeding-strategies.md`. For non-dhero projects, continue below.
+- **If `api_config.navigation_api_url` is non-null (API found in STEP 7a):**
+  - Set `url:` to `api_config.navigation_api_url` (not the homepage)
+  - Set `fetch_type: "standard"`
+  - No driver block needed
+- **Otherwise:** Update `url:` field with site URL
 - Update `page_type:` based on site structure:
   - has_categories → `"categories"`
   - else has_listings → `"listings"`
 - **Apply `[scope].categories` filter if present in profile**: when the profile defines `scope.categories`, only seed categories whose name contains one of those strings (case-insensitive). Skip all others and log each skipped category: `warn "SCOPE: skipping category '#{name}' — not in #{scope_categories.inspect}"`
-- Update `fetch_type:` based on `fetch_requirements.initial_page_needs_browser`:
+- If `api_config.navigation_api_url` is null: update `fetch_type:` based on `fetch_requirements.initial_page_needs_browser`:
   - true → `"browser"`
   - false → `"standard"`
 - If `api_config.requires_custom_headers: true`: add `headers: ReqHeaders::API_HEADERS` and `fetch_type: "standard"` to every `pages <<` entry that targets an API URL
@@ -352,7 +487,11 @@ Fix the gap (re-navigate the site if needed) and rewrite `discovery-state.json`.
 **Verify `config.yaml`** (USE ABSOLUTE PATH):
 - Read existing file
 - Verify parsers array includes all needed parsers from profile `boilerplate.parsers`
-- Usually no changes needed — boilerplate config.yaml is already complete
+- If `fetch_type: "browser"` is used anywhere: uncomment the `browser_fetcher_image` line:
+  ```yaml
+  browser_fetcher_image: gcr.io/answers-engine-cloud/fetch-browser-chrome1
+  ```
+- Otherwise no changes needed — boilerplate config.yaml is already complete
 
 ---
 
@@ -470,10 +609,12 @@ Follow the auto-chain execution steps in `docs/shared/agent-rules-gemini.md`.
 ## Completion Checklist
 
 - ✅ Boilerplate template copied to `generated_scraper/<scraper>/`
+- ✅ Fetch strategy probe completed (STEP 7) — framework JSON → network scan → DOM → reveal button; `api_config.navigation_api_url` set or confirmed null
 - ✅ `lib/headers.rb` updated with site URL
-- ✅ `seeder/seeder.rb` updated with site URL, page_type, fetch_type
-- ✅ `config.yaml` verified
+- ✅ `seeder/seeder.rb` updated — URL is navigation_api_url (if found) or homepage; fetch_type matches
+- ✅ `config.yaml` verified — `browser_fetcher_image` uncommented if any page uses fetch_type: browser
 - ✅ `discovery-state.json` written with non-empty `_notes` (REQUIRED for next phase)
+- ✅ Pagination surfaces probed (STEP 8c) — static detect + scroll + interaction + network; `pagination_surfaces` array written
 - ✅ Output contract validated (STEP 9b) — all Required fields confirmed non-null
 - ✅ `session-audit-html_scrape.json` written with accurate `tool_call_counts` (or `tool_call_counts_incomplete`)
 - ✅ `field-spec.json` copied to `.scraper-state/`

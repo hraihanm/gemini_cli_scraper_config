@@ -1,157 +1,285 @@
-# Knowledge Structure
+# Knowledge Structure & Context Architecture
 
-This document explains where different types of knowledge live in this repo and which agents read each layer.
-
----
-
-## The Two Agent Systems
-
-| Agent | Entry point | Purpose |
-|---|---|---|
-| **Claude Code** (you) | `CLAUDE.md` | Planning, code review, boilerplate authoring, cross-session memory |
-| **Gemini CLI** | `GEMINI.md` + TOML commands | Executing the scraping pipeline: discovery → parsers → testing |
-
-Both agents share the same codebase and `docs/` folder. Knowledge placed in `docs/shared/` is accessible to both.
+This document is the authoritative map of the system — what exists, where it lives,
+how an AI agent loads context, and how knowledge is prioritized when layers conflict.
 
 ---
 
-## Knowledge Layers
+## 1. Knowledge Pyramid — Priority Order
 
-### 1. Agent Persona / Session Rules
+Higher layers **constrain** lower ones. When layers conflict, the higher layer wins.
+The agent loads from bottom up: firmware is always present; everything else is loaded on demand.
 
-| File | Read by | Purpose |
-|---|---|---|
-| `CLAUDE.md` | Claude Code only | Mandatory rules: proposal lifecycle, parser conventions, tool protocols, memory pointer |
-| `GEMINI.md` | Gemini CLI only | Persona and competency frame: e-commerce expertise, PARSE methodology |
+```mermaid
+graph TD
+    subgraph L8["🔴 Runtime State  (most specific — current scraper)"]
+        RS1[".scraper-state/discovery-state.json\nWhat was found in Phase 1"]
+        RS2[".scraper-state/*-state.json\nFindings from each phase"]
+        RS3[".scraper-state/phase-status.json\nWhich phases are done"]
+        RS4[".scraper-state/reports/<phase>.md\nPhase audit reports"]
+    end
 
-These are loaded automatically at session start. **CLAUDE.md overrides Claude's defaults; GEMINI.md sets Gemini's expertise frame.** Neither is imported by the other agent.
+    subgraph L7["🟠 Project Specification  (this project type)"]
+        PS1["profiles/dhero.toml\nPipeline phases · template dir · QA config"]
+        PS2["profiles/dmart-dloc.toml"]
+        PS3["dhero-field-spec.json\n2 collections (locations + items) · 50 fields"]
+        PS4["field-spec.json\nproducts collection · 49 fields"]
+    end
 
----
+    subgraph L6["🟡 Project Output Schema  (what to extract + format)"]
+        OS1["docs/shared/dhero-output-schema.md\nlocations 28 fields · items 22 fields · wiring"]
+        OS2["docs/shared/output-hash-rules.md\ndmart/greenfield 53 fields · nil-explicit rule"]
+    end
 
-### 2. Shared Knowledge Base — `docs/shared/`
+    subgraph L5["🟢 Phase Workflow Docs  (how to execute each phase)"]
+        PH1["docs/workflows/phases/01-site-discovery.md"]
+        PH2["docs/workflows/phases/02-navigation-parser.md"]
+        PH3["docs/workflows/phases/03-restaurant-details.md  ← dhero"]
+        PH4["docs/workflows/phases/03-details-parser.md      ← dmart"]
+        PH5["docs/workflows/phases/04-menu-listings.md       ← dhero"]
+        PH6["docs/workflows/phases/05-menu-details.md        ← dhero"]
+        PH7["docs/workflows/phases/api-0*.md                 ← API pipeline"]
+    end
 
-Factual, reusable rules loaded into the Gemini agent via TOML `@`-imports and referenced from `CLAUDE.md`. Authoritative for both agents.
+    subgraph L4["🔵 DataHen Conventions & Best Practices"]
+        DH1["docs/shared/datahen-conventions.md\nParser top-level · GID · save_* · _log schema"]
+        DH2["docs/shared/datahen-ruby-parsers.md\nGems · rescue patterns · pagination · dedup"]
+        DH3["docs/shared/agent-best-practices.md\n10 production principles"]
+        DH4["docs/shared/phase-report-spec.md\nPhase audit format"]
+    end
 
-| File | Content |
-|---|---|
-| `agent-rules-gemini.md` | Browser tool safety, popup handling, error taxonomy (Transient / Structural / Data gap) |
-| `datahen-conventions.md` | V3 parser structure: top-level scripts, reserved variables (`pages`, `outputs`, `page`, `content`), state file logging, `_log` schema |
-| `datahen-ruby-parsers.md` | Pre-loaded gems (nokogiri, json, digest — never `require`), error handling patterns, `save_pages`/`save_outputs` flush rules, variable passing via `vars` |
-| `selector-discovery.md` | Browser tool ordering: `browser_grep_html` → `browser_inspect_element` → `browser_verify_selector` |
-| `output-hash-rules.md` | All 53 fields must appear; canonical field names; nil-field `warn` block |
-| `browser-mcp-tools.md` | Tool reference: discovery, network, expensive tools, cost justification line |
-| `playwright-refs.md` | Refs vs CSS selectors: never use snapshot refs in Ruby code |
-| `parser-testing.md` | `parser_tester` MCP tool usage, `test_files` array, quiet mode |
-| `greenfield-prompt-spec.md` | Greenfield pipeline: message-only field-spec, accepting various briefing formats |
+    subgraph L3["🔵 General Scraping Patterns"]
+        SP1["docs/shared/selector-discovery.md\ngrep → inspect → verify order"]
+        SP2["docs/shared/browser-mcp-tools.md\nTool reference + cost protocol"]
+        SP3["docs/shared/playwright-refs.md\nRefs vs CSS — never use ref in Ruby"]
+        SP4["docs/shared/pagination-network-exhaustion.md\nMandatory 3-probe sequence"]
+        SP5["docs/shared/parser-testing.md\nparser_tester usage · 3-sample rule"]
+    end
 
-**When to add here:** Any factual rule about how the scraper runtime works, how tools behave, or how output should be structured — if it applies across projects and both agents need it.
+    subgraph L2["⚪ Persona & Strategy  (always loaded)"]
+        PER["AGENTS.md\nE-commerce engineer persona · PARSE methodology\nBrowser-first analysis · Overlay handling"]
+    end
 
----
+    subgraph L1["🔴 Firmware  (always loaded — non-negotiable)"]
+        FW1["docs/shared/agent-rules-gemini.md\nError taxonomy · popup sequence · _log · auto-chain"]
+        FW2[".cursor/rules/firmware.mdc\nCursor-specific: absolute paths · scratch dirs · tool names"]
+    end
 
-### 3. Workflow Phase Instructions — `docs/workflows/phases/`
-
-Step-by-step instructions for each pipeline phase. Linked from `profiles/*.toml` → `pipeline.phases[].workflow`. Loaded by the Gemini agent at the start of each phase command.
-
-| File pattern | Pipeline |
-|---|---|
-| `01-site-discovery.md` | All projects — Phase 1 |
-| `02-navigation-parser.md` | All projects — Phase 2 |
-| `03-details-parser.md` | dmart-dloc — Phase 3 |
-| `03-restaurant-details.md` | dhero — Phase 3 |
-| `04-menu-parser.md` | dhero — Phase 4 |
-| `api-0*.md` | API pipeline variants |
-| `greenfield-0*.md` | Greenfield (message-driven) pipeline |
-
-**When to add here:** When a pipeline phase gets new required steps, decision points, or output format changes that the agent must follow at execution time.
-
----
-
-### 4. Project Pipeline Configuration — `profiles/*.toml`
-
-Defines the pipeline for each project type. The Gemini agent reads the relevant profile when a command is invoked.
-
-```
-profiles/dhero.toml         → 4-phase restaurant pipeline
-profiles/dmart-dloc.toml    → 3-phase product pipeline
-profiles/greenfield.toml    → message-driven pipeline
+    L8 --> L7 --> L6 --> L5 --> L4 --> L3 --> L2 --> L1
 ```
 
-Each profile specifies: boilerplate template location, default field spec path, and the ordered phase array with `workflow` file links.
-
-**When to edit:** When adding a new project type, changing phase order, or pointing to a new boilerplate template.
+**Priority rule:** A finding in `.scraper-state/` (runtime) overrides a general pattern from `docs/shared/`.
+A firmware rule (`agent-rules-gemini.md`) cannot be overridden by any lower layer.
 
 ---
 
-### 5. Field Specifications — `spec_full.json` / `field-spec.json`
+## 2. How a Skill Invocation Loads Context
 
-Canonical definition of what a scraper must output. Read by both agents.
+A slash command (e.g. `/restaurant-details-parser scraper=snoonu_kw project=dhero`) triggers this load chain:
 
-| File | Project | Collections |
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant AGY as AGY / Cursor
+    participant SK as Skill SKILL.md
+    participant PR as Profile .toml
+    participant PH as Phase Doc .md
+    participant KB as KB Spokes docs/shared/
+    participant ST as .scraper-state/
+
+    U->>AGY: /restaurant-details-parser scraper=snoonu_kw project=dhero
+    AGY->>AGY: prepend AGENTS.md (always)
+    AGY->>SK: load .agents/skills/restaurant-details-parser/SKILL.md
+    SK->>PR: read_file profiles/dhero.toml
+    PR-->>SK: pipeline phases · field_spec path · boilerplate dir
+    SK->>PH: read_file docs/workflows/phases/03-restaurant-details.md
+    PH-->>SK: step-by-step instructions
+    SK->>KB: read_file docs/shared/datahen-conventions.md (on demand)
+    SK->>KB: read_file docs/shared/dhero-output-schema.md (on demand)
+    SK->>ST: read_file .scraper-state/discovery-state.json
+    SK->>ST: read_file .scraper-state/navigation-selectors.json
+    ST-->>SK: findings from Phase 1 + Phase 2
+    SK->>AGY: execute phase (browser tools · write parsers · test)
+    AGY->>ST: write restaurant-details-state.json
+    AGY->>ST: write reports/03-restaurant-details.md
+```
+
+**What the skill itself does NOT contain:** The phase instructions. The skill is only a loader.
+The actual step-by-step is in the phase doc. Skills are thin; phase docs are thick.
+
+---
+
+## 3. Full System Map — Both Pipelines
+
+```mermaid
+graph LR
+    subgraph ENTRY["Entry Points"]
+        CLI["User types /command\nin AGY or Cursor"]
+    end
+
+    subgraph SKILLS["Skills layer\n.agents/skills/*/SKILL.md"]
+        S1["/scrape"]
+        S2["/navigation-parser"]
+        S3["/restaurant-details-parser\ndhero"]
+        S4["/details-parser\ndmart · greenfield"]
+        S5["/menu-listings-parser\ndhero"]
+        S6["/menu-parser\ndhero"]
+        S7["/qa"]
+        S8["/run-pipeline"]
+        S9["/export-chat"]
+    end
+
+    subgraph PROFILES["Project Config\nprofiles/"]
+        P1["dhero.toml\n5 phases · dhero-field-spec.json"]
+        P2["dmart-dloc.toml\n3 phases · field-spec.json"]
+        P3["greenfield.toml\n3 phases · message-driven"]
+    end
+
+    subgraph PHASES["Phase Docs\ndocs/workflows/phases/"]
+        PH1["01-site-discovery"]
+        PH2["02-navigation-parser"]
+        PH3A["03-restaurant-details\ndhero"]
+        PH3B["03-details-parser\ndmart"]
+        PH4["04-menu-listings\ndhero"]
+        PH5["05-menu-details\ndhero"]
+        API["api-01/02/03\ndmart API"]
+    end
+
+    subgraph SHARED["Shared Knowledge\ndocs/shared/"]
+        KB["KB_HUB.md\n(index)"]
+        DH["DataHen spokes"]
+        SCRP["Scraping pattern spokes"]
+        OUT["Output schema spokes"]
+    end
+
+    subgraph BOILERPLATE["Boilerplate Templates\ntemplates/"]
+        B1["dhero_boilerplate/\nseeder · lib/ · parsers × 4\nfinisher · input/geo.csv"]
+        B2["dmart_dloc_boilerplate/\nseeder · lib/ · parsers × 4\nfinisher"]
+        B3["greenfield_boilerplate/\nseeder · lib/ · parsers × 4\nfinisher"]
+    end
+
+    subgraph SCRAPER["Generated Scraper\ngenerated_scraper/<name>/"]
+        GEN["parsers/ · seeder/ · lib/\nconfig.yaml · README.md"]
+        STATE[".scraper-state/\nJSON state files\nreports/*.md"]
+        QA["GENERATION_REPORT.md\ndeploy-readiness.json\nspec.csv"]
+    end
+
+    CLI --> SKILLS
+    SKILLS --> PROFILES
+    PROFILES --> PHASES
+    PHASES --> SHARED
+    SHARED --> SCRAPER
+    BOILERPLATE -.->|"Phase 1 copies template"| SCRAPER
+    SKILLS -->|"/qa reads"| SCRAPER
+```
+
+---
+
+## 4. dmart vs dhero — Structure Comparison
+
+### Pipeline shape
+
+| | **dmart / greenfield** | **dhero** |
 |---|---|---|
-| `spec_full.json` | dhero | `locations` + `items` |
-| `field-spec.json` | dmart-dloc | `products` |
+| Phase count | 3 (HTML) or 3 (API) | 5 |
+| Data model | `products` (49 fields) | `locations` (28) + `items` (22) |
+| Seeding | URL from spec/message | Geo discovery (API or HTML) |
+| Phase 1 | site-discovery (shared) | site-discovery (shared) |
+| Phase 2 | navigation-parser (shared) | navigation-parser (shared) |
+| Phase 3 | details-parser | restaurant-details-parser |
+| Phase 4 | — | menu-listings-parser |
+| Phase 5 | — | menu-parser |
+| Field spec | `field-spec.json` (repo root) | `dhero-field-spec.json` (repo root) |
+| Output schema doc | `output-hash-rules.md` | `dhero-output-schema.md` |
 
-Each field entry declares: `name`, `collection`, `type`, `extraction_method` (`HARDCODED`, `INFER`, `FROM_VARS`, `FIND`, `DETERMINE`), `priority`, and `notes`.
+### Boilerplate `lib/` comparison
 
-**When to edit:** When the client pipeline schema changes — add/remove fields, change types, or clarify extraction rules.
+| File | dhero | dmart | greenfield |
+|---|---|---|---|
+| `headers.rb` | ✅ | ✅ | ✅ |
+| `helpers.rb` | ✅ | ✅ | ✅ |
+| `extraction.rb` | ✅ | ❌ | ❌ |
+| `site_config.rb` | ✅ | ❌ | ❌ |
+| `regex.rb` | ❌ | ✅ | ❌ |
 
----
+**Gap:** dhero has a proper extraction abstraction (`extraction.rb`); dmart/greenfield do not.
+Both have `helpers.rb` but the contents differ. No shared `lib/` is guaranteed between them.
 
-### 6. Planning & Decision Records — `docs/proposals/`
+### What is already consistent
 
-Dated proposal files capturing the *why* behind architecture decisions. Not enforced at runtime — for human and AI context only.
+- Same profile TOML schema (`[project]`, `[template]`, `[boilerplate]`, `[qa]`, `[[pipeline.phases]]`)
+- Same `[qa]` block wired to same `/qa` skill + `scraper_qa_report.rb`
+- Same CI gate (`scripts/ci-check.sh`) covers both
+- Same phase report format (`.scraper-state/reports/`)
+- Same deploy artifact set (`GENERATION_REPORT.md`, `deploy-readiness.json`, `spec.csv`, `README.md`)
+- Same skill invocation pattern for shared phases (Phase 1, Phase 2)
 
-Format: `docs/proposals/YYYY-MM-DD-<slug>.md`  
-Lifecycle: `Draft` → `In Progress` → `Done` (see CLAUDE.md for enforcement rules).
+### Standardization gaps
 
-**When to add:** Before any non-trivial implementation (see CLAUDE.md proposal lifecycle table).
-
----
-
-### 7. Claude Session Memory — `memory/` (Claude-only)
-
-Stored at: `C:\Users\Raihan\.claude\projects\D--DataHen-projects-gemini-cli-testbed\memory\`
-
-Claude Code's persistent cross-session memory. Types: `user`, `feedback`, `project`, `reference`. Indexed in `MEMORY.md`.
-
-**This is NOT shared with the Gemini agent.** If a fact discovered here needs to persist for Gemini (e.g. a gem is pre-loaded in v3), it must also be written into `docs/shared/`.
-
----
-
-### 8. Runtime State — `.scraper-state/` (Gemini runtime only)
-
-Created by the Gemini agent during a scraping run. Lives inside `generated_scraper/<name>/.scraper-state/`.
-
-| File | Content |
-|---|---|
-| `phase-status.json` | Which phases are complete |
-| `discovery-state.json` | Site structure findings + human `_notes` + `_log` decisions |
-| `browser-context.json` | Base URL, fetch type, auth headers |
-| `field-spec.json` | Per-scraper copy of field spec, updated with discovered selectors |
-
-**Not knowledge base files** — ephemeral per-run state. Not committed to the repo (covered by `.gitignore`).
-
----
-
-## Decision Guide — Where Does New Knowledge Go?
-
-| Type of knowledge | Goes in |
-|---|---|
-| "In v3, gem X is pre-loaded" | `docs/shared/datahen-ruby-parsers.md` |
-| "Always use tool A before tool B" | `docs/shared/selector-discovery.md` or `agent-rules-gemini.md` |
-| "Field Y must always be nil, not omitted" | `docs/shared/output-hash-rules.md` |
-| "New phase Z requires step..." | `docs/workflows/phases/<new-phase>.md` |
-| "Client pipeline now has field W" | `spec_full.json` or `field-spec.json` |
-| "We decided not to use approach X because..." | `docs/proposals/YYYY-MM-DD-<slug>.md` |
-| "Claude should remember user prefers X" | `memory/` (Claude only) |
-| "Claude should remember user prefers X AND Gemini needs it too" | `memory/` **AND** `docs/shared/` |
+| Gap | Current state | Suggested fix |
+|---|---|---|
+| Output schema doc naming | `output-hash-rules.md` (dmart) vs `dhero-output-schema.md` | Rename to `dmart-output-schema.md` for symmetry |
+| `lib/extraction.rb` | dhero only | Add equivalent to dmart boilerplate (JSON-LD + meta extraction helpers) |
+| `lib/site_config.rb` | dhero only | dmart equivalent: API base URL + fetch headers config |
+| `input/geo.csv` | dhero only (geography seeding) | Keep dhero-only — genuinely different seeding model |
+| Phase doc naming | `03-restaurant-details.md` vs `03-details-parser.md` | Consistent — `03-` prefix on both is fine |
+| Knowledge-structure.md | References old `spec_full.json` (wrong) | Fixed in this revision |
 
 ---
 
-## What Gemini Actually Reads (Load Order)
+## 5. Where New Knowledge Goes — Decision Table
 
-1. `GEMINI.md` — loaded as system prompt at CLI start
-2. The TOML for the invoked command (e.g. `dhero-details-parser.toml`) — imports `@docs/shared/*.md` files
-3. The `workflow` file linked from the active pipeline phase — step-by-step instructions
-4. Runtime state files from `.scraper-state/` — what was found in prior phases
-5. Field spec (`spec_full.json` or per-scraper `field-spec.json`) — what to extract
+| Type of knowledge | Goes in | Notes |
+|---|---|---|
+| Parser must be top-level, no `def parse` | `docs/shared/datahen-conventions.md` | DataHen V3 system fact |
+| Pre-loaded gem (e.g. `nokogiri`) | `docs/shared/datahen-ruby-parsers.md` | DataHen V3 system fact |
+| "Always grep before inspect" | `docs/shared/selector-discovery.md` | General scraping pattern |
+| New MCP tool | `docs/shared/browser-mcp-tools.md` | General scraping pattern |
+| "Field X must be nil, not omitted" | `docs/shared/output-hash-rules.md` (dmart) or `docs/shared/dhero-output-schema.md` | Output schema |
+| New phase step (all projects) | `docs/workflows/phases/<phase>.md` | Phase workflow |
+| New phase step (dhero only) | `docs/workflows/phases/03-restaurant-details.md` or `04-*.md` | Phase workflow |
+| New client field | `dhero-field-spec.json` or `field-spec.json` | Project spec |
+| New pipeline phase or project type | `profiles/<project>.toml` | Project config |
+| Why we decided X | `docs/proposals/YYYY-MM-DD-<slug>.md` | Decision record |
+| Claude-only cross-session fact | `memory/*.md` | Claude memory |
+
+---
+
+## 6. What Each Agent Actually Reads
+
+### Antigravity CLI / Cursor (scraping agent)
+
+```
+Session start:
+  AGENTS.md                          ← always (persona + operational rules)
+
+On skill invocation /scrape:
+  .agents/skills/scrape/SKILL.md     ← command loader
+  profiles/<project>.toml            ← pipeline + spec paths
+  docs/workflows/phases/01-*.md      ← phase instructions
+
+On demand (read_file by skill or phase doc):
+  docs/shared/agent-rules-gemini.md  ← firmware
+  docs/shared/datahen-conventions.md ← parser rules
+  docs/shared/KB_HUB.md → spokes    ← topic-specific knowledge
+  dhero-field-spec.json              ← what to extract
+
+At runtime:
+  generated_scraper/<name>/.scraper-state/*.json  ← prior phase findings
+```
+
+### Claude Code (this agent — planning + maintenance)
+
+```
+Session start:
+  CLAUDE.md                          ← mandatory rules (overrides defaults)
+  memory/MEMORY.md                   ← persistent project context
+
+On demand:
+  docs/knowledge-structure.md (this file)
+  docs/shared/*.md                   ← same spokes as AGY
+  docs/proposals/*.md                ← decision context
+```
+
+Both agents share `docs/shared/` as neutral ground.
+`CLAUDE.md` and `AGENTS.md` are agent-specific and not read by the other.

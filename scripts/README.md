@@ -209,9 +209,9 @@ The scripts provide these variables to your parser:
 - Test with a simple, accessible URL first
 - Check the error messages for specific issues
 
-## Integration with Gemini CLI
+## Integration with Antigravity CLI
 
-These scripts can be easily integrated with Gemini CLI by:
+These scripts can be easily integrated with Antigravity CLI (`agy`) by:
 
 1. **Adding to your project**: Place the scripts in your project's `scripts/` directory
 2. **Making them executable**: Ensure proper permissions

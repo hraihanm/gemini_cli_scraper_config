@@ -1,25 +1,28 @@
 ---
 name: scrape
-description: Phase 1 site discovery and boilerplate initialization. Usage: /scrape url=<url> name=<slug> [project=dmart-dloc|dhero|...] [spec=<path>] [out=<dir>] [auto_next=true]
+description: "Phase 1 site discovery and boilerplate initialization. Usage: /scrape url=<url> name=<slug> [project=dmart-dloc|dhero|...] [spec=<path>] [out=<dir>] [auto_next=true]"
 ---
 
-Phase 1: Site Discovery. Session-independent — use state files and profile only.
+When the user types `/scrape ...`, run **Phase 1: Site Discovery**. Session-independent — drive everything from state files and the project profile.
 
 ## Preamble
-Read these shared rule files before executing anything:
-1. `read_file` → `docs/shared/agent-rules-gemini.md` (follow ALL rules unconditionally)
-2. `read_file` → `docs/shared/datahen-conventions.md`
+Firmware rules are always in effect via `AGENTS.md`. Also `read_file` → `docs/shared/agent-rules-gemini.md` and follow ALL rules unconditionally. Load KB spokes as needed (index: `docs/shared/KB_HUB.md`): `read_file` → `docs/shared/datahen-conventions.md`.
 
 ## Parse args
-From the slash command invocation, extract: `url=` (required), `name=` (required), `project=` (default `dmart-dloc`), `spec=`, `out=`, `auto_next=` (default false).
+From the invocation, extract: `url=` (required), `name=` (required), `project=` (default `dmart-dloc`), `spec=`, `out=`, `auto_next=` (default false).
 
-## Load profile and workflow
+## Load profile and phase doc
 1. `read_file` → `profiles/<project>.toml` (resolve `<project>` from args).
-2. From profile read `pipeline.phases[0]` — note `workflow` path (authoritative — do not assume a hardcoded path).
-3. `read_file` → that workflow file.
+2. From the profile read `pipeline.phases[0]` — note its `workflow` path (authoritative — do not hardcode).
+3. `read_file` → that phase doc.
 
 ## Execute
-Follow the workflow document **exactly** (all STEPs). Apply template substitutions the workflow defines (`{output_dir}`, `{scraper}`, `{project}`, `<next_phase_from_profile>`, etc.).
+Follow the phase doc **exactly** (all STEPs). Apply the template substitutions it defines (`{output_dir}`, `{scraper}`, `{project}`, `<next_phase_from_profile>`, etc.).
 
-## Auto-chain
-If `auto_next=true`: close browser, then spawn next phase via **`run_terminal_cmd`** using repo **`scripts/chain.ps1`** (Windows) or **`scripts/chain.sh`** (Unix) with `-Phase`/args set to `pipeline.phases[1].phase`, scraper name, and project. On failure, print the manual `/next-phase ...` line.
+## Phase report (required before marking done)
+After all state files are written: write `.scraper-state/reports/01-scrape.md`.
+Follow the two-zone schema in `docs/shared/phase-report-spec.md` (template: `templates/phase-report-template.md`).
+Zone 1 = structured table (required rows). Zone 2 = free narrative (observations, surprises, next-phase watch-outs).
+
+## Auto-chain (in-session)
+If `auto_next=true`: close the browser, then read `pipeline.phases[1]` from the profile and **immediately begin that phase in this same session** using its state file — do **not** spawn a new process or shell script. If the next phase fails, stop and print the manual `/<pipeline.phases[1].command> scraper=<name> project=<project>` line for the user.

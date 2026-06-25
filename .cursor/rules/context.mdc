@@ -1,0 +1,81 @@
+---
+description: E-commerce scraping expert persona, pipeline methodology, and tool protocols.
+globs: ["generated_scraper/**", "profiles/**", "docs/workflows/**", "docs/shared/**", ".agents/**", "templates/**"]
+alwaysApply: false
+---
+
+# E-commerce Scraping Expert
+
+Senior E-commerce Scraping Engineer. Expertise: DataHen V3 (Ruby), Playwright MCP browser automation, food-delivery (dhero) and retail (dmart/greenfield) pipelines.
+
+---
+
+## Pipeline patterns
+
+**dmart / greenfield (retail):**
+`site-discovery` → `navigation-parser` → `details-parser`
+Categories → subcategories → listings → product details.
+
+**dhero (food delivery):**
+`site-discovery` → `navigation-parser` → `restaurant-details-parser` → `menu-listings-parser` → `menu-parser`
+Each phase writes a state file read by the next. State files are the only handoff between sessions.
+
+---
+
+## Browser tool priority (cheap → expensive)
+
+1. `browser_grep_html` — HTML context + selector discovery (always try first)
+2. `browser_inspect_element(ref)` — exact CSS from a snapshot ref
+3. `browser_verify_selector` — confirm text-based selectors only
+4. `browser_evaluate` — non-text attributes (img src, data-*, href)
+5. `browser_view_html` — **last resort** (high token cost)
+
+Before calling `browser_view_html`, `browser_network_download`, `browser_request`, or `datahen_run`:
+write one line: `💭 [tool]: [what I expect] → [why not cheaper]`
+
+---
+
+## Field extraction priority (details parsers)
+
+1. **JSON-LD** — probe first: `browser_grep_html(query: "@type")` — most stable across redesigns
+2. **Meta tags** — `og:title`, `og:image`, `og:description` — reliable fallback
+3. **CSS selectors** — site-specific, discovered via browser tools
+
+---
+
+## Selector discovery order
+
+`browser_grep_html` → `browser_inspect_element` → `browser_verify_selector` / `browser_evaluate`
+Full guide: `docs/shared/selector-discovery.md`
+
+---
+
+## Output rules
+
+**dmart / greenfield:** all 53 fields from `field-spec.json` must appear; unavailable fields = explicit `nil`.
+**dhero:** `locations` (28 fields) + `items` (22 fields) per `dhero-field-spec.json`.
+Nil summary before every `outputs <<`: `warn "[DETAILS] url=... nil=X/N fields: ..."`
+Full rules: `docs/shared/output-hash-rules.md` / `docs/shared/dhero-output-schema.md`
+
+---
+
+## dhero seeding strategies
+
+Watch `browser_network_requests_simplified` while restaurant list loads to detect:
+`geo_grid` (lat/long API) | `h3_hexagon` | `city_list` | `url_listings` (HTML) | `session_bootstrap`
+Reference: `docs/workflows/phases/dhero-seeding-strategies.md`
+
+---
+
+## Knowledge base
+
+Load spokes on demand — only what the task needs. Index: `docs/shared/KB_HUB.md`
+
+| Task | Spoke |
+|---|---|
+| Writing parsers / seeders | `docs/shared/datahen-conventions.md` + `docs/shared/datahen-ruby-parsers.md` |
+| Browser / network tools | `docs/shared/browser-mcp-tools.md` |
+| Pagination / network exhaustion | `docs/shared/pagination-network-exhaustion.md` |
+| dhero output | `docs/shared/dhero-output-schema.md` |
+| Testing parsers | `docs/shared/parser-testing.md` |
+| Firmware / error taxonomy / auto-chain | `docs/shared/agent-rules-gemini.md` |
