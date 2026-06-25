@@ -58,6 +58,9 @@ Sync-Tree -SourceRoot $WorkspaceSkills -DestinationRoot $GlobalSharedSkills
 Write-Host "Syncing skills to Cursor global path: $CursorSkills"
 Sync-Tree -SourceRoot $WorkspaceSkills -DestinationRoot $CursorSkills
 
+Write-Host "Syncing skills to Claude Code commands (.claude/commands/)..."
+& pwsh -NoProfile -File (Join-Path $PSScriptRoot "sync-to-claude.ps1")
+
 Write-Host "Staging plugin bundle: $PluginRoot"
 if (Test-Path -LiteralPath $PluginSkills) { Remove-Item -LiteralPath $PluginSkills -Recurse -Force }
 New-Item -ItemType Directory -Path $PluginSkills -Force | Out-Null
