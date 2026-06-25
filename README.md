@@ -25,7 +25,7 @@ GitHub: [hraihanm/gemini_cli_scraper_config](https://github.com/hraihanm/gemini_
 10. [Greenfield briefing formats](#greenfield-briefing-formats)
 11. [Generated scraper & state files](#generated-scraper--state-files)
 12. [Playwright MCP Mod tools](#playwright-mcp-mod-tools)
-13. [CI & quality checks](#ci--quality-checks)
+13. [Local quality checks](#local-quality-checks)
 14. [DataHen V3 conventions](#datahen-v3-parser-conventions)
 15. [Repository layout](#repository-layout)
 16. [Maintaining the system](#maintaining-the-system)
@@ -437,7 +437,41 @@ The knowledge base (`docs/shared/`) can be read by any agent with filesystem acc
 
 ## Usage
 
-Run commands from the **repository root**. `auto_next=true` chains phases in the same session; `/run-pipeline` runs the whole thing including the final QA gate.
+Run commands from the **repository root** in a fresh session per phase — each phase hands off to the next via state files, so **start a new chat for each phase** to avoid context exhaustion.
+
+### Recommended model per client
+
+| Client | Recommended model | Notes |
+|---|---|---|
+| **Cursor** | `claude-3.5-sonnet` (Composer) or Auto | Auto mode picks the right model per step; Composer for long phases |
+| **Antigravity CLI** | `Gemini 2.5 Flash` | Good balance of speed and quality for scraping workflows |
+| **Claude Code** | `claude-sonnet-4-6` or `claude-haiku-4-5` | Sonnet for complex sites; Haiku for simple or API-only pipelines |
+
+You don't need the most expensive model. Flash/Haiku handles most scraping phases well.
+
+### Start here: API first, HTML fallback
+
+**Always try the API approach first.** Most modern sites serve data via a JSON API — the network tab reveals it in seconds, and API scrapers are more reliable and cheaper to run than HTML parsers.
+
+```
+# Step 1: try API discovery first
+/api-scrape url=https://shop.example.com name=my-shop project=dmart-dloc
+
+# If the agent finds a clean JSON API → continue the API pipeline:
+/api-navigation-parser scraper=my-shop project=dmart-dloc
+/api-details-parser    scraper=my-shop project=dmart-dloc
+/qa                    scraper=my-shop project=dmart-dloc
+
+# If no usable API found → fall back to HTML:
+/scrape            url=https://shop.example.com name=my-shop project=dmart-dloc
+/navigation-parser scraper=my-shop project=dmart-dloc
+/details-parser    scraper=my-shop project=dmart-dloc
+/qa                scraper=my-shop project=dmart-dloc
+```
+
+Phase 1 (`/api-scrape` or `/scrape`) scans the network log first — if a JSON API is found, it records it in `discovery-state.json` and the HTML path is skipped automatically.
+
+---
 
 ### Greenfield pipeline (any site)
 
@@ -455,7 +489,7 @@ I need to extract:
 - is_available (boolean) — whether the item is in stock
 ```
 
-Then:
+Continue in separate sessions:
 
 ```
 /navigation-parser scraper=example-scraper project=greenfield
@@ -465,7 +499,7 @@ Then:
 
 ### Retail pipeline (dmart-dloc)
 
-Uses the canonical e-commerce field spec (`field-spec.json`).
+Uses the canonical e-commerce field spec (`field-spec.json`). Try `/api-scrape` first (see above); fall back to `/scrape` if no API found.
 
 ```
 /scrape            url=https://target-retail-site.com name=my-retail project=dmart-dloc
@@ -476,7 +510,7 @@ Uses the canonical e-commerce field spec (`field-spec.json`).
 
 ### Restaurant pipeline (dhero)
 
-Five phases producing `locations` (restaurants) + `items` (menu). dhero is **API-first** — Phase 1 picks a [seeding strategy](docs/workflows/phases/dhero-seeding-strategies.md) (geo grid / H3 hexagon / city list / session bootstrap / URL listings).
+Five phases producing `locations` (restaurants) + `items` (menu). dhero is **API-first by default** — Phase 1 picks a [seeding strategy](docs/workflows/phases/dhero-seeding-strategies.md) (geo grid / H3 hexagon / city list / session bootstrap / URL listings).
 
 ```
 /scrape                    url=https://food-delivery-site.com name=my-food project=dhero
@@ -484,30 +518,18 @@ Five phases producing `locations` (restaurants) + `items` (menu). dhero is **API
 /restaurant-details-parser scraper=my-food project=dhero
 /menu-listings-parser      scraper=my-food project=dhero
 /menu-parser               scraper=my-food project=dhero
-/dhero-qa                  scraper=my-food            # alias for /qa project=dhero
+/dhero-qa                  scraper=my-food
 ```
 
-### API pipeline
+### `/run-pipeline` — not recommended
 
-For sites served by a JSON API. (For dhero this is the default — its `kind=api` pipeline reuses the same five phases.)
+`/run-pipeline` chains all phases in a single session. **Context accumulates across phases and the model loses track of earlier decisions.** Run phases individually instead — each picks up from the state files written by the previous phase.
 
-```
-/api-scrape            url=https://api.example.com name=my-api project=dmart-dloc
-/api-navigation-parser scraper=my-api project=dmart-dloc
-/api-details-parser    scraper=my-api project=dmart-dloc
-/qa                    scraper=my-api project=dmart-dloc
-```
-
-### Full pipeline (one command)
-
-Runs every phase **and** the QA gate end-to-end in one session via state-file handoffs:
+If you do use it:
 
 ```
-/run-pipeline project=dhero url=https://food-delivery-site.com name=my-food
 /run-pipeline project=dmart-dloc url=https://shop.example.com name=my-shop kind=api
 ```
-
-`/run-pipeline` treats `deployable:false` from the QA gate as a pipeline failure — it surfaces the blocking issues and stops rather than reporting success.
 
 ---
 
@@ -561,8 +583,8 @@ All commands are skills in `.agents/skills/<name>/SKILL.md`. `project=` selects 
 | `/restaurant-details-parser` | 3 | Restaurant detail parser (dhero) |
 | `/menu-listings-parser` | 4 | Menu section listings (dhero) |
 | `/menu-parser` | 5 | Menu item parser (dhero) |
-| `/api-scrape`, `/api-navigation-parser`, `/api-details-parser` | 1–3 | API variants |
-| `/run-pipeline` | all | Run every phase + QA gate in one session |
+| `/api-scrape`, `/api-navigation-parser`, `/api-details-parser` | 1–3 | API variants — **try these first** |
+| `/run-pipeline` | all | All phases in one session — **not recommended** (context loss across phases) |
 
 ### QA & knowledge
 
@@ -694,16 +716,15 @@ Rebuild after editing the mod: `cd ..\playwright-mcp-mod && npm run build`. Veri
 
 ---
 
-## CI & quality checks
+## Local quality checks
 
-- **`scripts/ci-check.sh`** — deterministic, runs locally and in CI: `ruby -c` on all boilerplate parsers/libs + scripts, required-file existence, `profiles/*.toml` parse, field-spec JSON validity, SKILL frontmatter present.
-- **`.github/workflows/agent-ci.yml`** — runs `ci-check.sh` on push/PR plus a best-effort parser-eval job (`scripts/run_evals.rb` over any dir with `evals/`).
-- **`scripts/prompt-smoke.ps1`** — quick check that the canonical agent files exist.
+Run before committing to catch syntax errors and structural issues early:
 
 ```bash
-bash scripts/ci-check.sh          # before committing
-pwsh -File scripts/prompt-smoke.ps1
+bash scripts/ci-check.sh
 ```
+
+Checks: `ruby -c` on all boilerplate parsers/libs, required-file existence, `profiles/*.toml` parse, field-spec JSON validity, SKILL frontmatter present.
 
 ---
 
@@ -728,7 +749,7 @@ Generated parsers follow rules the agent enforces (full detail in `docs/shared/d
   mcp_config.json            # Antigravity MCP (playwright-mod)
   plugins/gemini_cli_testbed/plugin.json
 .cursor/mcp.json             # Cursor MCP (playwright-mod)
-.github/workflows/agent-ci.yml
+.claude/commands/            # Claude Code slash commands (generated by sync-to-claude)
 AGENTS.md                    # firmware (always prepended)
 CLAUDE.md                    # project instructions for Claude Code
 profiles/<project>.toml      # pipeline + [qa] gate per project
