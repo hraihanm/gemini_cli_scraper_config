@@ -134,9 +134,35 @@ After popups cleared: `browser_snapshot()` to understand page structure.
 
 ---
 
-## STEP 7: Detect Browser Fetch Requirements
+## STEP 7: Detect Fetch Strategy
 
-Check if category links (or the first page type for this project) are visible in DOM:
+**Rule: scan the network first — only fall back to browser DOM or reveal-button automation if no API is found.**
+
+### 7a: Network scan (mandatory first step)
+
+Immediately after navigate and popup handling, run:
+
+```javascript
+browser_network_requests_simplified()
+```
+
+Scan results for endpoints that serve navigation or category data. Indicators:
+- URL contains: `/api/`, `/v1/`–`/v5/`, `/navigation`, `/categories`, `/menu`, `/graphql`, `/search`
+- Content-type: `application/json`
+- Response body: an array or object containing category/navigation items
+
+**If a navigation/category API is found:**
+1. Note the full URL
+2. Proceed to **STEP 7b** (API Header Verification) with that URL
+3. Once verified: set `api_config.has_api: true`, `api_config.navigation_api_url: <url>`, `fetch_requirements.initial_page_needs_browser: false`
+4. The seeder will use this URL with `fetch_type: "standard"` (STEP 10 handles this)
+5. Skip 7b DOM inspection — proceed to STEP 8
+
+**If no navigation API found → proceed to 7b DOM inspection.**
+
+### 7b: DOM inspection (only when 7a found no navigation API)
+
+Check if category links are visible in DOM:
 
 ```javascript
 browser_evaluate(() => {
@@ -160,9 +186,13 @@ browser_evaluate(() => {
 })
 ```
 
-If not found → look for reveal buttons using `browser_snapshot()` and `browser_evaluate()`.
+If links are visible → `fetch_type: "standard"`, no driver needed. Proceed to STEP 8.
 
-If reveal button found: test click, verify content appears, document selector and puppeteer_code.
+If not visible → look for reveal buttons using `browser_snapshot()` and `browser_evaluate()`.
+
+### 7c: Reveal button (only when links are hidden)
+
+If a reveal button exists: test click, verify content appears, document selector and puppeteer_code. Set `fetch_type: "browser"`. **Puppeteer driver code only — no Playwright pseudo-selectors (`:has-text()`, `:text()`, `locator()`). Use XPath `page.$x()` or `page.evaluate()` for text-based clicks (see `docs/shared/datahen-conventions.md` → "Browser Fetch").**
 
 Document findings in `discovery-state.json` under `fetch_requirements`:
 - `initial_page_needs_browser`: true/false
@@ -324,6 +354,7 @@ Path: `{output_dir}/<scraper>/.scraper-state/discovery-state.json`
   },
   "api_config": {
     "has_api": false,
+    "navigation_api_url": null,
     "endpoint_pattern": null,
     "requires_custom_headers": false,
     "stable_headers": {},
@@ -374,6 +405,7 @@ Re-read the just-written `discovery-state.json` and confirm every Required field
 | Listings sample URL | `.sample_urls.listings` | Yes — non-null, non-empty |
 | popup_handling | `.popup_handling` | Yes — object (may be `{popups_encountered: false}`) |
 | fetch_type flag | `.fetch_requirements.initial_page_needs_browser` | Yes (boolean) |
+| Navigation API URL | `.api_config.navigation_api_url` | Yes — string or null; non-null means seeder uses this URL |
 | Human notes | `._notes` | Yes — non-empty string |
 | Pagination surfaces | `.pagination_surfaces` | Yes — array, ≥1 entry per list surface found; `strategy:"none"` requires non-empty `evidence` |
 
@@ -399,12 +431,16 @@ Fix the gap (re-navigate the site if needed) and rewrite `discovery-state.json`.
 **Update `{boilerplate.seeder_rb}`** (USE ABSOLUTE PATH):
 - Read existing file
 - **dhero:** branch on `discovery-state.json.seeding.strategy` — uncomment the matching block in the boilerplate seeder (`geo_grid`/`h3_hexagon`/`city_list`/`session_bootstrap`/`url_listings`), delete the others, and fill PLACEHOLDERs. For geo/city strategies, also create `input/<file>.csv` with the columns noted in STEP 8b. See `docs/workflows/phases/dhero-seeding-strategies.md`. For non-dhero projects, continue below.
-- Update `url:` field with site URL
+- **If `api_config.navigation_api_url` is non-null (API found in STEP 7a):**
+  - Set `url:` to `api_config.navigation_api_url` (not the homepage)
+  - Set `fetch_type: "standard"`
+  - No driver block needed
+- **Otherwise:** Update `url:` field with site URL
 - Update `page_type:` based on site structure:
   - has_categories → `"categories"`
   - else has_listings → `"listings"`
 - **Apply `[scope].categories` filter if present in profile**: when the profile defines `scope.categories`, only seed categories whose name contains one of those strings (case-insensitive). Skip all others and log each skipped category: `warn "SCOPE: skipping category '#{name}' — not in #{scope_categories.inspect}"`
-- Update `fetch_type:` based on `fetch_requirements.initial_page_needs_browser`:
+- If `api_config.navigation_api_url` is null: update `fetch_type:` based on `fetch_requirements.initial_page_needs_browser`:
   - true → `"browser"`
   - false → `"standard"`
 - If `api_config.requires_custom_headers: true`: add `headers: ReqHeaders::API_HEADERS` and `fetch_type: "standard"` to every `pages <<` entry that targets an API URL
@@ -414,7 +450,11 @@ Fix the gap (re-navigate the site if needed) and rewrite `discovery-state.json`.
 **Verify `config.yaml`** (USE ABSOLUTE PATH):
 - Read existing file
 - Verify parsers array includes all needed parsers from profile `boilerplate.parsers`
-- Usually no changes needed — boilerplate config.yaml is already complete
+- If `fetch_type: "browser"` is used anywhere: uncomment the `browser_fetcher_image` line:
+  ```yaml
+  browser_fetcher_image: gcr.io/answers-engine-cloud/fetch-browser-chrome1
+  ```
+- Otherwise no changes needed — boilerplate config.yaml is already complete
 
 ---
 
@@ -532,9 +572,10 @@ Follow the auto-chain execution steps in `docs/shared/agent-rules-gemini.md`.
 ## Completion Checklist
 
 - ✅ Boilerplate template copied to `generated_scraper/<scraper>/`
+- ✅ Network scan completed (STEP 7a) — `api_config.navigation_api_url` set or confirmed null
 - ✅ `lib/headers.rb` updated with site URL
-- ✅ `seeder/seeder.rb` updated with site URL, page_type, fetch_type
-- ✅ `config.yaml` verified
+- ✅ `seeder/seeder.rb` updated — URL is navigation_api_url (if found) or homepage; fetch_type matches
+- ✅ `config.yaml` verified — `browser_fetcher_image` uncommented if any page uses fetch_type: browser
 - ✅ `discovery-state.json` written with non-empty `_notes` (REQUIRED for next phase)
 - ✅ Pagination surfaces probed (STEP 8c) — static detect + scroll + interaction + network; `pagination_surfaces` array written
 - ✅ Output contract validated (STEP 9b) — all Required fields confirmed non-null
