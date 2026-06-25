@@ -340,6 +340,7 @@ See **`docs/shared/parser-testing.md`** for examples.
 ## DataHen parsers (summary)
 
 - Parsers are **top-level scripts** — no `def parse(...)`, no `pages = []` / `outputs = []` / reassignment of `page` or `content`.
+- **Ruby runtime: 2.6.5** — no Ruby 3+ syntax. Forbidden: endless methods (`def foo = bar`), numbered block params (`_1`), `Hash#except`, pattern matching (`in`).
 - Full rules: **`docs/shared/datahen-conventions.md`**.
 
 ---
