@@ -41,7 +41,9 @@ def autorecovery(reason: nil, status: nil)
   finish
 end
 
-def autorefetch(reason = nil) = autorecovery(reason: reason)
+def autorefetch(reason = nil)
+  autorecovery(reason: reason)
+end
 def autolimbo(reason = nil)
   puts "LIMBO: #{reason}" if ENV['debug']
   limbo page['gid']
